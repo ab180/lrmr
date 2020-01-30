@@ -15,7 +15,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1
 	github.com/thoas/go-funk v0.5.0 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
-	go.etcd.io/etcd v3.3.18+incompatible // indirect
+	go.etcd.io/etcd v3.3.18+incompatible
 	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/net v0.0.0-20191002035440-2ec189313ef0 // indirect
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
