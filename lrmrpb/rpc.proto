@@ -1,0 +1,35 @@
+syntax = "proto3";
+package lrmrpb;
+
+import "gogoproto/gogo.proto";
+
+service Node {
+    rpc Prepare (PrepareRequest) returns (EmptyResponse);
+    rpc Do (stream DoRequest) returns (EmptyResponse);
+}
+
+message Stage {
+    string TaskName = 1;
+    string JobID = 2;
+}
+
+message PrepareRequest {
+    Stage Current = 1;
+    Stage Next = 2;
+
+    repeated string Inputs = 3;
+    map<string, string> Outputs = 4;
+    map<string, bytes> Broadcasts = 5;
+}
+
+message DoRequest {
+    Stage Stage = 1;
+    repeated Input Inputs = 2;
+}
+
+message Input {
+    bytes Data = 1;
+}
+
+message EmptyResponse {
+}
