@@ -8,6 +8,34 @@ Less-Resilient MapReduce for Go.
  * Easily embeddable to existing applications
  * Uses **etcd** for cluster management / coordination
 
+```go
+package main
+
+import (
+	"context"
+	"github.com/therne/lrmr"
+	. "github.com/therne/lrmr/playground"
+)
+
+func main() {
+    m, err := lrmr.RunMaster()
+    if err != nil {
+        panic(err)
+    }
+    m.Start()
+    defer m.Stop()
+
+    job := lrmr.TextFile("./test-jsons/", m).
+        Then(DecodeNDJSON()).
+        GroupByKey("appID").
+        Then(CountByApp())
+
+    if err := job.Run(context.Background(), "GroupByApp"); err != nil {
+        panic(err)
+    }
+    println("Done!")
+}
+```
 
 ### Building and Developing lrmr
 
