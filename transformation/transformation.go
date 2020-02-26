@@ -3,7 +3,7 @@ package transformation
 import (
 	"fmt"
 	"github.com/modern-go/reflect2"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"reflect"
 	"strings"
@@ -19,8 +19,8 @@ type Transformation interface {
 	DescribeOutput() *OutputDesc
 
 	Setup(c Context) error
-	Run(row dataframe.Row, out output.Output) error
-	Teardown() error
+	Run(row lrdd.Row, out output.Output) error
+	Teardown(out output.Output) error
 }
 
 func typeOf(tf Transformation) reflect.Type {
@@ -36,8 +36,9 @@ func NameOf(tf Transformation) string {
 	return t.PkgPath() + "." + t.Name()
 }
 
-func Register(tf Transformation) {
+func Register(tf Transformation) bool {
 	registry[NameOf(tf)] = reflect2.Type2(typeOf(tf))
+	return true
 }
 
 func Lookup(id string) Transformation {

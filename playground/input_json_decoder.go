@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
 	"io"
@@ -24,7 +24,7 @@ func (l *ndjsonDecoder) DescribeOutput() *transformation.OutputDesc {
 	return transformation.DescribingOutput().WithRoundRobin()
 }
 
-func (l *ndjsonDecoder) Run(row dataframe.Row, out output.Output) error {
+func (l *ndjsonDecoder) Run(row lrdd.Row, out output.Output) error {
 	path := row["path"].(string)
 
 	file, err := os.Open(path)
@@ -41,7 +41,7 @@ func (l *ndjsonDecoder) Run(row dataframe.Row, out output.Output) error {
 			}
 			return err
 		}
-		msg := make(dataframe.Row)
+		msg := make(lrdd.Row)
 		if err := jsoniter.Unmarshal(line, &msg); err != nil {
 			return err
 		}

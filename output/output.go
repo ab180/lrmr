@@ -3,14 +3,14 @@ package output
 import (
 	"context"
 	"fmt"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
 
 type Output interface {
 	Connect(context.Context, *node.Node, *lrmrpb.Output) error
-	Send(dataframe.Row) error
+	Send(lrdd.Row) error
 	Flush() error
 	Close() error
 }
@@ -39,7 +39,7 @@ func (n *noneOutput) Connect(context.Context, *node.Node, *lrmrpb.Output) error 
 	return nil
 }
 
-func (n *noneOutput) Send(dataframe.Row) error {
+func (n *noneOutput) Send(lrdd.Row) error {
 	return nil
 }
 

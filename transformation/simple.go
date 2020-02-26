@@ -1,7 +1,7 @@
 package transformation
 
 import (
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 )
 
@@ -11,7 +11,7 @@ func (s *Simple) DescribeOutput() *OutputDesc {
 	panic("implement me")
 }
 
-func (s *Simple) Run(row dataframe.Row, out output.Output) error {
+func (s *Simple) Run(row lrdd.Row, out output.Output) error {
 	panic("implement me")
 }
 
@@ -19,7 +19,7 @@ func (s *Simple) Setup(c Context) error {
 	return nil
 }
 
-func (s *Simple) Teardown() error {
+func (s *Simple) Teardown(out output.Output) error {
 	return nil
 }
 

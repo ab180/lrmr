@@ -2,7 +2,7 @@ package playground
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
 	"sync/atomic"
@@ -20,12 +20,12 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 	return nil
 }
 
-func (cnt *Counter) Run(row dataframe.Row, out output.Output) error {
+func (cnt *Counter) Run(row lrdd.Row, out output.Output) error {
 	atomic.AddInt64(&cnt.counter, 1)
 	return nil
 }
 
-func (cnt *Counter) Teardown() error {
+func (cnt *Counter) Teardown(out output.Output) error {
 	fmt.Printf("Result Count: %d\n", cnt.counter)
 	return nil
 }

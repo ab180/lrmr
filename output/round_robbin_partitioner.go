@@ -3,7 +3,7 @@ package output
 import (
 	"context"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"sync/atomic"
@@ -42,7 +42,7 @@ func (r *RoundRobin) Connect(ctx context.Context, self *node.Node, desc *lrmrpb.
 	return nil
 }
 
-func (r *RoundRobin) Send(row dataframe.Row) error {
+func (r *RoundRobin) Send(row lrdd.Row) error {
 	index := (atomic.AddUint64(&r.count, 1) - 1) % uint64(len(r.hosts))
 	return r.connections[r.hosts[index]].send(row)
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
@@ -44,7 +44,7 @@ func (f *FiniteKeyPartitioner) Connect(ctx context.Context, self *node.Node, des
 	return nil
 }
 
-func (f *FiniteKeyPartitioner) Send(row dataframe.Row) error {
+func (f *FiniteKeyPartitioner) Send(row lrdd.Row) error {
 	key := row[f.keyColumn].(string)
 	host, ok := f.keyToHost[key]
 	if !ok {

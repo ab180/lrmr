@@ -6,7 +6,7 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
@@ -159,7 +159,7 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			}
 		}
 		for _, data := range req.Inputs {
-			inputRow := make(dataframe.Row)
+			inputRow := make(lrdd.Row)
 			if err := inputRow.Unmarshal(data); err != nil {
 				return w.abortTask(stream, taskRef, fmt.Errorf("unmarshal row: %v", err))
 			}

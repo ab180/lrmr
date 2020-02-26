@@ -3,7 +3,7 @@ package output
 import (
 	"context"
 	"fmt"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc"
@@ -48,7 +48,7 @@ func newConnection(ctx context.Context, self *node.Node, host, taskID string, bu
 	}, nil
 }
 
-func (c *connection) send(d dataframe.Row) error {
+func (c *connection) send(d lrdd.Row) error {
 	c.buffer = append(c.buffer, d.Marshal())
 	if len(c.buffer) == cap(c.buffer) {
 		return c.flush()

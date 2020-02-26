@@ -1,10 +1,6 @@
-package dataframe
+package lrdd
 
 import "github.com/vmihailenco/msgpack"
-
-const (
-	metadataKey = "__metadata"
-)
 
 type Row map[string]interface{}
 

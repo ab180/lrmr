@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/airbloc/logger"
 	"github.com/segmentio/fasthash/fnv1a"
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
@@ -44,7 +44,7 @@ func (hp *HashPartitioner) Connect(ctx context.Context, self *node.Node, desc *l
 	return nil
 }
 
-func (hp *HashPartitioner) Send(row dataframe.Row) error {
+func (hp *HashPartitioner) Send(row lrdd.Row) error {
 	key := row[hp.keyColumn].(string)
 
 	// uses Fowler–Noll–Vo hash to determine output shard
