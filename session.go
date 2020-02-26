@@ -20,17 +20,20 @@ type Result struct {
 type Session interface {
 	Broadcast(key string, val interface{})
 	AddStage(name string, tf transformation.Transformation) Session
+	Output(out *node.StageOutput) Session
+
 	Run(ctx context.Context, name string) error
 }
 
 type session struct {
 	master *Master
-
 	stages []*node.Stage
 	tfs    []transformation.Transformation
 
 	broadcasts           map[string]interface{}
 	serializedBroadcasts map[string][]byte
+
+	log logger.Logger
 }
 
 func NewSession(master *Master) Session {
@@ -38,6 +41,7 @@ func NewSession(master *Master) Session {
 		broadcasts:           make(map[string]interface{}),
 		serializedBroadcasts: make(map[string][]byte),
 		master:               master,
+		log:                  logger.New("session"),
 	}
 }
 
@@ -51,7 +55,8 @@ func (s *session) Broadcast(key string, val interface{}) {
 }
 
 func (s *session) AddStage(name string, tf transformation.Transformation) Session {
-	s.stages = append(s.stages, node.NewStage(name, transformation.NameOf(tf)))
+	defaultOut := node.DescribingStageOutput().WithRoundRobin()
+	s.stages = append(s.stages, node.NewStage(name, transformation.NameOf(tf), defaultOut))
 	s.tfs = append(s.tfs, tf)
 
 	data, err := msgpack.Marshal(tf)
@@ -70,7 +75,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 	}
 	s.master.jobTracker.AddJob(job)
 
-	jobLog := log.WithAttrs(logger.Attrs{"job": job.ID, "jobName": job.Name})
+	jobLog := s.log.WithAttrs(logger.Attrs{"job": job.ID, "jobName": job.Name})
 
 	workerConns := make(map[string]lrmrpb.WorkerClient, len(job.Workers))
 	for _, worker := range job.Workers {
@@ -89,7 +94,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 	for i := len(job.Stages) - 1; i >= 0; i-- {
 		stage := job.Stages[i]
 
-		out := s.tfs[i].DescribeOutput().Build(s.master.node, stage.Workers)
+		out := stage.Output.Build(s.master.node, stage.Workers)
 		out.Shards = prevOutput
 
 		req := &lrmrpb.CreateTaskRequest{
@@ -112,7 +117,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 				// plot twist ¯\_(ツ)_/¯
 				return fmt.Errorf("input stage output setup: %w", err)
 			}
-			continue
+			break
 		}
 
 		prevOutput = make([]*lrmrpb.HostMapping, len(stage.Workers))
@@ -159,4 +164,10 @@ func (s *session) createTask(worker *node.Node, req *lrmrpb.CreateTaskRequest) (
 		return "", err
 	}
 	return res.TaskID, nil
+}
+
+// Output sets last stage output with given output spec.
+func (s *session) Output(out *node.StageOutput) Session {
+	s.stages[len(s.stages)-1].Output = out
+	return s
 }

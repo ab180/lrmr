@@ -69,6 +69,7 @@ func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (
 	if err := m.crd.Batch(ctx, writes...); err != nil {
 		return nil, fmt.Errorf("etcd write: %w", err)
 	}
+	m.log.Info("Job created: {} ({})", j.Name, j.ID)
 	return j, nil
 }
 

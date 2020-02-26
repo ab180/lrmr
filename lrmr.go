@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/transformation"
 	"github.com/therne/lrmr/worker"
 	"os"
 	"os/signal"
@@ -13,10 +12,6 @@ import (
 var (
 	log = logger.New("lrmr")
 )
-
-func init() {
-	transformation.Register(&LocalInput{})
-}
 
 func RunMaster(optionalOpt ...*Options) (*Master, error) {
 	opt := DefaultOptions()
@@ -61,10 +56,4 @@ func RunWorker(optionalOpt ...*Options) error {
 	}
 	log.Info("Bye")
 	return nil
-}
-
-func Input(m *Master, path string) Session {
-	sess := NewSession(m)
-	sess.AddStage("__input", NewLocalInput(path))
-	return sess
 }

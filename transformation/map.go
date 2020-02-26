@@ -1,19 +1,20 @@
 package transformation
 
 import (
-	"github.com/therne/lrmr/dataframe"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 )
+
+type Mapper interface {
+	Transformation
+	Map(lrdd.Row) (lrdd.Row, error)
+}
 
 type Map struct {
 	Simple
 }
 
-func (m *Map) DescribeOutput() *OutputDesc {
-	return DescribingOutput().WithRoundRobin()
-}
-
-func (m *Map) Run(row dataframe.Row, out output.Output) error {
+func (m *Map) Run(row lrdd.Row, out output.Output) error {
 	result, err := m.Map(row)
 	if err != nil {
 		return err
@@ -21,6 +22,6 @@ func (m *Map) Run(row dataframe.Row, out output.Output) error {
 	return out.Send(result)
 }
 
-func (m *Map) Map(row dataframe.Row) (dataframe.Row, error) {
+func (m *Map) Map(row lrdd.Row) (lrdd.Row, error) {
 	panic("implement me")
 }

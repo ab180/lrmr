@@ -10,18 +10,15 @@ import (
 	"github.com/therne/lrmr/transformation"
 	"io"
 	"os"
+	"strconv"
 )
 
 type ndjsonDecoder struct {
 	transformation.Simple
 }
 
-func NewLDJSONDecoder() transformation.Transformation {
+func DecodeNDJSON() transformation.Transformation {
 	return &ndjsonDecoder{}
-}
-
-func (l *ndjsonDecoder) DescribeOutput() *transformation.OutputDesc {
-	return transformation.DescribingOutput().WithRoundRobin()
 }
 
 func (l *ndjsonDecoder) Run(row lrdd.Row, out output.Output) error {
@@ -45,6 +42,9 @@ func (l *ndjsonDecoder) Run(row lrdd.Row, out output.Output) error {
 		if err := jsoniter.Unmarshal(line, &msg); err != nil {
 			return err
 		}
+		data := msg["data"].(map[string]interface{})
+		app := data["app"].(map[string]interface{})
+		msg["appID"] = strconv.Itoa(int(app["appID"].(float64)))
 		if err := out.Send(msg); err != nil {
 			return err
 		}

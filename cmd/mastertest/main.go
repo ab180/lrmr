@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/playground"
+	. "github.com/therne/lrmr/playground"
 	"os"
 )
 
@@ -17,11 +17,12 @@ func main() {
 	m.Start()
 	defer m.Stop()
 
-	job := lrmr.Input(m, "/Users/vista/testdata/").
-		AddStage("asJson", playground.NewLDJSONDecoder()).
-		AddStage("counter", &playground.Counter{})
+	job := lrmr.TextFile("/Users/vista/testdata/", m).
+		Then(DecodeNDJSON()).
+		GroupByKey("appID").
+		Then(CountByApp())
 
-	if err := job.Run(context.TODO(), "CountTestData"); err != nil {
+	if err := job.Run(context.TODO(), "GroupByApp"); err != nil {
 		fmt.Println("error running job:", err.Error())
 		os.Exit(1)
 	}

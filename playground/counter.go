@@ -5,15 +5,15 @@ import (
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
-	"sync/atomic"
+	"sync"
 )
 
 type Counter struct {
-	counter int64
+	counter sync.Map
 }
 
-func (cnt *Counter) DescribeOutput() *transformation.OutputDesc {
-	return transformation.DescribingOutput().Nothing()
+func CountByApp() transformation.Transformation {
+	return &Counter{}
 }
 
 func (cnt *Counter) Setup(c transformation.Context) error {
@@ -21,11 +21,15 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 }
 
 func (cnt *Counter) Run(row lrdd.Row, out output.Output) error {
-	atomic.AddInt64(&cnt.counter, 1)
+	count, _ := cnt.counter.LoadOrStore(row["appID"], 0)
+	cnt.counter.Store(row["appID"], count.(int)+1)
 	return nil
 }
 
 func (cnt *Counter) Teardown(out output.Output) error {
-	fmt.Printf("Result Count: %d\n", cnt.counter)
+	cnt.counter.Range(func(key, value interface{}) bool {
+		fmt.Printf("App %v: %v\n", key, value)
+		return true
+	})
 	return nil
 }
