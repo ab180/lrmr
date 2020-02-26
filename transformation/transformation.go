@@ -16,8 +16,6 @@ type Context interface {
 }
 
 type Transformation interface {
-	DescribeOutput() *OutputDesc
-
 	Setup(c Context) error
 	Run(row lrdd.Row, out output.Output) error
 	Teardown(out output.Output) error

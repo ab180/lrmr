@@ -7,10 +7,6 @@ import (
 
 type Simple struct{}
 
-func (s *Simple) DescribeOutput() *OutputDesc {
-	panic("implement me")
-}
-
 func (s *Simple) Run(row lrdd.Row, out output.Output) error {
 	panic("implement me")
 }
