@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/airbloc/logger"
-	"github.com/json-iterator/go"
 	"github.com/therne/lrmr/coordinator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -27,20 +26,15 @@ const (
 type Manager interface {
 	RegisterSelf(ctx context.Context, n *Node) error
 	Self() *Node
-
 	Connect(ctx context.Context, n *Node) (*grpc.ClientConn, error)
-
-	GetInfo(ctx context.Context, nid string) (*Node, error)
 	List(ctx context.Context) ([]*Node, error)
-
 	UnregisterNode(nid string) error
-
-	JobScheduler
+	JobManager
 }
 
 type manager struct {
-	coordinator coordinator.Coordinator
-	self        *Node
+	crd  coordinator.Coordinator
+	self *Node
 
 	// gRPC options for inter-node communication
 	grpcOpts []grpc.DialOption
@@ -65,21 +59,17 @@ func NewManager(crd coordinator.Coordinator, opt *ManagerOptions) (Manager, erro
 	}
 
 	return &manager{
-		coordinator: crd,
-		grpcOpts:    grpcOpts,
-		log:         log,
-		opt:         opt,
+		crd:      crd,
+		grpcOpts: grpcOpts,
+		log:      log,
+		opt:      opt,
 	}, nil
 }
 
 // RegisterSelf is used for registering information of this node to etcd.
 func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
-	val, err := jsoniter.MarshalToString(n)
-	if err != nil {
-		return err
-	}
 	key := path.Join(nodeNs, n.ID)
-	if err := m.coordinator.Put(ctx, key, val); err != nil {
+	if err := m.crd.Put(ctx, key, n); err != nil {
 		return fmt.Errorf("failed to write to etcd: %v", err)
 	}
 	m.self = n
@@ -96,53 +86,25 @@ func (m *manager) Connect(ctx context.Context, n *Node) (*grpc.ClientConn, error
 	return grpc.DialContext(ctx, n.Host, m.grpcOpts...)
 }
 
-func (m *manager) GetInfo(ctx context.Context, nid string) (*Node, error) {
-	if len(nid) == 0 {
-		return nil, ErrNodeIDEmpty
-	}
-	if nid == m.self.ID {
-		return m.self, nil
-	}
-
-	var n Node
-	if err := m.coordinator.Get(ctx, path.Join(nodeNs, nid), &n); err != nil {
-		if err == coordinator.ErrNotFound {
-			return nil, ErrNodeNotFound
-		}
-		return nil, fmt.Errorf("get node info: %v", err)
-	}
-	resourceUtilization, err := m.calculateResourceUtilization(ctx, nid)
-	if err != nil {
-		return nil, fmt.Errorf("unable to calculate workload: %v", err)
-	}
-	n.ResourceUtilization = resourceUtilization
-	return &n, nil
-}
-
 func (m *manager) List(ctx context.Context) ([]*Node, error) {
-	items, err := m.coordinator.Scan(ctx, nodeNs)
+	items, err := m.crd.Scan(ctx, nodeNs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from etcd: %v", err)
 	}
-
 	nn := make([]*Node, len(items))
-	for _, item := range items {
+	for i, item := range items {
 		var n Node
 		if err := item.Unmarshal(&n); err != nil {
 			return nil, fmt.Errorf("unable to unmarshal one of the node info: %v", err)
 		}
-		n.ResourceUtilization, err = m.calculateResourceUtilization(ctx, n.ID)
-		if err != nil {
-			return nil, fmt.Errorf("unable to calculate workload: %v", err)
-		}
-		nn = append(nn, &n)
+		nn[i] = &n
 	}
 	return nn, nil
 }
 
 func (m *manager) UnregisterNode(nid string) error {
 	key := path.Join(nodeNs, nid)
-	if _, err := m.coordinator.Delete(context.Background(), key); err != nil {
+	if _, err := m.crd.Delete(context.Background(), key); err != nil {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
 	return nil
