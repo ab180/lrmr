@@ -8,6 +8,7 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -27,16 +28,137 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+type Output_Type int32
+
+const (
+	Output_NONE        Output_Type = 0
+	Output_PARTITIONER Output_Type = 1
+	Output_COLLECTOR   Output_Type = 2
+	Output_ROUND_ROBIN Output_Type = 3
+)
+
+var Output_Type_name = map[int32]string{
+	0: "NONE",
+	1: "PARTITIONER",
+	2: "COLLECTOR",
+	3: "ROUND_ROBIN",
+}
+
+var Output_Type_value = map[string]int32{
+	"NONE":        0,
+	"PARTITIONER": 1,
+	"COLLECTOR":   2,
+	"ROUND_ROBIN": 3,
+}
+
+func (x Output_Type) String() string {
+	return proto.EnumName(Output_Type_name, int32(x))
+}
+
+func (Output_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{2, 0}
+}
+
+type Partitioner_Type int32
+
+const (
+	// HashPartitioner will determine output shard of the partition
+	// by calculating `hash(partitionKey) modulo shardCount.`
+	Partitioner_HASH Partitioner_Type = 0
+	// FiniteKeyPartitioner assigns partition keys to each shard and
+	// will send an output partition to its designated shard.
+	Partitioner_FINITE_KEY Partitioner_Type = 1
+)
+
+var Partitioner_Type_name = map[int32]string{
+	0: "HASH",
+	1: "FINITE_KEY",
+}
+
+var Partitioner_Type_value = map[string]int32{
+	"HASH":       0,
+	"FINITE_KEY": 1,
+}
+
+func (x Partitioner_Type) String() string {
+	return proto.EnumName(Partitioner_Type_name, int32(x))
+}
+
+func (Partitioner_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{3, 0}
+}
+
+type CreateTaskRequest struct {
+	Stage      *Stage            `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
+	Output     *Output           `protobuf:"bytes,2,opt,name=output,proto3" json:"output,omitempty"`
+	Broadcasts map[string][]byte `protobuf:"bytes,3,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *CreateTaskRequest) Reset()         { *m = CreateTaskRequest{} }
+func (m *CreateTaskRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateTaskRequest) ProtoMessage()    {}
+func (*CreateTaskRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{0}
+}
+func (m *CreateTaskRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateTaskRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateTaskRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateTaskRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateTaskRequest.Merge(m, src)
+}
+func (m *CreateTaskRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateTaskRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateTaskRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateTaskRequest proto.InternalMessageInfo
+
+func (m *CreateTaskRequest) GetStage() *Stage {
+	if m != nil {
+		return m.Stage
+	}
+	return nil
+}
+
+func (m *CreateTaskRequest) GetOutput() *Output {
+	if m != nil {
+		return m.Output
+	}
+	return nil
+}
+
+func (m *CreateTaskRequest) GetBroadcasts() map[string][]byte {
+	if m != nil {
+		return m.Broadcasts
+	}
+	return nil
+}
+
 type Stage struct {
-	TaskName string `protobuf:"bytes,1,opt,name=TaskName,proto3" json:"TaskName,omitempty"`
-	JobID    string `protobuf:"bytes,2,opt,name=JobID,proto3" json:"JobID,omitempty"`
+	JobID          string `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
+	Name           string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Transformation string `protobuf:"bytes,3,opt,name=transformation,proto3" json:"transformation,omitempty"`
 }
 
 func (m *Stage) Reset()         { *m = Stage{} }
 func (m *Stage) String() string { return proto.CompactTextString(m) }
 func (*Stage) ProtoMessage()    {}
 func (*Stage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{0}
+	return fileDescriptor_f4e130d388338f6d, []int{1}
 }
 func (m *Stage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -65,13 +187,6 @@ func (m *Stage) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Stage proto.InternalMessageInfo
 
-func (m *Stage) GetTaskName() string {
-	if m != nil {
-		return m.TaskName
-	}
-	return ""
-}
-
 func (m *Stage) GetJobID() string {
 	if m != nil {
 		return m.JobID
@@ -79,99 +194,41 @@ func (m *Stage) GetJobID() string {
 	return ""
 }
 
-type PrepareRequest struct {
-	Current    *Stage            `protobuf:"bytes,1,opt,name=Current,proto3" json:"Current,omitempty"`
-	Next       *Stage            `protobuf:"bytes,2,opt,name=Next,proto3" json:"Next,omitempty"`
-	Inputs     []string          `protobuf:"bytes,3,rep,name=Inputs,proto3" json:"Inputs,omitempty"`
-	Outputs    map[string]string `protobuf:"bytes,4,rep,name=Outputs,proto3" json:"Outputs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Broadcasts map[string][]byte `protobuf:"bytes,5,rep,name=Broadcasts,proto3" json:"Broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-}
-
-func (m *PrepareRequest) Reset()         { *m = PrepareRequest{} }
-func (m *PrepareRequest) String() string { return proto.CompactTextString(m) }
-func (*PrepareRequest) ProtoMessage()    {}
-func (*PrepareRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{1}
-}
-func (m *PrepareRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *PrepareRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PrepareRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *PrepareRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PrepareRequest.Merge(m, src)
-}
-func (m *PrepareRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *PrepareRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_PrepareRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PrepareRequest proto.InternalMessageInfo
-
-func (m *PrepareRequest) GetCurrent() *Stage {
+func (m *Stage) GetName() string {
 	if m != nil {
-		return m.Current
+		return m.Name
 	}
-	return nil
+	return ""
 }
 
-func (m *PrepareRequest) GetNext() *Stage {
+func (m *Stage) GetTransformation() string {
 	if m != nil {
-		return m.Next
+		return m.Transformation
 	}
-	return nil
+	return ""
 }
 
-func (m *PrepareRequest) GetInputs() []string {
-	if m != nil {
-		return m.Inputs
-	}
-	return nil
+type Output struct {
+	Type Output_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Output_Type" json:"type,omitempty"`
+	// shards contains an ordered mapping of output hostname to its task ID.
+	// On COLLECTOR, it must contain hostnames of master nodes only.
+	Shards      []*HostMapping `protobuf:"bytes,2,rep,name=shards,proto3" json:"shards,omitempty"`
+	Partitioner *Partitioner   `protobuf:"bytes,3,opt,name=partitioner,proto3" json:"partitioner,omitempty"`
+	Collector   *Collector     `protobuf:"bytes,4,opt,name=collector,proto3" json:"collector,omitempty"`
 }
 
-func (m *PrepareRequest) GetOutputs() map[string]string {
-	if m != nil {
-		return m.Outputs
-	}
-	return nil
-}
-
-func (m *PrepareRequest) GetBroadcasts() map[string][]byte {
-	if m != nil {
-		return m.Broadcasts
-	}
-	return nil
-}
-
-type DoRequest struct {
-	Stage  *Stage   `protobuf:"bytes,1,opt,name=Stage,proto3" json:"Stage,omitempty"`
-	Inputs []*Input `protobuf:"bytes,2,rep,name=Inputs,proto3" json:"Inputs,omitempty"`
-}
-
-func (m *DoRequest) Reset()         { *m = DoRequest{} }
-func (m *DoRequest) String() string { return proto.CompactTextString(m) }
-func (*DoRequest) ProtoMessage()    {}
-func (*DoRequest) Descriptor() ([]byte, []int) {
+func (m *Output) Reset()         { *m = Output{} }
+func (m *Output) String() string { return proto.CompactTextString(m) }
+func (*Output) ProtoMessage()    {}
+func (*Output) Descriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{2}
 }
-func (m *DoRequest) XXX_Unmarshal(b []byte) error {
+func (m *Output) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *DoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *Output) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_DoRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_Output.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -181,48 +238,327 @@ func (m *DoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *DoRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DoRequest.Merge(m, src)
+func (m *Output) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Output.Merge(m, src)
 }
-func (m *DoRequest) XXX_Size() int {
+func (m *Output) XXX_Size() int {
 	return m.Size()
 }
-func (m *DoRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DoRequest.DiscardUnknown(m)
+func (m *Output) XXX_DiscardUnknown() {
+	xxx_messageInfo_Output.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DoRequest proto.InternalMessageInfo
+var xxx_messageInfo_Output proto.InternalMessageInfo
 
-func (m *DoRequest) GetStage() *Stage {
+func (m *Output) GetType() Output_Type {
 	if m != nil {
-		return m.Stage
+		return m.Type
+	}
+	return Output_NONE
+}
+
+func (m *Output) GetShards() []*HostMapping {
+	if m != nil {
+		return m.Shards
 	}
 	return nil
 }
 
-func (m *DoRequest) GetInputs() []*Input {
+func (m *Output) GetPartitioner() *Partitioner {
+	if m != nil {
+		return m.Partitioner
+	}
+	return nil
+}
+
+func (m *Output) GetCollector() *Collector {
+	if m != nil {
+		return m.Collector
+	}
+	return nil
+}
+
+type Partitioner struct {
+	Type Partitioner_Type `protobuf:"varint,2,opt,name=type,proto3,enum=lrmrpb.Partitioner_Type" json:"type,omitempty"`
+	// PartitionKey is a column name of the key of the partition.
+	PartitionKeyColumn string `protobuf:"bytes,3,opt,name=partitionKeyColumn,proto3" json:"partitionKeyColumn,omitempty"`
+	// PartitionKeyToHost contains mapping of partition key to worker node host.
+	// Used only when the type is FINITE_KEY.
+	PartitionKeyToHost map[string]string `protobuf:"bytes,4,rep,name=partitionKeyToHost,proto3" json:"partitionKeyToHost,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *Partitioner) Reset()         { *m = Partitioner{} }
+func (m *Partitioner) String() string { return proto.CompactTextString(m) }
+func (*Partitioner) ProtoMessage()    {}
+func (*Partitioner) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{3}
+}
+func (m *Partitioner) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Partitioner) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Partitioner.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Partitioner) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Partitioner.Merge(m, src)
+}
+func (m *Partitioner) XXX_Size() int {
+	return m.Size()
+}
+func (m *Partitioner) XXX_DiscardUnknown() {
+	xxx_messageInfo_Partitioner.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Partitioner proto.InternalMessageInfo
+
+func (m *Partitioner) GetType() Partitioner_Type {
+	if m != nil {
+		return m.Type
+	}
+	return Partitioner_HASH
+}
+
+func (m *Partitioner) GetPartitionKeyColumn() string {
+	if m != nil {
+		return m.PartitionKeyColumn
+	}
+	return ""
+}
+
+func (m *Partitioner) GetPartitionKeyToHost() map[string]string {
+	if m != nil {
+		return m.PartitionKeyToHost
+	}
+	return nil
+}
+
+type Collector struct {
+	// DriverHost is a destination host for the outputs. (usually master node)
+	DriverHost string `protobuf:"bytes,1,opt,name=driverHost,proto3" json:"driverHost,omitempty"`
+}
+
+func (m *Collector) Reset()         { *m = Collector{} }
+func (m *Collector) String() string { return proto.CompactTextString(m) }
+func (*Collector) ProtoMessage()    {}
+func (*Collector) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{4}
+}
+func (m *Collector) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Collector) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Collector.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Collector) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Collector.Merge(m, src)
+}
+func (m *Collector) XXX_Size() int {
+	return m.Size()
+}
+func (m *Collector) XXX_DiscardUnknown() {
+	xxx_messageInfo_Collector.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Collector proto.InternalMessageInfo
+
+func (m *Collector) GetDriverHost() string {
+	if m != nil {
+		return m.DriverHost
+	}
+	return ""
+}
+
+type HostMapping struct {
+	Host   string `protobuf:"bytes,1,opt,name=Host,proto3" json:"Host,omitempty"`
+	TaskID string `protobuf:"bytes,2,opt,name=taskID,proto3" json:"taskID,omitempty"`
+}
+
+func (m *HostMapping) Reset()         { *m = HostMapping{} }
+func (m *HostMapping) String() string { return proto.CompactTextString(m) }
+func (*HostMapping) ProtoMessage()    {}
+func (*HostMapping) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{5}
+}
+func (m *HostMapping) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *HostMapping) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_HostMapping.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *HostMapping) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HostMapping.Merge(m, src)
+}
+func (m *HostMapping) XXX_Size() int {
+	return m.Size()
+}
+func (m *HostMapping) XXX_DiscardUnknown() {
+	xxx_messageInfo_HostMapping.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_HostMapping proto.InternalMessageInfo
+
+func (m *HostMapping) GetHost() string {
+	if m != nil {
+		return m.Host
+	}
+	return ""
+}
+
+func (m *HostMapping) GetTaskID() string {
+	if m != nil {
+		return m.TaskID
+	}
+	return ""
+}
+
+type CreateTaskResponse struct {
+	TaskID string `protobuf:"bytes,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
+}
+
+func (m *CreateTaskResponse) Reset()         { *m = CreateTaskResponse{} }
+func (m *CreateTaskResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateTaskResponse) ProtoMessage()    {}
+func (*CreateTaskResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{6}
+}
+func (m *CreateTaskResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateTaskResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateTaskResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateTaskResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateTaskResponse.Merge(m, src)
+}
+func (m *CreateTaskResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateTaskResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateTaskResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateTaskResponse proto.InternalMessageInfo
+
+func (m *CreateTaskResponse) GetTaskID() string {
+	if m != nil {
+		return m.TaskID
+	}
+	return ""
+}
+
+type RunRequest struct {
+	From   *Node    `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	TaskID string   `protobuf:"bytes,2,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	Inputs [][]byte `protobuf:"bytes,3,rep,name=inputs,proto3" json:"inputs,omitempty"`
+}
+
+func (m *RunRequest) Reset()         { *m = RunRequest{} }
+func (m *RunRequest) String() string { return proto.CompactTextString(m) }
+func (*RunRequest) ProtoMessage()    {}
+func (*RunRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{7}
+}
+func (m *RunRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RunRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RunRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RunRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RunRequest.Merge(m, src)
+}
+func (m *RunRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RunRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RunRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RunRequest proto.InternalMessageInfo
+
+func (m *RunRequest) GetFrom() *Node {
+	if m != nil {
+		return m.From
+	}
+	return nil
+}
+
+func (m *RunRequest) GetTaskID() string {
+	if m != nil {
+		return m.TaskID
+	}
+	return ""
+}
+
+func (m *RunRequest) GetInputs() [][]byte {
 	if m != nil {
 		return m.Inputs
 	}
 	return nil
 }
 
-type Input struct {
-	Data []byte `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
+type Node struct {
+	Host string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	ID   string `protobuf:"bytes,2,opt,name=ID,proto3" json:"ID,omitempty"`
 }
 
-func (m *Input) Reset()         { *m = Input{} }
-func (m *Input) String() string { return proto.CompactTextString(m) }
-func (*Input) ProtoMessage()    {}
-func (*Input) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3}
+func (m *Node) Reset()         { *m = Node{} }
+func (m *Node) String() string { return proto.CompactTextString(m) }
+func (*Node) ProtoMessage()    {}
+func (*Node) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{8}
 }
-func (m *Input) XXX_Unmarshal(b []byte) error {
+func (m *Node) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Input) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *Node) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Input.Marshal(b, m, deterministic)
+		return xxx_messageInfo_Node.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -232,101 +568,97 @@ func (m *Input) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Input) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Input.Merge(m, src)
+func (m *Node) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Node.Merge(m, src)
 }
-func (m *Input) XXX_Size() int {
+func (m *Node) XXX_Size() int {
 	return m.Size()
 }
-func (m *Input) XXX_DiscardUnknown() {
-	xxx_messageInfo_Input.DiscardUnknown(m)
+func (m *Node) XXX_DiscardUnknown() {
+	xxx_messageInfo_Node.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Input proto.InternalMessageInfo
+var xxx_messageInfo_Node proto.InternalMessageInfo
 
-func (m *Input) GetData() []byte {
+func (m *Node) GetHost() string {
 	if m != nil {
-		return m.Data
+		return m.Host
 	}
-	return nil
+	return ""
 }
 
-type EmptyResponse struct {
-}
-
-func (m *EmptyResponse) Reset()         { *m = EmptyResponse{} }
-func (m *EmptyResponse) String() string { return proto.CompactTextString(m) }
-func (*EmptyResponse) ProtoMessage()    {}
-func (*EmptyResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{4}
-}
-func (m *EmptyResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *EmptyResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_EmptyResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+func (m *Node) GetID() string {
+	if m != nil {
+		return m.ID
 	}
+	return ""
 }
-func (m *EmptyResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_EmptyResponse.Merge(m, src)
-}
-func (m *EmptyResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *EmptyResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_EmptyResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_EmptyResponse proto.InternalMessageInfo
 
 func init() {
+	proto.RegisterEnum("lrmrpb.Output_Type", Output_Type_name, Output_Type_value)
+	proto.RegisterEnum("lrmrpb.Partitioner_Type", Partitioner_Type_name, Partitioner_Type_value)
+	proto.RegisterType((*CreateTaskRequest)(nil), "lrmrpb.CreateTaskRequest")
+	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.CreateTaskRequest.BroadcastsEntry")
 	proto.RegisterType((*Stage)(nil), "lrmrpb.Stage")
-	proto.RegisterType((*PrepareRequest)(nil), "lrmrpb.PrepareRequest")
-	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.PrepareRequest.BroadcastsEntry")
-	proto.RegisterMapType((map[string]string)(nil), "lrmrpb.PrepareRequest.OutputsEntry")
-	proto.RegisterType((*DoRequest)(nil), "lrmrpb.DoRequest")
-	proto.RegisterType((*Input)(nil), "lrmrpb.Input")
-	proto.RegisterType((*EmptyResponse)(nil), "lrmrpb.EmptyResponse")
+	proto.RegisterType((*Output)(nil), "lrmrpb.Output")
+	proto.RegisterType((*Partitioner)(nil), "lrmrpb.Partitioner")
+	proto.RegisterMapType((map[string]string)(nil), "lrmrpb.Partitioner.PartitionKeyToHostEntry")
+	proto.RegisterType((*Collector)(nil), "lrmrpb.Collector")
+	proto.RegisterType((*HostMapping)(nil), "lrmrpb.HostMapping")
+	proto.RegisterType((*CreateTaskResponse)(nil), "lrmrpb.CreateTaskResponse")
+	proto.RegisterType((*RunRequest)(nil), "lrmrpb.RunRequest")
+	proto.RegisterType((*Node)(nil), "lrmrpb.Node")
 }
 
 func init() { proto.RegisterFile("lrmrpb/rpc.proto", fileDescriptor_f4e130d388338f6d) }
 
 var fileDescriptor_f4e130d388338f6d = []byte{
-	// 408 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x52, 0x4f, 0x8f, 0xd2, 0x40,
-	0x14, 0xa7, 0xff, 0x40, 0x1e, 0x20, 0x38, 0x41, 0xd2, 0xd4, 0xa4, 0xc1, 0x12, 0xb5, 0xa7, 0x62,
-	0xf0, 0x82, 0x24, 0x5c, 0xb0, 0x98, 0xe0, 0x01, 0x4d, 0x35, 0xf1, 0x3c, 0xc0, 0x84, 0x03, 0xd0,
-	0xa9, 0xd3, 0xa9, 0x91, 0x6f, 0xe1, 0xc7, 0xf2, 0xc8, 0xd1, 0xe3, 0x06, 0xbe, 0xc3, 0x9e, 0x37,
-	0x4c, 0x3b, 0x5d, 0xd8, 0x85, 0xec, 0xed, 0xbd, 0xf7, 0xfb, 0xf3, 0x3a, 0xbf, 0x57, 0x68, 0xac,
-	0xd9, 0x86, 0x45, 0xb3, 0x2e, 0x8b, 0xe6, 0x5e, 0xc4, 0x28, 0xa7, 0xa8, 0x98, 0x4e, 0xac, 0xe6,
-	0x92, 0x2e, 0xa9, 0x18, 0x75, 0x8f, 0x55, 0x8a, 0x3a, 0x1f, 0xc1, 0xf8, 0xce, 0xf1, 0x92, 0x20,
-	0x0b, 0x9e, 0xfd, 0xc0, 0xf1, 0x6a, 0x8a, 0x37, 0xc4, 0x54, 0xda, 0x8a, 0x5b, 0x0e, 0xf2, 0x1e,
-	0x35, 0xc1, 0xf8, 0x42, 0x67, 0x13, 0xdf, 0x54, 0x05, 0x90, 0x36, 0xce, 0xad, 0x0a, 0xcf, 0xbf,
-	0x31, 0x12, 0x61, 0x46, 0x02, 0xf2, 0x2b, 0x21, 0x31, 0x47, 0xef, 0xa0, 0xf4, 0x29, 0x61, 0x8c,
-	0x84, 0x5c, 0x78, 0x54, 0x7a, 0x35, 0x2f, 0xdd, 0xee, 0x89, 0x25, 0x81, 0x44, 0xd1, 0x6b, 0xd0,
-	0xa7, 0xe4, 0x0f, 0x17, 0x86, 0x8f, 0x58, 0x02, 0x42, 0x2d, 0x28, 0x4e, 0xc2, 0x28, 0xe1, 0xb1,
-	0xa9, 0xb5, 0x35, 0xb7, 0x1c, 0x64, 0x1d, 0x1a, 0x42, 0xe9, 0x6b, 0xc2, 0x05, 0xa0, 0xb7, 0x35,
-	0xb7, 0xd2, 0xeb, 0x48, 0xf5, 0xf9, 0xc7, 0x78, 0x19, 0x6b, 0x1c, 0x72, 0xb6, 0x0d, 0xa4, 0x06,
-	0x7d, 0x06, 0x18, 0x31, 0x8a, 0x17, 0x73, 0x1c, 0xf3, 0xd8, 0x34, 0x84, 0xc3, 0xdb, 0x2b, 0x0e,
-	0xf7, 0xc4, 0xd4, 0xe4, 0x44, 0x69, 0x0d, 0xa0, 0x7a, 0xba, 0x00, 0x35, 0x40, 0x5b, 0x91, 0x6d,
-	0x16, 0xdd, 0xb1, 0x3c, 0xa6, 0xf6, 0x1b, 0xaf, 0x13, 0x22, 0x53, 0x13, 0xcd, 0x40, 0xed, 0x2b,
-	0xd6, 0x10, 0xea, 0x0f, 0xac, 0x9f, 0x92, 0x57, 0x4f, 0xe4, 0xce, 0x4f, 0x28, 0xfb, 0x54, 0x46,
-	0xde, 0xc9, 0x0e, 0x78, 0x39, 0xf0, 0xec, 0xb8, 0x6f, 0xf2, 0x2c, 0x55, 0xf1, 0xe0, 0x9c, 0x25,
-	0xa6, 0x32, 0x5a, 0xe7, 0x15, 0x18, 0xa2, 0x42, 0x08, 0x74, 0x1f, 0x73, 0x2c, 0x3c, 0xab, 0x81,
-	0xa8, 0x9d, 0x3a, 0xd4, 0xc6, 0x9b, 0x88, 0x6f, 0x03, 0x12, 0x47, 0x34, 0x8c, 0x49, 0x8f, 0x81,
-	0x3e, 0xa5, 0x0b, 0x82, 0xfa, 0x50, 0xca, 0x72, 0x43, 0xad, 0xcb, 0x41, 0x5a, 0x2f, 0xe5, 0xfc,
-	0xcc, 0x01, 0xbd, 0x07, 0xd5, 0xa7, 0xe8, 0x85, 0x04, 0xf3, 0x47, 0x5d, 0xe1, 0xbb, 0xca, 0xc8,
-	0xfc, 0xb7, 0xb7, 0x95, 0xdd, 0xde, 0x56, 0x6e, 0xf6, 0xb6, 0xf2, 0xf7, 0x60, 0x17, 0x76, 0x07,
-	0xbb, 0xf0, 0xff, 0x60, 0x17, 0x66, 0x45, 0xf1, 0x3f, 0x7f, 0xb8, 0x0b, 0x00, 0x00, 0xff, 0xff,
-	0x60, 0x33, 0x82, 0x1e, 0x01, 0x03, 0x00, 0x00,
+	// 719 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xdd, 0x4e, 0xdb, 0x4a,
+	0x10, 0x8e, 0x1d, 0x93, 0x73, 0x32, 0x81, 0x60, 0xf6, 0x20, 0x8e, 0x4f, 0x8e, 0x14, 0x45, 0xae,
+	0x44, 0x69, 0x41, 0x8e, 0x94, 0xaa, 0xea, 0x8f, 0xd4, 0x0b, 0x48, 0x5c, 0x61, 0x41, 0x13, 0xb4,
+	0xb8, 0xaa, 0x50, 0xa5, 0x22, 0x27, 0x59, 0x42, 0x9a, 0xc4, 0xeb, 0xae, 0xd7, 0x48, 0x79, 0x81,
+	0x4a, 0xbd, 0xeb, 0xab, 0xf4, 0x2d, 0x7a, 0xc9, 0x65, 0x2f, 0x2b, 0xb8, 0xeb, 0x53, 0x54, 0xbb,
+	0xb6, 0x13, 0x03, 0x41, 0xbd, 0x9b, 0x99, 0xef, 0x9b, 0x9d, 0x99, 0xcf, 0xe3, 0x01, 0x7d, 0xcc,
+	0x26, 0x2c, 0xe8, 0xd6, 0x59, 0xd0, 0xb3, 0x02, 0x46, 0x39, 0x45, 0x85, 0x38, 0x52, 0x59, 0x1f,
+	0xd0, 0x01, 0x95, 0xa1, 0xba, 0xb0, 0x62, 0xb4, 0xf2, 0xff, 0x80, 0xd2, 0xc1, 0x98, 0xd4, 0xa5,
+	0xd7, 0x8d, 0xce, 0xea, 0x64, 0x12, 0xf0, 0x69, 0x0c, 0x9a, 0xbf, 0x14, 0x58, 0x6b, 0x32, 0xe2,
+	0x71, 0xe2, 0x7a, 0xe1, 0x08, 0x93, 0x4f, 0x11, 0x09, 0x39, 0x7a, 0x00, 0x4b, 0x21, 0xf7, 0x06,
+	0xc4, 0x50, 0x6a, 0xca, 0x56, 0xa9, 0xb1, 0x62, 0xc5, 0x05, 0xac, 0x63, 0x11, 0xc4, 0x31, 0x86,
+	0x36, 0xa1, 0x40, 0x23, 0x1e, 0x44, 0xdc, 0x50, 0x25, 0xab, 0x9c, 0xb2, 0x3a, 0x32, 0x8a, 0x13,
+	0x14, 0x39, 0x00, 0x5d, 0x46, 0xbd, 0x7e, 0xcf, 0x0b, 0x79, 0x68, 0xe4, 0x6b, 0xf9, 0xad, 0x52,
+	0xe3, 0x51, 0xca, 0xbd, 0x53, 0xdb, 0xda, 0x9b, 0x71, 0x6d, 0x9f, 0xb3, 0x29, 0xce, 0x24, 0x57,
+	0x5e, 0xc1, 0xea, 0x2d, 0x18, 0xe9, 0x90, 0x1f, 0x91, 0xa9, 0x6c, 0xb4, 0x88, 0x85, 0x89, 0xd6,
+	0x61, 0xe9, 0xc2, 0x1b, 0x47, 0x44, 0xb6, 0xb5, 0x8c, 0x63, 0xe7, 0xa5, 0xfa, 0x5c, 0x31, 0x4f,
+	0x60, 0x49, 0x4e, 0x20, 0x28, 0x1f, 0x69, 0xd7, 0x69, 0x25, 0x69, 0xb1, 0x83, 0x10, 0x68, 0xbe,
+	0x37, 0x89, 0xf3, 0x8a, 0x58, 0xda, 0x68, 0x13, 0xca, 0x9c, 0x79, 0x7e, 0x78, 0x46, 0xd9, 0xc4,
+	0xe3, 0x43, 0xea, 0x1b, 0x79, 0x89, 0xde, 0x8a, 0x9a, 0x5f, 0x54, 0x28, 0xc4, 0x73, 0xa3, 0x87,
+	0xa0, 0xf1, 0x69, 0x10, 0x6b, 0x57, 0x6e, 0xfc, 0x73, 0x53, 0x15, 0xcb, 0x9d, 0x06, 0x04, 0x4b,
+	0x02, 0xda, 0x86, 0x42, 0x78, 0xee, 0xb1, 0x7e, 0x68, 0xa8, 0x52, 0x94, 0x19, 0x75, 0x9f, 0x86,
+	0xfc, 0x8d, 0x17, 0x04, 0x43, 0x7f, 0x80, 0x13, 0x0a, 0x7a, 0x0a, 0xa5, 0xc0, 0x63, 0x7c, 0x28,
+	0xaa, 0x11, 0x26, 0xbb, 0xc8, 0x64, 0x1c, 0xcd, 0x21, 0x9c, 0xe5, 0xa1, 0x3a, 0x14, 0x7b, 0x74,
+	0x3c, 0x26, 0x3d, 0x4e, 0x99, 0xa1, 0xc9, 0xa4, 0xb5, 0x99, 0xf6, 0x29, 0x80, 0xe7, 0x1c, 0x73,
+	0x17, 0x34, 0xd1, 0x22, 0xfa, 0x1b, 0xb4, 0x76, 0xa7, 0x6d, 0xeb, 0x39, 0xb4, 0x0a, 0xa5, 0xa3,
+	0x5d, 0xec, 0x3a, 0xae, 0xd3, 0x69, 0xdb, 0x58, 0x57, 0xd0, 0x0a, 0x14, 0x9b, 0x9d, 0xc3, 0x43,
+	0xbb, 0xe9, 0x76, 0xb0, 0xae, 0x0a, 0x1c, 0x77, 0xde, 0xb6, 0x5b, 0xa7, 0xb8, 0xb3, 0xe7, 0xb4,
+	0xf5, 0xbc, 0xf9, 0x4d, 0x85, 0x52, 0xa6, 0x21, 0xb4, 0x93, 0x08, 0xa2, 0x4a, 0x41, 0x8c, 0x05,
+	0x3d, 0x67, 0x55, 0xb1, 0x00, 0xcd, 0x06, 0x38, 0x20, 0xd3, 0x26, 0x1d, 0x47, 0x93, 0x54, 0xf5,
+	0x05, 0x08, 0x7a, 0x7f, 0x93, 0xef, 0x52, 0xa1, 0x9e, 0xa1, 0x49, 0x45, 0xb7, 0x17, 0xd5, 0x3a,
+	0xba, 0xc3, 0x8e, 0x17, 0x6d, 0xc1, 0x33, 0x15, 0x1b, 0xfe, 0xbd, 0x87, 0xfe, 0xa7, 0xc5, 0x2b,
+	0x66, 0x17, 0xaf, 0x36, 0x17, 0x75, 0x7f, 0xf7, 0x78, 0x5f, 0xcf, 0xa1, 0x32, 0xc0, 0x6b, 0xa7,
+	0xed, 0xb8, 0xf6, 0xe9, 0x81, 0x7d, 0xa2, 0x2b, 0xe6, 0x36, 0x14, 0x67, 0x9f, 0x03, 0x55, 0x01,
+	0xfa, 0x6c, 0x78, 0x41, 0x98, 0x1c, 0x25, 0xae, 0x90, 0x89, 0x98, 0x2f, 0xa0, 0x94, 0x59, 0x11,
+	0xb1, 0xb7, 0x19, 0xa2, 0xb4, 0xd1, 0x06, 0x14, 0xb8, 0x17, 0x8e, 0x9c, 0x56, 0xd2, 0x4c, 0xe2,
+	0x99, 0x3b, 0x80, 0xb2, 0xbf, 0x5c, 0x18, 0x50, 0x3f, 0x24, 0x19, 0xb6, 0x72, 0x83, 0xfd, 0x01,
+	0x00, 0x47, 0x7e, 0x7a, 0x15, 0x6a, 0xa0, 0x9d, 0x31, 0x3a, 0x49, 0x8e, 0xc2, 0x72, 0xaa, 0x6d,
+	0x9b, 0xf6, 0x09, 0x96, 0xc8, 0x7d, 0x55, 0x45, 0x7c, 0xe8, 0x07, 0x51, 0xf2, 0xfb, 0x2f, 0xe3,
+	0xc4, 0x33, 0x1f, 0x83, 0x26, 0xb2, 0xc5, 0x04, 0xe7, 0x99, 0x09, 0x84, 0x8d, 0xca, 0xa0, 0xce,
+	0xde, 0x51, 0x9d, 0x56, 0xe3, 0xb3, 0x02, 0x85, 0x77, 0x94, 0x8d, 0x08, 0x43, 0x4d, 0x80, 0xf9,
+	0x10, 0xe8, 0xbf, 0x7b, 0x6f, 0x49, 0xa5, 0xb2, 0x08, 0x4a, 0x66, 0x7e, 0x06, 0x7f, 0xe1, 0xc8,
+	0x97, 0x2f, 0xa0, 0x94, 0x36, 0x1f, 0xb6, 0xb2, 0x61, 0xc5, 0x67, 0xd3, 0x4a, 0xcf, 0xa6, 0x65,
+	0x8b, 0xb3, 0xb9, 0xa5, 0xec, 0x19, 0xdf, 0xaf, 0xaa, 0xca, 0xe5, 0x55, 0x55, 0xf9, 0x79, 0x55,
+	0x55, 0xbe, 0x5e, 0x57, 0x73, 0x97, 0xd7, 0xd5, 0xdc, 0x8f, 0xeb, 0x6a, 0xae, 0x5b, 0x90, 0xdc,
+	0x27, 0xbf, 0x03, 0x00, 0x00, 0xff, 0xff, 0xf9, 0xa3, 0xa8, 0x3b, 0xa2, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -337,150 +669,150 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// NodeClient is the client API for Node service.
+// WorkerClient is the client API for Worker service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type NodeClient interface {
-	Prepare(ctx context.Context, in *PrepareRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	Do(ctx context.Context, opts ...grpc.CallOption) (Node_DoClient, error)
+type WorkerClient interface {
+	CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*CreateTaskResponse, error)
+	RunTask(ctx context.Context, opts ...grpc.CallOption) (Worker_RunTaskClient, error)
 }
 
-type nodeClient struct {
+type workerClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewNodeClient(cc *grpc.ClientConn) NodeClient {
-	return &nodeClient{cc}
+func NewWorkerClient(cc *grpc.ClientConn) WorkerClient {
+	return &workerClient{cc}
 }
 
-func (c *nodeClient) Prepare(ctx context.Context, in *PrepareRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/lrmrpb.Node/Prepare", in, out, opts...)
+func (c *workerClient) CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*CreateTaskResponse, error) {
+	out := new(CreateTaskResponse)
+	err := c.cc.Invoke(ctx, "/lrmrpb.Worker/CreateTask", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeClient) Do(ctx context.Context, opts ...grpc.CallOption) (Node_DoClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/lrmrpb.Node/Do", opts...)
+func (c *workerClient) RunTask(ctx context.Context, opts ...grpc.CallOption) (Worker_RunTaskClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Worker_serviceDesc.Streams[0], "/lrmrpb.Worker/RunTask", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &nodeDoClient{stream}
+	x := &workerRunTaskClient{stream}
 	return x, nil
 }
 
-type Node_DoClient interface {
-	Send(*DoRequest) error
-	CloseAndRecv() (*EmptyResponse, error)
+type Worker_RunTaskClient interface {
+	Send(*RunRequest) error
+	CloseAndRecv() (*empty.Empty, error)
 	grpc.ClientStream
 }
 
-type nodeDoClient struct {
+type workerRunTaskClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodeDoClient) Send(m *DoRequest) error {
+func (x *workerRunTaskClient) Send(m *RunRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *nodeDoClient) CloseAndRecv() (*EmptyResponse, error) {
+func (x *workerRunTaskClient) CloseAndRecv() (*empty.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(EmptyResponse)
+	m := new(empty.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-// NodeServer is the server API for Node service.
-type NodeServer interface {
-	Prepare(context.Context, *PrepareRequest) (*EmptyResponse, error)
-	Do(Node_DoServer) error
+// WorkerServer is the server API for Worker service.
+type WorkerServer interface {
+	CreateTask(context.Context, *CreateTaskRequest) (*CreateTaskResponse, error)
+	RunTask(Worker_RunTaskServer) error
 }
 
-// UnimplementedNodeServer can be embedded to have forward compatible implementations.
-type UnimplementedNodeServer struct {
+// UnimplementedWorkerServer can be embedded to have forward compatible implementations.
+type UnimplementedWorkerServer struct {
 }
 
-func (*UnimplementedNodeServer) Prepare(ctx context.Context, req *PrepareRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Prepare not implemented")
+func (*UnimplementedWorkerServer) CreateTask(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTask not implemented")
 }
-func (*UnimplementedNodeServer) Do(srv Node_DoServer) error {
-	return status.Errorf(codes.Unimplemented, "method Do not implemented")
-}
-
-func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
-	s.RegisterService(&_Node_serviceDesc, srv)
+func (*UnimplementedWorkerServer) RunTask(srv Worker_RunTaskServer) error {
+	return status.Errorf(codes.Unimplemented, "method RunTask not implemented")
 }
 
-func _Node_Prepare_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PrepareRequest)
+func RegisterWorkerServer(s *grpc.Server, srv WorkerServer) {
+	s.RegisterService(&_Worker_serviceDesc, srv)
+}
+
+func _Worker_CreateTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTaskRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).Prepare(ctx, in)
+		return srv.(WorkerServer).CreateTask(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/lrmrpb.Node/Prepare",
+		FullMethod: "/lrmrpb.Worker/CreateTask",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Prepare(ctx, req.(*PrepareRequest))
+		return srv.(WorkerServer).CreateTask(ctx, req.(*CreateTaskRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_Do_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeServer).Do(&nodeDoServer{stream})
+func _Worker_RunTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(WorkerServer).RunTask(&workerRunTaskServer{stream})
 }
 
-type Node_DoServer interface {
-	SendAndClose(*EmptyResponse) error
-	Recv() (*DoRequest, error)
+type Worker_RunTaskServer interface {
+	SendAndClose(*empty.Empty) error
+	Recv() (*RunRequest, error)
 	grpc.ServerStream
 }
 
-type nodeDoServer struct {
+type workerRunTaskServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodeDoServer) SendAndClose(m *EmptyResponse) error {
+func (x *workerRunTaskServer) SendAndClose(m *empty.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *nodeDoServer) Recv() (*DoRequest, error) {
-	m := new(DoRequest)
+func (x *workerRunTaskServer) Recv() (*RunRequest, error) {
+	m := new(RunRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-var _Node_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "lrmrpb.Node",
-	HandlerType: (*NodeServer)(nil),
+var _Worker_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "lrmrpb.Worker",
+	HandlerType: (*WorkerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Prepare",
-			Handler:    _Node_Prepare_Handler,
+			MethodName: "CreateTask",
+			Handler:    _Worker_CreateTask_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "Do",
-			Handler:       _Node_Do_Handler,
+			StreamName:    "RunTask",
+			Handler:       _Worker_RunTask_Handler,
 			ClientStreams: true,
 		},
 	},
 	Metadata: "lrmrpb/rpc.proto",
 }
 
-func (m *Stage) Marshal() (dAtA []byte, err error) {
+func (m *CreateTaskRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -490,49 +822,12 @@ func (m *Stage) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Stage) MarshalTo(dAtA []byte) (int, error) {
+func (m *CreateTaskRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Stage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.JobID) > 0 {
-		i -= len(m.JobID)
-		copy(dAtA[i:], m.JobID)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.JobID)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.TaskName) > 0 {
-		i -= len(m.TaskName)
-		copy(dAtA[i:], m.TaskName)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.TaskName)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *PrepareRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *PrepareRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PrepareRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *CreateTaskRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -555,40 +850,12 @@ func (m *PrepareRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0xa
 			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
 			i--
-			dAtA[i] = 0x2a
-		}
-	}
-	if len(m.Outputs) > 0 {
-		for k := range m.Outputs {
-			v := m.Outputs[k]
-			baseI := i
-			i -= len(v)
-			copy(dAtA[i:], v)
-			i = encodeVarintRpc(dAtA, i, uint64(len(v)))
-			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintRpc(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if len(m.Inputs) > 0 {
-		for iNdEx := len(m.Inputs) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Inputs[iNdEx])
-			copy(dAtA[i:], m.Inputs[iNdEx])
-			i = encodeVarintRpc(dAtA, i, uint64(len(m.Inputs[iNdEx])))
-			i--
 			dAtA[i] = 0x1a
 		}
 	}
-	if m.Next != nil {
+	if m.Output != nil {
 		{
-			size, err := m.Next.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.Output.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -597,55 +864,6 @@ func (m *PrepareRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		}
 		i--
 		dAtA[i] = 0x12
-	}
-	if m.Current != nil {
-		{
-			size, err := m.Current.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *DoRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DoRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DoRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.Inputs) > 0 {
-		for iNdEx := len(m.Inputs) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Inputs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x12
-		}
 	}
 	if m.Stage != nil {
 		{
@@ -662,7 +880,7 @@ func (m *DoRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Input) Marshal() (dAtA []byte, err error) {
+func (m *Stage) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -672,27 +890,41 @@ func (m *Input) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Input) MarshalTo(dAtA []byte) (int, error) {
+func (m *Stage) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Input) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Stage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Data)))
+	if len(m.Transformation) > 0 {
+		i -= len(m.Transformation)
+		copy(dAtA[i:], m.Transformation)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Transformation)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.JobID) > 0 {
+		i -= len(m.JobID)
+		copy(dAtA[i:], m.JobID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.JobID)))
 		i--
 		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
 
-func (m *EmptyResponse) Marshal() (dAtA []byte, err error) {
+func (m *Output) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -702,16 +934,298 @@ func (m *EmptyResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *EmptyResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *Output) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *EmptyResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Output) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.Collector != nil {
+		{
+			size, err := m.Collector.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Partitioner != nil {
+		{
+			size, err := m.Partitioner.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Shards) > 0 {
+		for iNdEx := len(m.Shards) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Shards[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if m.Type != 0 {
+		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Partitioner) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Partitioner) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Partitioner) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.PartitionKeyToHost) > 0 {
+		for k := range m.PartitionKeyToHost {
+			v := m.PartitionKeyToHost[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintRpc(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintRpc(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.PartitionKeyColumn) > 0 {
+		i -= len(m.PartitionKeyColumn)
+		copy(dAtA[i:], m.PartitionKeyColumn)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.PartitionKeyColumn)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Type != 0 {
+		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Collector) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Collector) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Collector) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.DriverHost) > 0 {
+		i -= len(m.DriverHost)
+		copy(dAtA[i:], m.DriverHost)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.DriverHost)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *HostMapping) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *HostMapping) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HostMapping) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.TaskID) > 0 {
+		i -= len(m.TaskID)
+		copy(dAtA[i:], m.TaskID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.TaskID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Host) > 0 {
+		i -= len(m.Host)
+		copy(dAtA[i:], m.Host)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Host)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateTaskResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateTaskResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateTaskResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.TaskID) > 0 {
+		i -= len(m.TaskID)
+		copy(dAtA[i:], m.TaskID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.TaskID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RunRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RunRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RunRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Inputs) > 0 {
+		for iNdEx := len(m.Inputs) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Inputs[iNdEx])
+			copy(dAtA[i:], m.Inputs[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(m.Inputs[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.TaskID) > 0 {
+		i -= len(m.TaskID)
+		copy(dAtA[i:], m.TaskID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.TaskID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.From != nil {
+		{
+			size, err := m.From.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Node) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Node) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Host) > 0 {
+		i -= len(m.Host)
+		copy(dAtA[i:], m.Host)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Host)))
+		i--
+		dAtA[i] = 0xa
+	}
 	return len(dAtA) - i, nil
 }
 
@@ -726,50 +1240,19 @@ func encodeVarintRpc(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *Stage) Size() (n int) {
+func (m *CreateTaskRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.TaskName)
-	if l > 0 {
+	if m.Stage != nil {
+		l = m.Stage.Size()
 		n += 1 + l + sovRpc(uint64(l))
 	}
-	l = len(m.JobID)
-	if l > 0 {
+	if m.Output != nil {
+		l = m.Output.Size()
 		n += 1 + l + sovRpc(uint64(l))
-	}
-	return n
-}
-
-func (m *PrepareRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Current != nil {
-		l = m.Current.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.Next != nil {
-		l = m.Next.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if len(m.Inputs) > 0 {
-		for _, s := range m.Inputs {
-			l = len(s)
-			n += 1 + l + sovRpc(uint64(l))
-		}
-	}
-	if len(m.Outputs) > 0 {
-		for k, v := range m.Outputs {
-			_ = k
-			_ = v
-			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + 1 + len(v) + sovRpc(uint64(len(v)))
-			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
-		}
 	}
 	if len(m.Broadcasts) > 0 {
 		for k, v := range m.Broadcasts {
@@ -786,44 +1269,157 @@ func (m *PrepareRequest) Size() (n int) {
 	return n
 }
 
-func (m *DoRequest) Size() (n int) {
+func (m *Stage) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.Stage != nil {
-		l = m.Stage.Size()
+	l = len(m.JobID)
+	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
-	if len(m.Inputs) > 0 {
-		for _, e := range m.Inputs {
-			l = e.Size()
-			n += 1 + l + sovRpc(uint64(l))
-		}
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
 	}
-	return n
-}
-
-func (m *Input) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Data)
+	l = len(m.Transformation)
 	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
 	return n
 }
 
-func (m *EmptyResponse) Size() (n int) {
+func (m *Output) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
+	if m.Type != 0 {
+		n += 1 + sovRpc(uint64(m.Type))
+	}
+	if len(m.Shards) > 0 {
+		for _, e := range m.Shards {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if m.Partitioner != nil {
+		l = m.Partitioner.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if m.Collector != nil {
+		l = m.Collector.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *Partitioner) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Type != 0 {
+		n += 1 + sovRpc(uint64(m.Type))
+	}
+	l = len(m.PartitionKeyColumn)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.PartitionKeyToHost) > 0 {
+		for k, v := range m.PartitionKeyToHost {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + 1 + len(v) + sovRpc(uint64(len(v)))
+			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
+func (m *Collector) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.DriverHost)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *HostMapping) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Host)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	l = len(m.TaskID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *CreateTaskResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TaskID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *RunRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.From != nil {
+		l = m.From.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	l = len(m.TaskID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Inputs) > 0 {
+		for _, b := range m.Inputs {
+			l = len(b)
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *Node) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Host)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	l = len(m.ID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
 	return n
 }
 
@@ -833,7 +1429,7 @@ func sovRpc(x uint64) (n int) {
 func sozRpc(x uint64) (n int) {
 	return sovRpc(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Stage) Unmarshal(dAtA []byte) error {
+func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -856,132 +1452,15 @@ func (m *Stage) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Stage: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateTaskRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Stage: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateTaskRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TaskName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TaskName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobID", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.JobID = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *PrepareRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: PrepareRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: PrepareRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Current", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Stage", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1008,16 +1487,16 @@ func (m *PrepareRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Current == nil {
-				m.Current = &Stage{}
+			if m.Stage == nil {
+				m.Stage = &Stage{}
 			}
-			if err := m.Current.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Stage.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Next", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Output", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1044,173 +1523,14 @@ func (m *PrepareRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Next == nil {
-				m.Next = &Stage{}
+			if m.Output == nil {
+				m.Output = &Output{}
 			}
-			if err := m.Next.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Output.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
 		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Inputs", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Inputs = append(m.Inputs, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Outputs", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Outputs == nil {
-				m.Outputs = make(map[string]string)
-			}
-			var mapkey string
-			var mapvalue string
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowRpc
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowRpc
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthRpc
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var stringLenmapvalue uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowRpc
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapvalue |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapvalue := int(stringLenmapvalue)
-					if intStringLenmapvalue < 0 {
-						return ErrInvalidLengthRpc
-					}
-					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
-					if postStringIndexmapvalue < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if postStringIndexmapvalue > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
-					iNdEx = postStringIndexmapvalue
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipRpc(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if skippy < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.Outputs[mapkey] = mapvalue
-			iNdEx = postIndex
-		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Broadcasts", wireType)
 			}
@@ -1362,7 +1682,7 @@ func (m *PrepareRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DoRequest) Unmarshal(dAtA []byte) error {
+func (m *Stage) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1385,17 +1705,17 @@ func (m *DoRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DoRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: Stage: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DoRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Stage: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Stage", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobID", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowRpc
@@ -1405,31 +1725,163 @@ func (m *DoRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthRpc
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Stage == nil {
-				m.Stage = &Stage{}
-			}
-			if err := m.Stage.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.JobID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Inputs", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Transformation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Transformation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Output) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Output: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Output: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= Output_Type(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Shards", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1456,8 +1908,80 @@ func (m *DoRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Inputs = append(m.Inputs, &Input{})
-			if err := m.Inputs[len(m.Inputs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.Shards = append(m.Shards, &HostMapping{})
+			if err := m.Shards[len(m.Shards)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Partitioner", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Partitioner == nil {
+				m.Partitioner = &Partitioner{}
+			}
+			if err := m.Partitioner.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Collector", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Collector == nil {
+				m.Collector = &Collector{}
+			}
+			if err := m.Collector.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1485,7 +2009,7 @@ func (m *DoRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Input) Unmarshal(dAtA []byte) error {
+func (m *Partitioner) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1508,15 +2032,601 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Input: wiretype end group for non-group")
+			return fmt.Errorf("proto: Partitioner: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Input: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Partitioner: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= Partitioner_Type(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionKeyColumn", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PartitionKeyColumn = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionKeyToHost", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionKeyToHost == nil {
+				m.PartitionKeyToHost = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthRpc
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipRpc(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.PartitionKeyToHost[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Collector) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Collector: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Collector: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DriverHost", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DriverHost = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *HostMapping) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: HostMapping: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: HostMapping: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Host = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TaskID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateTaskResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateTaskResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateTaskResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TaskID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RunRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RunRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RunRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field From", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.From == nil {
+				m.From = &Node{}
+			}
+			if err := m.From.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TaskID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Inputs", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -1543,10 +2653,8 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
-			if m.Data == nil {
-				m.Data = []byte{}
-			}
+			m.Inputs = append(m.Inputs, make([]byte, postIndex-iNdEx))
+			copy(m.Inputs[len(m.Inputs)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1572,7 +2680,7 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *EmptyResponse) Unmarshal(dAtA []byte) error {
+func (m *Node) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1595,12 +2703,76 @@ func (m *EmptyResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: EmptyResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: Node: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: EmptyResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Node: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Host = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpc(dAtA[iNdEx:])

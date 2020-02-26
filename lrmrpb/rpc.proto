@@ -2,34 +2,83 @@ syntax = "proto3";
 package lrmrpb;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
 
-service Node {
-    rpc Prepare (PrepareRequest) returns (EmptyResponse);
-    rpc Do (stream DoRequest) returns (EmptyResponse);
+service Worker {
+    rpc CreateTask (CreateTaskRequest) returns (CreateTaskResponse);
+    rpc RunTask (stream RunRequest) returns (google.protobuf.Empty);
+}
+
+message CreateTaskRequest {
+    Stage stage = 1;
+    Output output = 2;
+    map<string, bytes> broadcasts = 3;
 }
 
 message Stage {
-    string TaskName = 1;
-    string JobID = 2;
+    string jobID = 1;
+    string name = 2;
+    string transformation = 3;
 }
 
-message PrepareRequest {
-    Stage Current = 1;
-    Stage Next = 2;
+message Output {
+    enum Type {
+        NONE = 0;
+        PARTITIONER = 1;
+        COLLECTOR = 2;
+        ROUND_ROBIN = 3;
+    }
+    Type type = 1;
 
-    repeated string Inputs = 3;
-    map<string, string> Outputs = 4;
-    map<string, bytes> Broadcasts = 5;
+    // shards contains an ordered mapping of output hostname to its task ID.
+    // On COLLECTOR, it must contain hostnames of master nodes only.
+    repeated HostMapping shards = 2;
+
+    Partitioner partitioner = 3;
+    Collector collector = 4;
 }
 
-message DoRequest {
-    Stage Stage = 1;
-    repeated Input Inputs = 2;
+message Partitioner {
+    enum Type {
+        // HashPartitioner will determine output shard of the partition
+        // by calculating `hash(partitionKey) modulo shardCount.`
+        HASH = 0;
+
+        // FiniteKeyPartitioner assigns partition keys to each shard and
+        // will send an output partition to its designated shard.
+        FINITE_KEY = 1;
+    }
+    Type type = 2;
+
+    // PartitionKey is a column name of the key of the partition.
+    string partitionKeyColumn = 3;
+
+    // PartitionKeyToHost contains mapping of partition key to worker node host.
+    // Used only when the type is FINITE_KEY.
+    map<string, string> partitionKeyToHost = 4;
 }
 
-message Input {
-    bytes Data = 1;
+message Collector {
+    // DriverHost is a destination host for the outputs. (usually master node)
+    string driverHost = 1;
 }
 
-message EmptyResponse {
+message HostMapping {
+    string Host = 1;
+    string taskID = 2;
+}
+
+message CreateTaskResponse {
+    string taskID = 1;
+}
+
+message RunRequest {
+    Node from = 1;
+    string taskID = 2;
+    repeated bytes inputs = 3;
+}
+
+message Node {
+    string host = 1;
+    string ID = 2;
 }
