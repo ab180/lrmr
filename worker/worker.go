@@ -180,6 +180,9 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 }
 
 func (w *Worker) finishTask(taskRef node.TaskReference, ctx *workerJobContext, stream lrmrpb.Worker_RunTaskServer) error {
+	if err := ctx.transformation.Teardown(ctx.output); err != nil {
+		return w.abortTask(stream, taskRef, fmt.Errorf("teardown: %v", err))
+	}
 	if err := ctx.output.Flush(); err != nil {
 		return w.abortTask(stream, taskRef, fmt.Errorf("flush output: %v", err))
 	}
@@ -188,9 +191,6 @@ func (w *Worker) finishTask(taskRef node.TaskReference, ctx *workerJobContext, s
 			w.log.Error("error closing output", err)
 		}
 	}()
-	if err := ctx.transformation.Teardown(); err != nil {
-		return w.abortTask(stream, taskRef, fmt.Errorf("teardown: %v", err))
-	}
 	delete(w.contexts, taskRef.TaskID)
 
 	if err := w.nodeManager.ReportTaskSuccess(taskRef); err != nil {
