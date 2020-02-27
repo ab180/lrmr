@@ -13,6 +13,7 @@ type Options struct {
 
 	Host          string
 	EtcdEndpoints []string
+	EtcdNamespace string
 
 	NodeManager *node.ManagerOptions
 	Worker      *worker.Options
@@ -24,6 +25,7 @@ func DefaultOptions() *Options {
 		OutputBufferSize:  1000,
 		Host:              "localhost",
 		EtcdEndpoints:     []string{"127.0.0.1:2379"},
+		EtcdNamespace:     "lrmr/",
 		NodeManager:       node.DefaultManagerOptions(),
 		Worker:            worker.DefaultOptions(),
 	}

@@ -3,9 +3,10 @@ package coordinator
 import (
 	"context"
 	"github.com/airbloc/logger"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	jsoniter "github.com/json-iterator/go"
-	"go.etcd.io/etcd/clientv3"
 )
 
 const (
@@ -15,11 +16,12 @@ const (
 )
 
 type Etcd struct {
-	client *clientv3.Client
-	log    logger.Logger
+	kv      clientv3.KV
+	watcher clientv3.Watcher
+	log     logger.Logger
 }
 
-func NewEtcd(endpoints []string) (Coordinator, error) {
+func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 	cfg := clientv3.Config{
 		Endpoints: endpoints,
 	}
@@ -28,13 +30,14 @@ func NewEtcd(endpoints []string) (Coordinator, error) {
 		return nil, err
 	}
 	return &Etcd{
-		client: cli,
-		log:    logger.New("etcd"),
+		kv:      namespace.NewKV(cli, nsPrefix),
+		watcher: namespace.NewWatcher(cli, nsPrefix),
+		log:     logger.New("etcd"),
 	}, nil
 }
 
 func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error {
-	resp, err := e.client.Get(ctx, key)
+	resp, err := e.kv.Get(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -45,7 +48,7 @@ func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error 
 }
 
 func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err error) {
-	resp, err := e.client.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	resp, err := e.kv.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	if err != nil {
 		return
 	}
@@ -61,7 +64,7 @@ func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err 
 func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 	watchChan := make(chan WatchEvent)
 
-	wc := e.client.Watch(ctx, prefix, clientv3.WithPrefix())
+	wc := e.watcher.Watch(ctx, prefix, clientv3.WithPrefix())
 	go func() {
 		for wr := range wc {
 			if err := wr.Err(); err != nil {
@@ -104,7 +107,7 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.client.Put(ctx, key, jsonVal)
+	_, err = e.kv.Put(ctx, key, jsonVal)
 	return err
 }
 
@@ -123,13 +126,13 @@ func (e *Etcd) Batch(ctx context.Context, ops ...BatchOp) error {
 			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark))
 		}
 	}
-	_, err := e.client.Txn(ctx).Then(txOps...).Commit()
+	_, err := e.kv.Txn(ctx).Then(txOps...).Commit()
 	return err
 }
 
 func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64, err error) {
 	// uses version as a cheap atomic counter
-	result, err := e.client.Put(ctx, key, counterMark, clientv3.WithPrevKV())
+	result, err := e.kv.Put(ctx, key, counterMark, clientv3.WithPrevKV())
 	if err != nil {
 		return
 	}
@@ -142,7 +145,7 @@ func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64,
 }
 
 func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err error) {
-	resp, err := e.client.Get(ctx, key)
+	resp, err := e.kv.Get(ctx, key)
 	if err != nil {
 		return
 	}
@@ -159,7 +162,7 @@ func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err 
 }
 
 func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err error) {
-	resp, err := e.client.Delete(ctx, prefix, clientv3.WithPrefix())
+	resp, err := e.kv.Delete(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return 0, err
 	}

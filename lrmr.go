@@ -20,7 +20,7 @@ func RunMaster(optionalOpt ...*Options) (*Master, error) {
 		opt = optionalOpt[0]
 	}
 
-	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints)
+	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("connect etcd: %w", err)
 	}
@@ -35,7 +35,7 @@ func RunWorker(optionalOpt ...*Options) error {
 		opt = optionalOpt[0]
 	}
 
-	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints)
+	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace)
 	if err != nil {
 		return fmt.Errorf("connect etcd: %w", err)
 	}
