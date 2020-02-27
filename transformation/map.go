@@ -14,7 +14,7 @@ type Map struct {
 	Simple
 }
 
-func (m *Map) Run(row lrdd.Row, out output.Output) error {
+func (m *Map) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	result, err := m.Map(row)
 	if err != nil {
 		return err

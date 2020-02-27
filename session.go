@@ -134,7 +134,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 	}
 
 	jobLog.Info("Starting input")
-	if err := s.tfs[0].Run(nil, inputStageOutput); err != nil {
+	if err := s.tfs[0].Apply(nil, inputStageOutput, 0); err != nil {
 		return fmt.Errorf("running input: %w", err)
 	}
 	if err := inputStageOutput.Flush(); err != nil {

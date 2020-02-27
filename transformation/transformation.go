@@ -13,11 +13,12 @@ var registry = make(map[string]reflect2.Type)
 
 type Context interface {
 	Broadcast(key string) interface{}
+	NumExecutors() int
 }
 
 type Transformation interface {
 	Setup(c Context) error
-	Run(row lrdd.Row, out output.Output) error
+	Apply(row lrdd.Row, out output.Output, executorID int) error
 	Teardown(out output.Output) error
 }
 

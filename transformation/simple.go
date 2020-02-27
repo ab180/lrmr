@@ -7,7 +7,7 @@ import (
 
 type Simple struct{}
 
-func (s *Simple) Run(row lrdd.Row, out output.Output) error {
+func (s *Simple) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	panic("implement me")
 }
 

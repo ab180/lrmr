@@ -7,6 +7,7 @@ import (
 	"github.com/therne/lrmr/worker"
 	"os"
 	"os/signal"
+	"runtime"
 )
 
 var (
@@ -27,6 +28,8 @@ func RunMaster(optionalOpt ...*Options) (*Master, error) {
 }
 
 func RunWorker(optionalOpt ...*Options) error {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	opt := DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]

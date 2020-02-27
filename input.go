@@ -19,7 +19,7 @@ type inputProviderWrapper struct {
 
 var _ = transformation.Register(&inputProviderWrapper{})
 
-func (i inputProviderWrapper) Run(row lrdd.Row, out output.Output) error {
+func (i inputProviderWrapper) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	return i.provider.ProvideInput(out)
 }
 
@@ -30,7 +30,7 @@ type localInput struct {
 
 var _ = transformation.Register(&localInput{})
 
-func (l localInput) Run(row lrdd.Row, out output.Output) error {
+func (l localInput) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	return filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil

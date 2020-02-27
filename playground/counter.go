@@ -5,11 +5,10 @@ import (
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
-	"sync"
 )
 
 type Counter struct {
-	counter sync.Map
+	counters []map[string]int
 }
 
 func CountByApp() transformation.Transformation {
@@ -17,19 +16,28 @@ func CountByApp() transformation.Transformation {
 }
 
 func (cnt *Counter) Setup(c transformation.Context) error {
+	cnt.counters = make([]map[string]int, c.NumExecutors())
+	for i := range cnt.counters {
+		cnt.counters[i] = make(map[string]int)
+	}
 	return nil
 }
 
-func (cnt *Counter) Run(row lrdd.Row, out output.Output) error {
-	count, _ := cnt.counter.LoadOrStore(row["appID"], 0)
-	cnt.counter.Store(row["appID"], count.(int)+1)
+func (cnt *Counter) Apply(row lrdd.Row, out output.Output, executorID int) error {
+	counter := cnt.counters[executorID]
+	counter[row["appID"].(string)] += 1
 	return nil
 }
 
 func (cnt *Counter) Teardown(out output.Output) error {
-	cnt.counter.Range(func(key, value interface{}) bool {
-		fmt.Printf("App %v: %v\n", key, value)
-		return true
-	})
+	summary := make(map[string]int)
+	for _, counter := range cnt.counters {
+		for appID, count := range counter {
+			summary[appID] += count
+		}
+	}
+	for appID, count := range summary {
+		fmt.Printf("App %v: %v\n", appID, count)
+	}
 	return nil
 }

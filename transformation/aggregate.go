@@ -22,7 +22,7 @@ func (a Aggregate) Setup(c Context) error {
 	return nil
 }
 
-func (a Aggregate) Run(row lrdd.Row, out output.Output) error {
+func (a Aggregate) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	value, err := a.Aggregate(row, a.currentValue)
 	if err != nil {
 		return err

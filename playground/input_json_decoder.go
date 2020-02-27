@@ -21,7 +21,7 @@ func DecodeNDJSON() transformation.Transformation {
 	return &ndjsonDecoder{}
 }
 
-func (l *ndjsonDecoder) Run(row lrdd.Row, out output.Output) error {
+func (l *ndjsonDecoder) Apply(row lrdd.Row, out output.Output, executorID int) error {
 	path := row["path"].(string)
 
 	file, err := os.Open(path)
