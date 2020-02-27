@@ -26,7 +26,7 @@ type JobManager interface {
 	ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error)
 
 	CreateTask(ctx context.Context, task *Task) error
-	UpdateTaskStatus(taskRef string, new Status) error
+	UpdateTaskStatus(ref TaskReference, new Status) error
 	ReportTaskSuccess(ref TaskReference) error
 	ReportTaskFailure(ref TaskReference, err error) error
 }
@@ -35,6 +35,9 @@ func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (
 	allNodes, err := m.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list nodes: %w", err)
+	}
+	if len(allNodes) == 0 {
+		return nil, ErrNodeNotFound
 	}
 	js := &JobStatus{Status: Starting}
 	j := &Job{
@@ -130,8 +133,8 @@ func (m *manager) CreateTask(ctx context.Context, task *Task) error {
 	return m.crd.Batch(ctx, ops...)
 }
 
-func (m *manager) UpdateTaskStatus(taskRef string, new Status) error {
-	key := path.Join(taskStatusNs, taskRef)
+func (m *manager) UpdateTaskStatus(ref TaskReference, new Status) error {
+	key := path.Join(taskStatusNs, ref.String())
 	var status TaskStatus
 	if err := m.crd.Get(context.Background(), key, &status); err != nil {
 		return fmt.Errorf("read task status: %s", err)
@@ -142,7 +145,7 @@ func (m *manager) UpdateTaskStatus(taskRef string, new Status) error {
 	if err := m.crd.Put(context.Background(), key, &status); err != nil {
 		return fmt.Errorf("update task status: %s", err)
 	}
-	m.log.Info("Task {} updated to {} -> {}", taskRef, old, new)
+	m.log.Info("Task {} updated to {} -> {}", ref, old, new)
 	return nil
 }
 

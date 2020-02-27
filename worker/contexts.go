@@ -3,14 +3,16 @@ package worker
 import (
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
-	transformation2 "github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/transformation"
 )
 
-type workerJobContext struct {
+type taskContext struct {
 	job            *node.Job
 	stage          *node.Stage
-	transformation transformation2.Transformation
+	task           *node.Task
+	transformation transformation.Transformation
 	output         output.Output
+	executors      *executorPool
 
 	finishedInputCounts int32
 	totalInputCounts    int32
@@ -20,6 +22,10 @@ type workerJobContext struct {
 	broadcasts map[string]interface{}
 }
 
-func (w *workerJobContext) Broadcast(key string) interface{} {
+func (w *taskContext) Broadcast(key string) interface{} {
 	return w.broadcasts[key]
+}
+
+func (w *taskContext) NumExecutors() int {
+	return len(w.executors.inputChans)
 }

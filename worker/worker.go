@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"net"
+	"runtime/debug"
 	"sync/atomic"
 	"time"
 )
@@ -25,10 +26,17 @@ type Worker struct {
 	nodeManager node.Manager
 	server      *grpc.Server
 
-	contexts map[string]*workerJobContext
+	contexts map[string]*taskContext
 
 	log logger.Logger
 	opt *Options
+}
+
+type connection struct {
+	stream     lrmrpb.Worker_RunTaskServer
+	executor   *executorHandle
+	fromHost   string
+	fromNodeID string
 }
 
 func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
@@ -38,8 +46,8 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	}
 	return &Worker{
 		nodeManager: nm,
-		server:      grpc.NewServer(),
-		contexts:    make(map[string]*workerJobContext),
+		server:      grpc.NewServer(grpc.MaxRecvMsgSize(1 << 25)),
+		contexts:    make(map[string]*taskContext),
 		log:         logger.New("worker"),
 		opt:         opt,
 	}, nil
@@ -103,11 +111,13 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
 
-	c := &workerJobContext{
+	c := &taskContext{
 		job:            job,
 		stage:          stage,
+		task:           task,
 		transformation: tf,
 		output:         out,
+		executors:      launchExecutorPool(tf, out, w.opt.Concurrency, w.opt.QueueLength),
 		broadcasts:     broadcasts,
 		states:         make(map[string]interface{}),
 	}
@@ -128,85 +138,108 @@ func (w *Worker) connectOutput(ctx context.Context, outDesc *lrmrpb.Output) (out
 }
 
 func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
-	var ctx *workerJobContext
-	var taskRef node.TaskReference
+	var ctx *taskContext
+	var conn connection
+
+	defer w.tryRecover(ctx, &conn)
+
 	for {
 		req, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return w.abortTask(stream, taskRef, fmt.Errorf("stream recv: %v", err))
+			return w.abortTask(ctx, conn, fmt.Errorf("stream recv: %v", err))
 		}
 		if ctx == nil {
 			// first event of the stream. warm up
 			ctx = w.contexts[req.TaskID]
 			if ctx == nil {
-				w.log.Info("no ctx")
 				return status.Errorf(codes.NotFound, "task not found: %s", req.TaskID)
 			}
-			taskRef.TaskID = req.TaskID
-			taskRef.StageName = ctx.stage.Name
-			taskRef.JobID = ctx.job.ID
 			atomic.AddInt32(&ctx.totalInputCounts, 1)
+
+			conn.executor = ctx.executors.NewExecutorHandle()
+			go func() {
+				// report errors in executors
+				for err := range conn.executor.Errors {
+					_ = w.abortTask(ctx, conn, err)
+				}
+			}()
+			conn.fromHost = req.From.Host
+			conn.fromNodeID = req.From.ID
+			conn.stream = stream
 
 			w.log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
 
 		} else if !ctx.isRunning {
 			ctx.isRunning = true
-			if err := w.nodeManager.UpdateTaskStatus(taskRef.String(), node.Running); err != nil {
+			if err := w.nodeManager.UpdateTaskStatus(ctx.task.Reference(), node.Running); err != nil {
 				w.log.Error("Failed to change task status to running", err)
 			}
 		}
 		for _, data := range req.Inputs {
 			inputRow := make(lrdd.Row)
 			if err := inputRow.Unmarshal(data); err != nil {
-				return w.abortTask(stream, taskRef, fmt.Errorf("unmarshal row: %v", err))
+				return w.abortTask(ctx, conn, fmt.Errorf("unmarshal row: %v", err))
 			}
-			if err := ctx.transformation.Run(inputRow, ctx.output); err != nil {
-				return w.abortTask(stream, taskRef, fmt.Errorf("transformation: %v", err))
-			}
+			conn.executor.Enqueue(inputRow)
 		}
 	}
 	if ctx == nil {
 		return status.Errorf(codes.InvalidArgument, "no events but found EOF")
 	}
+	conn.executor.WaitForCompletion()
+
 	atomic.AddInt32(&ctx.finishedInputCounts, 1)
 	if ctx.finishedInputCounts >= ctx.totalInputCounts {
 		// do finalize if all inputs have done
-		return w.finishTask(taskRef, ctx, stream)
+		return w.finishTask(ctx, conn)
 	}
 	return stream.SendAndClose(&empty.Empty{})
 }
 
-func (w *Worker) finishTask(taskRef node.TaskReference, ctx *workerJobContext, stream lrmrpb.Worker_RunTaskServer) error {
+func (w *Worker) finishTask(ctx *taskContext, conn connection) error {
+	//ctx.executors.WaitForCompletion()
+
 	if err := ctx.transformation.Teardown(ctx.output); err != nil {
-		return w.abortTask(stream, taskRef, fmt.Errorf("teardown: %v", err))
+		return w.abortTask(ctx, conn, fmt.Errorf("teardown: %v", err))
 	}
 	if err := ctx.output.Flush(); err != nil {
-		return w.abortTask(stream, taskRef, fmt.Errorf("flush output: %v", err))
+		return w.abortTask(ctx, conn, fmt.Errorf("flush output: %v", err))
 	}
 	go func() {
 		if err := ctx.output.Close(); err != nil {
 			w.log.Error("error closing output", err)
 		}
 	}()
-	delete(w.contexts, taskRef.TaskID)
+	delete(w.contexts, ctx.task.ID)
 
-	if err := w.nodeManager.ReportTaskSuccess(taskRef); err != nil {
+	if err := w.nodeManager.ReportTaskSuccess(ctx.task.Reference()); err != nil {
+		w.log.Error("Task {} have been successfully done, but failed to report: {}", ctx.task.Reference(), err)
 		return status.Errorf(codes.Internal, "task success report failed: %w", err)
 	}
-	return stream.SendAndClose(&empty.Empty{})
+	return conn.stream.SendAndClose(&empty.Empty{})
 }
 
-func (w *Worker) abortTask(stream lrmrpb.Worker_RunTaskServer, taskRef node.TaskReference, err error) error {
-	w.log.Error("Task {} failed: {}", taskRef.String(), err)
+func (w *Worker) tryRecover(ctx *taskContext, conn *connection) {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
+		_ = w.abortTask(ctx, *conn, err)
+	}
+}
 
-	reportErr := w.nodeManager.ReportTaskFailure(taskRef, err)
+func (w *Worker) abortTask(ctx *taskContext, conn connection, err error) error {
+	ctx.executors.Cancel()
+
+	reportErr := w.nodeManager.ReportTaskFailure(ctx.task.Reference(), err)
 	if reportErr != nil {
+		w.log.Error("Task {} failed with error: {}", ctx.task.Reference().String(), err)
+		w.log.Error("While reporting the error, another error occurred", err)
 		return status.Errorf(codes.Internal, "task failure report failed: %v", reportErr)
 	}
-	return stream.SendAndClose(&empty.Empty{})
+	w.log.Error("  Caused by connection from {} ({})", conn.fromHost, conn.fromNodeID)
+	return conn.stream.SendAndClose(&empty.Empty{})
 }
 
 func (w *Worker) Stop() error {

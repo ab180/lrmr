@@ -7,6 +7,7 @@ import (
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc"
+	"sync"
 )
 
 type connection struct {
@@ -14,7 +15,9 @@ type connection struct {
 	self   *node.Node
 	stream lrmrpb.Worker_RunTaskClient
 	conn   *grpc.ClientConn
+
 	buffer [][]byte
+	lock   sync.Mutex
 }
 
 func newConnection(ctx context.Context, self *node.Node, host, taskID string, bufferLen int) (*connection, error) {
@@ -49,7 +52,10 @@ func newConnection(ctx context.Context, self *node.Node, host, taskID string, bu
 }
 
 func (c *connection) send(d lrdd.Row) error {
+	c.lock.Lock()
 	c.buffer = append(c.buffer, d.Marshal())
+	c.lock.Unlock()
+
 	if len(c.buffer) == cap(c.buffer) {
 		return c.flush()
 	}
@@ -57,6 +63,9 @@ func (c *connection) send(d lrdd.Row) error {
 }
 
 func (c *connection) flush() (err error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	err = c.stream.Send(&lrmrpb.RunRequest{
 		From: &lrmrpb.Node{
 			Host: c.self.Host,
