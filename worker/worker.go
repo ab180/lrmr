@@ -26,7 +26,8 @@ type Worker struct {
 	nodeManager node.Manager
 	server      *grpc.Server
 
-	contexts map[string]*taskContext
+	contexts        map[string]*taskContext
+	workerLocalOpts map[string]interface{}
 
 	log logger.Logger
 	opt *Options
@@ -47,9 +48,12 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	return &Worker{
 		nodeManager: nm,
 		server:      grpc.NewServer(grpc.MaxRecvMsgSize(1 << 25)),
-		contexts:    make(map[string]*taskContext),
-		log:         logger.New("worker"),
-		opt:         opt,
+
+		contexts:        make(map[string]*taskContext),
+		workerLocalOpts: make(map[string]interface{}),
+
+		log: logger.New("worker"),
+		opt: opt,
 	}, nil
 }
 
@@ -67,6 +71,10 @@ func (w *Worker) Start() error {
 		return err
 	}
 	return w.server.Serve(lis)
+}
+
+func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
+	w.workerLocalOpts[key] = value
 }
 
 func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*lrmrpb.CreateTaskResponse, error) {
@@ -119,6 +127,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		output:         out,
 		executors:      launchExecutorPool(tf, out, w.opt.Concurrency, w.opt.QueueLength),
 		broadcasts:     broadcasts,
+		workerCfgs:     w.workerLocalOpts,
 		states:         make(map[string]interface{}),
 	}
 	if err := c.transformation.Setup(c); err != nil {

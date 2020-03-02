@@ -20,10 +20,15 @@ type taskContext struct {
 
 	states     map[string]interface{}
 	broadcasts map[string]interface{}
+	workerCfgs map[string]interface{}
 }
 
 func (w *taskContext) Broadcast(key string) interface{} {
-	return w.broadcasts[key]
+	return w.broadcasts["Broadcast/"+key]
+}
+
+func (w *taskContext) WorkerLocalOption(key string) interface{} {
+	return w.workerCfgs[key]
 }
 
 func (w *taskContext) NumExecutors() int {

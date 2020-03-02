@@ -13,6 +13,7 @@ var registry = make(map[string]reflect2.Type)
 
 type Context interface {
 	Broadcast(key string) interface{}
+	WorkerLocalOption(key string) interface{}
 	NumExecutors() int
 }
 
