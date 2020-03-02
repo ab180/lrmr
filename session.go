@@ -22,7 +22,7 @@ type Session interface {
 	AddStage(name string, tf transformation.Transformation) Session
 	Output(out *node.StageOutput) Session
 
-	Run(ctx context.Context, name string) error
+	Run(ctx context.Context, name string) (*RunningJob, error)
 }
 
 type session struct {
@@ -68,10 +68,10 @@ func (s *session) AddStage(name string, tf transformation.Transformation) Sessio
 	return s
 }
 
-func (s *session) Run(ctx context.Context, name string) error {
+func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	job, err := s.master.nodeManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
-		return fmt.Errorf("create job: %w", err)
+		return nil, fmt.Errorf("create job: %w", err)
 	}
 	s.master.jobTracker.AddJob(job)
 
@@ -81,7 +81,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 	for _, worker := range job.Workers {
 		conn, err := s.master.nodeManager.Connect(ctx, worker)
 		if err != nil {
-			return fmt.Errorf("dial %s: %w", worker.Host, err)
+			return nil, fmt.Errorf("dial %s: %w", worker.Host, err)
 		}
 		workerConns[worker.Host] = lrmrpb.NewWorkerClient(conn)
 		defer conn.Close()
@@ -110,12 +110,12 @@ func (s *session) Run(ctx context.Context, name string) error {
 		if i == 0 {
 			// prepare input stage (1st stage)
 			if err := s.tfs[0].Setup(nil); err != nil {
-				return fmt.Errorf("input stage setup: %w", err)
+				return nil, fmt.Errorf("input stage setup: %w", err)
 			}
 			inputStageOutput, _ = output.NewFromDesc(req.Output)
 			if err := inputStageOutput.Connect(ctx, s.master.node, req.Output); err != nil {
 				// plot twist ¯\_(ツ)_/¯
-				return fmt.Errorf("input stage output setup: %w", err)
+				return nil, fmt.Errorf("input stage output setup: %w", err)
 			}
 			break
 		}
@@ -124,7 +124,7 @@ func (s *session) Run(ctx context.Context, name string) error {
 		for j, worker := range stage.Workers {
 			taskID, err := s.createTask(worker, req)
 			if err != nil {
-				return fmt.Errorf("create task for stage %s on %s: %w", stage.Name, worker.Host, err)
+				return nil, fmt.Errorf("create task for stage %s on %s: %w", stage.Name, worker.Host, err)
 			}
 			prevOutput[j] = &lrmrpb.HostMapping{
 				Host:   worker.Host,
@@ -135,10 +135,10 @@ func (s *session) Run(ctx context.Context, name string) error {
 
 	jobLog.Info("Starting input")
 	if err := s.tfs[0].Apply(nil, inputStageOutput, 0); err != nil {
-		return fmt.Errorf("running input: %w", err)
+		return nil, fmt.Errorf("running input: %w", err)
 	}
 	if err := inputStageOutput.Flush(); err != nil {
-		return fmt.Errorf("flushing input: %w", err)
+		return nil, fmt.Errorf("flushing input: %w", err)
 	}
 	go func() {
 		if err := inputStageOutput.Close(); err != nil {
@@ -146,11 +146,10 @@ func (s *session) Run(ctx context.Context, name string) error {
 		}
 	}()
 	jobLog.Info("Finished providing input. Running...")
-	jobStatus := <-s.master.jobTracker.WaitForCompletion(job.ID)
-	if jobStatus.Status == node.Failed {
-		return fmt.Errorf("job %s failed", job.ID)
-	}
-	return nil
+	return &RunningJob{
+		master: s.master,
+		Job:    job,
+	}, nil
 }
 
 func (s *session) createTask(worker *node.Node, req *lrmrpb.CreateTaskRequest) (string, error) {

@@ -17,13 +17,18 @@ func main() {
 	m.Start()
 	defer m.Stop()
 
-	job := lrmr.TextFile("/Users/vista/testdata/", m).
+	sess := lrmr.TextFile("/Users/vista/testdata/", m).
 		Then(DecodeNDJSON()).
 		GroupByKey("appID").
 		Then(CountByApp())
 
-	if err := job.Run(context.TODO(), "GroupByApp"); err != nil {
-		fmt.Println("error running job:", err.Error())
+	job, err := sess.Run(context.TODO(), "GroupByApp")
+	if err != nil {
+		fmt.Println("run session:", err.Error())
+		os.Exit(1)
+	}
+	if _, err := job.WaitForResult(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 	fmt.Println("Done!")
