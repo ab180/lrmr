@@ -1,6 +1,9 @@
 package coordinator
 
-import jsoniter "github.com/json-iterator/go"
+import (
+	"github.com/coreos/etcd/clientv3"
+	jsoniter "github.com/json-iterator/go"
+)
 
 // EventType is the type of the events from watching keys.
 type EventType int
@@ -31,7 +34,8 @@ func (r RawItem) Unmarshal(value interface{}) error {
 }
 
 type BatchOp struct {
-	Type  EventType
-	Key   string
-	Value interface{}
+	Type    EventType
+	Key     string
+	Value   interface{}
+	Options []clientv3.OpOption
 }

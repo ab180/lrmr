@@ -7,6 +7,7 @@ import (
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	jsoniter "github.com/json-iterator/go"
+	"time"
 )
 
 const (
@@ -16,8 +17,10 @@ const (
 )
 
 type Etcd struct {
+	client  *clientv3.Client
 	kv      clientv3.KV
 	watcher clientv3.Watcher
+	lease   clientv3.Lease
 	log     logger.Logger
 }
 
@@ -30,8 +33,10 @@ func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 		return nil, err
 	}
 	return &Etcd{
+		client:  cli,
 		kv:      namespace.NewKV(cli, nsPrefix),
 		watcher: namespace.NewWatcher(cli, nsPrefix),
+		lease:   namespace.NewLease(cli, nsPrefix),
 		log:     logger.New("etcd"),
 	}, nil
 }
@@ -102,12 +107,12 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 	return watchChan
 }
 
-func (e *Etcd) Put(ctx context.Context, key string, value interface{}) error {
+func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...clientv3.OpOption) error {
 	jsonVal, err := jsoniter.MarshalToString(value)
 	if err != nil {
 		return err
 	}
-	_, err = e.kv.Put(ctx, key, jsonVal)
+	_, err = e.kv.Put(ctx, key, jsonVal, opts...)
 	return err
 }
 
@@ -128,6 +133,14 @@ func (e *Etcd) Batch(ctx context.Context, ops ...BatchOp) error {
 	}
 	_, err := e.kv.Txn(ctx).Then(txOps...).Commit()
 	return err
+}
+
+func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
+	lease, err := e.lease.Grant(ctx, int64(ttl.Seconds()))
+	if err != nil {
+		return 0, err
+	}
+	return lease.ID, nil
 }
 
 func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64, err error) {
@@ -167,4 +180,8 @@ func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err er
 		return 0, err
 	}
 	return resp.Deleted, nil
+}
+
+func (e *Etcd) Close() error {
+	return e.client.Close()
 }
