@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
-	"github.com/vmihailenco/msgpack"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -90,7 +90,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	broadcasts := make(map[string]interface{})
 	for key, broadcast := range req.Broadcasts {
 		var val interface{}
-		if err := msgpack.Unmarshal(broadcast, &val); err != nil {
+		if err := msgpack.Decode(broadcast, &val); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %w", key, err)
 		}
 		broadcasts[key] = val
@@ -104,7 +104,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	// restore transformation object from broadcasts
 	tf := transformation.Lookup(req.Stage.Transformation)
 	if data, ok := broadcasts["__stage/"+req.Stage.Name].([]byte); ok {
-		err := msgpack.Unmarshal(data, tf)
+		err := msgpack.Decode(data, tf)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "recover transformation: %w", err)
 		}

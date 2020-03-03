@@ -16,6 +16,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1
 	github.com/segmentio/fasthash v1.0.1
+	github.com/shamaton/msgpack v1.1.1
 	github.com/thoas/go-funk v0.5.0
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.etcd.io/etcd v3.3.18+incompatible

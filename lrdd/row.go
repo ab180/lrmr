@@ -1,15 +1,15 @@
 package lrdd
 
-import "github.com/vmihailenco/msgpack"
+import "github.com/shamaton/msgpack"
 
 type Row map[string]interface{}
 
 func (r *Row) Unmarshal(data []byte) error {
-	return msgpack.Unmarshal(data, r)
+	return msgpack.Decode(data, r)
 }
 
 func (r *Row) Marshal() []byte {
-	b, err := msgpack.Marshal(r)
+	b, err := msgpack.Encode(r)
 	if err != nil {
 		panic(err)
 	}

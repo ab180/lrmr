@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/airbloc/logger"
+	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
-	"github.com/vmihailenco/msgpack"
 )
 
 type Result struct {
@@ -46,7 +46,7 @@ func NewSession(master *Master) Session {
 }
 
 func (s *session) Broadcast(key string, val interface{}) {
-	sv, err := msgpack.Marshal(val)
+	sv, err := msgpack.Encode(val)
 	if err != nil {
 		panic("broadcast value must be serializable: " + err.Error())
 	}
@@ -59,7 +59,7 @@ func (s *session) AddStage(name string, tf transformation.Transformation) Sessio
 	s.stages = append(s.stages, node.NewStage(name, transformation.NameOf(tf), defaultOut))
 	s.tfs = append(s.tfs, tf)
 
-	data, err := msgpack.Marshal(tf)
+	data, err := msgpack.Encode(tf)
 	if err != nil {
 		panic(fmt.Sprintf("broadcasting %s: %v", name, err))
 	}
