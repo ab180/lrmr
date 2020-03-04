@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/internal/logutils"
 	"path"
 	"sync"
 	"time"
@@ -37,21 +38,21 @@ func NewJobReporter(crd coordinator.Coordinator) *JobReporter {
 }
 
 func (tr *JobReporter) Add(task TaskReference, s *TaskStatus) {
-	tr.statuses.Store(task, taskStatusHolder{status: s})
+	tr.statuses.Store(task, &taskStatusHolder{status: s})
 }
 
 func (tr *JobReporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)) {
 	item, ok := tr.statuses.Load(ref)
 	if !ok {
-		tr.log.Warn("trying to update unknown task: {}", ref)
+		//tr.log.Warn("trying to update unknown task: {}", ref)
 		return
 	}
-	tsh := item.(taskStatusHolder)
+	tsh := item.(*taskStatusHolder)
 	tsh.lock.Lock()
 	mutator(tsh.status)
 	tsh.lock.Unlock()
 
-	if isDirty, _ := tr.dirty.Load(ref); !isDirty.(bool) {
+	if isDirty, ok := tr.dirty.Load(ref); !ok || !isDirty.(bool) {
 		tr.dirty.Store(ref, true)
 	}
 }
@@ -123,7 +124,7 @@ func (tr *JobReporter) flushTaskStatus() error {
 
 		if isDirty {
 			item, _ := tr.statuses.Load(task)
-			tsh := item.(taskStatusHolder)
+			tsh := item.(*taskStatusHolder)
 
 			tsh.lock.RLock()
 			defer tsh.lock.RUnlock()
