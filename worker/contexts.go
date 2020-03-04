@@ -53,6 +53,18 @@ func (w *taskContext) AddProgress(incremented int) {
 	})
 }
 
+func (w *taskContext) AddCustomMetric(name string, delta int) {
+	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics node.Metrics) {
+		metrics[name] += delta
+	})
+}
+
+func (w *taskContext) SetCustomMetric(name string, val int) {
+	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics node.Metrics) {
+		metrics[name] = val
+	})
+}
+
 func (w *taskContext) forkForExecutor(executorID int) transformation.Context {
 	return &taskContextForExecutor{
 		taskContext: w,
@@ -63,4 +75,8 @@ func (w *taskContext) forkForExecutor(executorID int) transformation.Context {
 type taskContextForExecutor struct {
 	*taskContext
 	executorID int
+}
+
+func (tce *taskContextForExecutor) CurrentExecutor() int {
+	return tce.executorID
 }

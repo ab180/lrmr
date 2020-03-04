@@ -25,7 +25,7 @@ type JobManager interface {
 	ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error)
 	ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error)
 
-	CreateTask(ctx context.Context, task *Task) error
+	CreateTask(ctx context.Context, task *Task) (*TaskStatus, error)
 }
 
 func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
@@ -115,17 +115,21 @@ func (m *manager) ListTasks(ctx context.Context, prefixFormat string, args ...in
 	return tasks, nil
 }
 
-func (m *manager) CreateTask(ctx context.Context, task *Task) error {
+func (m *manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	if err := m.crd.Put(ctx, path.Join(taskNs, task.ID), task); err != nil {
-		return fmt.Errorf("task creation: %w", err)
+		return nil, fmt.Errorf("task creation: %w", err)
 	}
 	status := &TaskStatus{
 		Status:      Starting,
 		SubmittedAt: &task.SubmittedAt,
+		Metrics:     make(Metrics),
 	}
 	ops := []coordinator.BatchOp{
 		coordinator.Put(path.Join(taskStatusNs, task.Reference().String()), status),
 		coordinator.IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")),
 	}
-	return m.crd.Batch(ctx, ops...)
+	if err := m.crd.Batch(ctx, ops...); err != nil {
+		return nil, fmt.Errorf("task write: %w", err)
+	}
+	return status, nil
 }

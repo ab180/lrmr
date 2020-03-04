@@ -28,6 +28,7 @@ func (l *ndjsonDecoder) Apply(c transformation.Context, row lrdd.Row, out output
 	if err != nil {
 		return fmt.Errorf("open file : %w", err)
 	}
+	c.AddCustomMetric("Files", 1)
 
 	r := bufio.NewReader(file)
 	for {

@@ -8,4 +8,7 @@ type Context interface {
 
 	AddTotalProgress(int)
 	AddProgress(int)
+
+	AddCustomMetric(name string, delta int)
+	SetCustomMetric(name string, val int)
 }

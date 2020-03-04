@@ -152,13 +152,45 @@ func (jt *JobTracker) finalizeJob(ctx context.Context, job *Job, s Status) error
 	if err := jt.crd.Put(ctx, key, js); err != nil {
 		return fmt.Errorf("update job status: %w", err)
 	}
-	jt.log.Info("Job {} {}. Total elasped {}", job.ID, s, time.Since(job.SubmittedAt).String())
+	jt.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
+
+	// print metrics collected from the stage
+	m, err := jt.collectMetric(job)
+	if err != nil {
+		jt.log.Warn("failed to collect metric: {}", err)
+	}
+	jt.log.Info("{} metrics have been collected.", len(m))
+	for k, v := range m {
+		jt.log.Info("    {} = {}", k, v)
+	}
 
 	for _, notifyCh := range jt.subscriptions[job.ID] {
 		notifyCh <- &js
 	}
 	delete(jt.activeJobs, job.ID)
 	return nil
+}
+
+func (jt *JobTracker) collectMetric(j *Job) (Metrics, error) {
+	total := make(Metrics)
+	for _, stage := range j.Stages {
+		prefix := path.Join(taskStatusNs, j.ID, stage.Name)
+		items, err := jt.crd.Scan(context.TODO(), prefix)
+		if err != nil {
+			return nil, fmt.Errorf("scan task statuses in stage: %w", err)
+		}
+
+		metric := make(Metrics)
+		for _, item := range items {
+			var ts TaskStatus
+			if err := item.Unmarshal(&ts); err != nil {
+				return nil, fmt.Errorf("unmarshal task status of %s: %w", item.Key, err)
+			}
+			metric = metric.Sum(ts.Metrics)
+		}
+		total = total.Assign(metric.AddPrefix(stage.Name + "/"))
+	}
+	return total, nil
 }
 
 func (jt *JobTracker) Close() {

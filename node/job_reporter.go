@@ -56,6 +56,11 @@ func (tr *JobReporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)
 	}
 }
 
+func (tr *JobReporter) UpdateMetric(ref TaskReference, mutator func(Metrics)) {
+	// todo: save metrics on another etcd key
+	tr.UpdateStatus(ref, func(ts *TaskStatus) { mutator(ts.Metrics) })
+}
+
 func (tr *JobReporter) ReportSuccess(ref TaskReference) error {
 	tr.UpdateStatus(ref, func(ts *TaskStatus) {
 		ts.Complete(Succeeded)

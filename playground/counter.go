@@ -24,7 +24,7 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 }
 
 func (cnt *Counter) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
-	c.AddProgress(1)
+	c.AddCustomMetric("Events", 1)
 	counter := cnt.counters[c.CurrentExecutor()]
 	counter[row["appID"].(string)] += 1
 	return nil
