@@ -60,13 +60,13 @@ func (jt *JobTracker) doTrack(wc chan coordinator.WatchEvent) {
 	jt.log.Info("Start tracking...")
 	for event := range wc {
 		if strings.HasPrefix(event.Item.Key, stageStatusNs) {
-			jt.trackStatus(event)
+			jt.trackStage(event)
 		}
 	}
 	jt.log.Info("Stop tracking...")
 }
 
-func (jt *JobTracker) trackStatus(e coordinator.WatchEvent) {
+func (jt *JobTracker) trackStage(e coordinator.WatchEvent) {
 	frags := strings.Split(e.Item.Key, "/")
 	if len(frags) < 4 {
 		jt.log.Warn("Found unknown stage status: {}", e.Item.Key)
@@ -74,7 +74,6 @@ func (jt *JobTracker) trackStatus(e coordinator.WatchEvent) {
 	}
 	job, ok := jt.activeJobs[frags[2]]
 	if !ok {
-		jt.log.Warn("Found unknown job: {}", frags[2])
 		return
 	}
 	stageID := frags[2] + "/" + frags[3]

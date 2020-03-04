@@ -7,6 +7,8 @@ import (
 )
 
 type taskContext struct {
+	worker *Worker
+
 	job            *node.Job
 	stage          *node.Stage
 	task           *node.Task
@@ -33,4 +35,32 @@ func (w *taskContext) WorkerLocalOption(key string) interface{} {
 
 func (w *taskContext) NumExecutors() int {
 	return len(w.executors.inputChans)
+}
+
+func (w *taskContext) CurrentExecutor() int {
+	return 0
+}
+
+func (w *taskContext) AddTotalProgress(incremented int) {
+	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *node.TaskStatus) {
+		ts.TotalProgress += uint64(incremented)
+	})
+}
+
+func (w *taskContext) AddProgress(incremented int) {
+	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *node.TaskStatus) {
+		ts.CurrentProgress += uint64(incremented)
+	})
+}
+
+func (w *taskContext) forkForExecutor(executorID int) transformation.Context {
+	return &taskContextForExecutor{
+		taskContext: w,
+		executorID:  executorID,
+	}
+}
+
+type taskContextForExecutor struct {
+	*taskContext
+	executorID int
 }

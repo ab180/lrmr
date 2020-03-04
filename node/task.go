@@ -79,6 +79,9 @@ type TaskStatus struct {
 	Status Status `json:"status"`
 	Error  string `json:"error,omitempty"`
 
+	CurrentProgress uint64 `json:"currentProgress"`
+	TotalProgress   uint64 `json:"totalProgress"`
+
 	SubmittedAt *time.Time `json:"submittedAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }

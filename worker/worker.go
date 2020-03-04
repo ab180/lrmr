@@ -22,14 +22,16 @@ import (
 	"time"
 )
 
+var log = logger.New("worker")
+
 type Worker struct {
 	nodeManager node.Manager
+	jobReporter *node.JobReporter
 	server      *grpc.Server
 
 	contexts        map[string]*taskContext
 	workerLocalOpts map[string]interface{}
 
-	log logger.Logger
 	opt *Options
 }
 
@@ -46,20 +48,20 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 		return nil, err
 	}
 	return &Worker{
-		nodeManager: nm,
-		server:      grpc.NewServer(grpc.MaxRecvMsgSize(1 << 25)),
-
+		nodeManager:     nm,
+		jobReporter:     node.NewJobReporter(crd),
+		server:          grpc.NewServer(grpc.MaxRecvMsgSize(1 << 25)),
 		contexts:        make(map[string]*taskContext),
 		workerLocalOpts: make(map[string]interface{}),
-
-		log: logger.New("worker"),
-		opt: opt,
+		opt:             opt,
 	}, nil
 }
 
 func (w *Worker) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	w.jobReporter.Start()
 
 	if err := w.nodeManager.RegisterSelf(ctx, node.New(w.opt.Host)); err != nil {
 		return fmt.Errorf("register worker: %w", err)
@@ -110,8 +112,8 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 	}
 
-	w.log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, stage.Name, job.Name)
-	w.log.Info("  output: {}", req.Output.String())
+	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, stage.Name, job.Name)
+	log.Info("  output: {}", req.Output.String())
 
 	out, err := w.connectOutput(ctx, req.Output)
 	if err != nil {
@@ -120,12 +122,12 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	}
 
 	c := &taskContext{
+		worker:         w,
 		job:            job,
 		stage:          stage,
 		task:           task,
 		transformation: tf,
 		output:         out,
-		executors:      launchExecutorPool(tf, out, w.opt.Concurrency, w.opt.QueueLength),
 		broadcasts:     broadcasts,
 		workerCfgs:     w.workerLocalOpts,
 		states:         make(map[string]interface{}),
@@ -133,6 +135,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	if err := c.transformation.Setup(c); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to set up task")
 	}
+	c.executors = launchExecutorPool(tf, c, out, w.opt.Concurrency, w.opt.QueueLength)
 	w.contexts[task.ID] = c
 	return &lrmrpb.CreateTaskResponse{TaskID: task.ID}, nil
 }
@@ -179,13 +182,13 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			conn.fromNodeID = req.From.ID
 			conn.stream = stream
 
-			w.log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
+			log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
 
 		} else if !ctx.isRunning {
 			ctx.isRunning = true
-			if err := w.nodeManager.UpdateTaskStatus(ctx.task.Reference(), node.Running); err != nil {
-				w.log.Error("Failed to change task status to running", err)
-			}
+			w.jobReporter.UpdateStatus(ctx.task.Reference(), func(ts *node.TaskStatus) {
+				ts.Status = node.Running
+			})
 		}
 		for _, data := range req.Inputs {
 			inputRow := make(lrdd.Row)
@@ -209,9 +212,10 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 }
 
 func (w *Worker) finishTask(ctx *taskContext, conn connection) error {
+	log.Info("Task {} finished. Closing... ", ctx.task.Reference())
 	//ctx.executors.WaitForCompletion()
 
-	if err := ctx.transformation.Teardown(ctx.output); err != nil {
+	if err := ctx.transformation.Teardown(ctx); err != nil {
 		return w.abortTask(ctx, conn, fmt.Errorf("teardown: %v", err))
 	}
 	if err := ctx.output.Flush(); err != nil {
@@ -219,13 +223,13 @@ func (w *Worker) finishTask(ctx *taskContext, conn connection) error {
 	}
 	go func() {
 		if err := ctx.output.Close(); err != nil {
-			w.log.Error("error closing output", err)
+			log.Error("error closing output", err)
 		}
 	}()
 	delete(w.contexts, ctx.task.ID)
 
-	if err := w.nodeManager.ReportTaskSuccess(ctx.task.Reference()); err != nil {
-		w.log.Error("Task {} have been successfully done, but failed to report: {}", ctx.task.Reference(), err)
+	if err := w.jobReporter.ReportSuccess(ctx.task.Reference()); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", ctx.task.Reference(), err)
 		return status.Errorf(codes.Internal, "task success report failed: %w", err)
 	}
 	return conn.stream.SendAndClose(&empty.Empty{})
@@ -241,17 +245,18 @@ func (w *Worker) tryRecover(ctx *taskContext, conn *connection) {
 func (w *Worker) abortTask(ctx *taskContext, conn connection, err error) error {
 	ctx.executors.Cancel()
 
-	reportErr := w.nodeManager.ReportTaskFailure(ctx.task.Reference(), err)
+	reportErr := w.jobReporter.ReportFailure(ctx.task.Reference(), err)
 	if reportErr != nil {
-		w.log.Error("Task {} failed with error: {}", ctx.task.Reference().String(), err)
-		w.log.Error("While reporting the error, another error occurred", err)
+		log.Error("Task {} failed with error: {}", ctx.task.Reference().String(), err)
+		log.Error("While reporting the error, another error occurred", err)
 		return status.Errorf(codes.Internal, "task failure report failed: %v", reportErr)
 	}
-	w.log.Error("  Caused by connection from {} ({})", conn.fromHost, conn.fromNodeID)
+	log.Error("  Caused by connection from {} ({})", conn.fromHost, conn.fromNodeID)
 	return conn.stream.SendAndClose(&empty.Empty{})
 }
 
 func (w *Worker) Stop() error {
 	w.server.Stop()
+	w.jobReporter.Close()
 	return w.nodeManager.UnregisterNode(w.nodeManager.Self().ID)
 }

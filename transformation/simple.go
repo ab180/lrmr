@@ -7,7 +7,7 @@ import (
 
 type Simple struct{}
 
-func (s *Simple) Apply(row lrdd.Row, out output.Output, executorID int) error {
+func (s *Simple) Apply(c Context, row lrdd.Row, out output.Output) error {
 	panic("implement me")
 }
 
@@ -15,7 +15,7 @@ func (s *Simple) Setup(c Context) error {
 	return nil
 }
 
-func (s *Simple) Teardown(out output.Output) error {
+func (s *Simple) Teardown(c Context) error {
 	return nil
 }
 

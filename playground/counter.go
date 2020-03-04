@@ -23,13 +23,14 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 	return nil
 }
 
-func (cnt *Counter) Apply(row lrdd.Row, out output.Output, executorID int) error {
-	counter := cnt.counters[executorID]
+func (cnt *Counter) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
+	c.AddProgress(1)
+	counter := cnt.counters[c.CurrentExecutor()]
 	counter[row["appID"].(string)] += 1
 	return nil
 }
 
-func (cnt *Counter) Teardown(out output.Output) error {
+func (cnt *Counter) Teardown(c transformation.Context) error {
 	summary := make(map[string]int)
 	for _, counter := range cnt.counters {
 		for appID, count := range counter {

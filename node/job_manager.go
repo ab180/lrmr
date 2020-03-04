@@ -26,9 +26,6 @@ type JobManager interface {
 	ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error)
 
 	CreateTask(ctx context.Context, task *Task) error
-	UpdateTaskStatus(ref TaskReference, new Status) error
-	ReportTaskSuccess(ref TaskReference) error
-	ReportTaskFailure(ref TaskReference, err error) error
 }
 
 func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
@@ -131,77 +128,4 @@ func (m *manager) CreateTask(ctx context.Context, task *Task) error {
 		coordinator.IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")),
 	}
 	return m.crd.Batch(ctx, ops...)
-}
-
-func (m *manager) UpdateTaskStatus(ref TaskReference, new Status) error {
-	key := path.Join(taskStatusNs, ref.String())
-	var status TaskStatus
-	if err := m.crd.Get(context.Background(), key, &status); err != nil {
-		return fmt.Errorf("read task status: %s", err)
-	}
-	old := status.Status
-
-	status.Status = new
-	if err := m.crd.Put(context.Background(), key, &status); err != nil {
-		return fmt.Errorf("update task status: %s", err)
-	}
-	m.log.Info("Task {} updated to {} -> {}", ref, old, new)
-	return nil
-}
-
-func (m *manager) ReportTaskSuccess(ref TaskReference) error {
-	ctx := context.TODO()
-
-	var status TaskStatus
-	key := path.Join(taskStatusNs, ref.String())
-	if err := m.crd.Get(context.Background(), key, &status); err != nil {
-		return fmt.Errorf("read task status: %s", err)
-	}
-	status.Complete(Succeeded)
-
-	elapsed := status.CompletedAt.Sub(*status.SubmittedAt)
-	m.log.Info("Task {} succeeded after {}", ref.String(), elapsed.String())
-
-	if err := m.crd.Put(ctx, key, &status); err != nil {
-		return fmt.Errorf("report successful task: %w", err)
-	}
-	if _, err := m.crd.IncrementCounter(ctx, stageStatusKey(ref, "doneTasks")); err != nil {
-		return fmt.Errorf("increase done task count: %w", err)
-	}
-	return nil
-}
-
-func (m *manager) ReportTaskFailure(ref TaskReference, err error) error {
-	ctx := context.TODO()
-	var status TaskStatus
-
-	key := path.Join(taskStatusNs, ref.String())
-	if err := m.crd.Get(ctx, key, &status); err != nil {
-		return fmt.Errorf("read task status: %s", err)
-	}
-	status.Complete(Failed)
-	status.Error = err.Error()
-
-	if err := m.crd.Put(context.Background(), key, &status); err != nil {
-		return fmt.Errorf("report failed task: %w", err)
-	}
-
-	elapsed := status.CompletedAt.Sub(*status.SubmittedAt)
-	m.log.Error("Task {} failed after {} with error: {}", ref.String(), elapsed.String(), err.Error())
-
-	return m.crd.Batch(
-		ctx,
-		coordinator.IncrementCounter(stageStatusKey(ref, "doneTasks")),
-		coordinator.IncrementCounter(stageStatusKey(ref, "failedTasks")),
-	)
-}
-
-// stageStatusKey returns a key of stage summary entry with given name.
-func stageStatusKey(ref TaskReference, name string) string {
-	return path.Join(stageStatusNs, ref.JobID, ref.StageName, name)
-}
-
-// jobStatusKey returns a key of job summary entry with given name.
-func jobStatusKey(ref TaskReference, name string) string {
-	return path.Join(jobStatusNs, ref.JobID, name)
 }

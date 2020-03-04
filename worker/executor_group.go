@@ -2,14 +2,17 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
+	"runtime/debug"
 	"sync"
 )
 
 type executorPool struct {
 	tf  transformation.Transformation
+	c   *taskContext
 	out output.Output
 
 	ctx    context.Context
@@ -25,10 +28,17 @@ type incomingData struct {
 	data   lrdd.Row
 }
 
-func launchExecutorPool(tf transformation.Transformation, out output.Output, concurrency, queueLen int) *executorPool {
+func launchExecutorPool(
+	tf transformation.Transformation,
+	c *taskContext,
+	out output.Output,
+	concurrency, queueLen int,
+) *executorPool {
+
 	execCtx, cancel := context.WithCancel(context.Background())
 	eg := &executorPool{
 		tf:          tf,
+		c:           c,
 		out:         out,
 		ctx:         execCtx,
 		Cancel:      cancel,
@@ -54,10 +64,18 @@ func (teg *executorPool) NewExecutorHandle() *executorHandle {
 }
 
 func (teg *executorPool) startConsume(ctx context.Context, inputChan chan incomingData, executorID int) {
+	var in incomingData
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
+			in.handle.Errors <- err
+		}
+	}()
 	for {
 		select {
-		case in := <-inputChan:
-			err := teg.tf.Apply(in.data, teg.out, executorID)
+		case in = <-inputChan:
+			childCtx := teg.c.forkForExecutor(executorID)
+			err := teg.tf.Apply(childCtx, in.data, teg.out)
 			in.handle.wg.Done()
 			if err != nil {
 				in.handle.Errors <- err
