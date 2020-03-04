@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/golang/protobuf/ptypes/empty"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
@@ -17,7 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"net"
-	"runtime/debug"
 	"sync/atomic"
 	"time"
 )
@@ -47,10 +49,24 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	srv := grpc.NewServer(
+		grpc.MaxRecvMsgSize(opt.MaxRecvSize),
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			grpc_recovery.UnaryServerInterceptor(
+				grpc_recovery.WithRecoveryHandler(func(r interface{}) error {
+					err := logutils.WrapRecover(r)
+					log.Error(err.Pretty())
+					return status.Errorf(codes.Internal, err.Error())
+				}),
+			),
+		)),
+	)
+
 	return &Worker{
 		nodeManager:     nm,
 		jobReporter:     node.NewJobReporter(crd),
-		server:          grpc.NewServer(grpc.MaxRecvMsgSize(1 << 25)),
+		server:          srv,
 		contexts:        make(map[string]*taskContext),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
@@ -98,11 +114,6 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		broadcasts[key] = val
 	}
 
-	task := node.NewTask(w.nodeManager.Self(), job, stage)
-	if err := w.nodeManager.CreateTask(ctx, task); err != nil {
-		return nil, status.Errorf(codes.Internal, "create task failed: %w", err)
-	}
-
 	// restore transformation object from broadcasts
 	tf := transformation.Lookup(req.Stage.Transformation)
 	if data, ok := broadcasts["__stage/"+req.Stage.Name].([]byte); ok {
@@ -112,14 +123,21 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 	}
 
-	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, stage.Name, job.Name)
-	log.Info("  output: {}", req.Output.String())
-
 	out, err := w.connectOutput(ctx, req.Output)
 	if err != nil {
 		// TODO: task removal
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
+
+	task := node.NewTask(w.nodeManager.Self(), job, stage)
+	ts, err := w.nodeManager.CreateTask(ctx, task)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "create task failed: %w", err)
+	}
+	w.jobReporter.Add(task.Reference(), ts)
+
+	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, stage.Name, job.Name)
+	log.Info("  output: {}", req.Output.String())
 
 	c := &taskContext{
 		worker:         w,
@@ -132,11 +150,16 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		workerCfgs:     w.workerLocalOpts,
 		states:         make(map[string]interface{}),
 	}
-	if err := c.transformation.Setup(c); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to set up task")
-	}
 	c.executors = launchExecutorPool(tf, c, out, w.opt.Concurrency, w.opt.QueueLength)
 	w.contexts[task.ID] = c
+
+	if err := c.transformation.Setup(c); err != nil {
+		c.executors.Cancel()
+		_ = w.jobReporter.ReportFailure(task.Reference(), err)
+		delete(w.contexts, task.ID)
+
+		return nil, status.Errorf(codes.Internal, "failed to set up task")
+	}
 	return &lrmrpb.CreateTaskResponse{TaskID: task.ID}, nil
 }
 
@@ -152,6 +175,7 @@ func (w *Worker) connectOutput(ctx context.Context, outDesc *lrmrpb.Output) (out
 func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 	var ctx *taskContext
 	var conn connection
+	connLog := log
 
 	defer w.tryRecover(ctx, &conn)
 
@@ -181,6 +205,7 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			conn.fromHost = req.From.Host
 			conn.fromNodeID = req.From.ID
 			conn.stream = stream
+			connLog = log.WithAttrs(logger.Attrs{"task": ctx.task.Reference(), "from": req.From.Host})
 
 			log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
 
@@ -236,9 +261,12 @@ func (w *Worker) finishTask(ctx *taskContext, conn connection) error {
 }
 
 func (w *Worker) tryRecover(ctx *taskContext, conn *connection) {
-	if r := recover(); r != nil {
-		err := fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
-		_ = w.abortTask(ctx, *conn, err)
+	if err := logutils.WrapRecover(recover()); err != nil {
+		if ctx != nil && conn != nil {
+			_ = w.abortTask(ctx, *conn, err)
+		} else {
+			log.Error("failed to warm up task. {}", err.Pretty())
+		}
 	}
 }
 

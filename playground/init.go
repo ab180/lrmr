@@ -1,6 +1,11 @@
 package playground
 
-import "github.com/therne/lrmr/transformation"
+import (
+	"github.com/airbloc/logger"
+	"github.com/therne/lrmr/transformation"
+)
+
+var log = logger.New("playground")
 
 func init() {
 	transformation.Register(&ndjsonDecoder{})

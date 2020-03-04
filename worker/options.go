@@ -9,6 +9,7 @@ type Options struct {
 
 	Concurrency int
 	QueueLength int
+	MaxRecvSize int
 }
 
 func DefaultOptions() *Options {
@@ -18,5 +19,6 @@ func DefaultOptions() *Options {
 		Port:        7466,
 		Concurrency: runtime.NumCPU(),
 		QueueLength: 1000,
+		MaxRecvSize: 1 << 25,
 	}
 }

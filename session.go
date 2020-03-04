@@ -142,7 +142,7 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	}
 	go func() {
 		if err := inputStageOutput.Close(); err != nil {
-			jobLog.Error("closing input stage output", err)
+			jobLog.Error("Failed to close input stage output", err)
 		}
 	}()
 	jobLog.Info("Finished providing input. Running...")

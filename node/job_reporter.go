@@ -86,7 +86,14 @@ func (tr *JobReporter) ReportFailure(ref TaskReference, err error) error {
 		ts.Error = err.Error()
 
 		elapsed := ts.CompletedAt.Sub(*ts.SubmittedAt)
-		tr.log.Error("Task {} failed after {} with error: {}", ref.String(), elapsed.String(), err.Error())
+
+		switch err.(type) {
+		case *logutils.PanicError:
+			panicErr := err.(*logutils.PanicError)
+			tr.log.Error("Task {} failed after {} with {}", ref.String(), elapsed.String(), panicErr.Pretty())
+		default:
+			tr.log.Error("Task {} failed after {} with error: {}", ref.String(), elapsed.String(), err.Error())
+		}
 	})
 	if err := tr.flushTaskStatus(); err != nil {
 		return fmt.Errorf("update task status: %w", err)

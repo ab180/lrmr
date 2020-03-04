@@ -2,11 +2,10 @@ package worker
 
 import (
 	"context"
-	"fmt"
+	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/transformation"
-	"runtime/debug"
 	"sync"
 )
 
@@ -66,8 +65,7 @@ func (teg *executorPool) NewExecutorHandle() *executorHandle {
 func (teg *executorPool) startConsume(ctx context.Context, inputChan chan incomingData, executorID int) {
 	var in incomingData
 	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
+		if err := logutils.WrapRecover(recover()); err != nil {
 			in.handle.Errors <- err
 		}
 	}()
