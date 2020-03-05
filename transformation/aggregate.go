@@ -22,7 +22,7 @@ func (a Aggregate) Setup(c Context) error {
 	return nil
 }
 
-func (a Aggregate) Apply(row lrdd.Row, out output.Output, executorID int) error {
+func (a Aggregate) Apply(row lrdd.Row, out output.Writer, executorID int) error {
 	value, err := a.Aggregate(row, a.currentValue)
 	if err != nil {
 		return err
@@ -31,8 +31,8 @@ func (a Aggregate) Apply(row lrdd.Row, out output.Output, executorID int) error 
 	return nil
 }
 
-func (a Aggregate) Teardown(out output.Output) error {
-	return out.Send(lrdd.Row{"value": a.currentValue})
+func (a Aggregate) Teardown(out output.Writer) error {
+	return out.Write(lrdd.Row{"value": a.currentValue})
 }
 
 func (a Aggregate) InitialValue() interface{} {

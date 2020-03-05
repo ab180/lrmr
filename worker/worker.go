@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -35,13 +36,6 @@ type Worker struct {
 	workerLocalOpts map[string]interface{}
 
 	opt *Options
-}
-
-type connection struct {
-	stream     lrmrpb.Worker_RunTaskServer
-	executor   *executorHandle
-	fromHost   string
-	fromNodeID string
 }
 
 func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
@@ -123,9 +117,8 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 	}
 
-	out, err := w.connectOutput(ctx, req.Output)
+	shards, err := output.DialShards(ctx, w.nodeManager.Self(), req.Output, w.opt.Output)
 	if err != nil {
-		// TODO: task removal
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
 
@@ -145,12 +138,12 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		stage:          stage,
 		task:           task,
 		transformation: tf,
-		output:         out,
+		shards:         shards,
 		broadcasts:     broadcasts,
 		workerCfgs:     w.workerLocalOpts,
 		states:         make(map[string]interface{}),
 	}
-	c.executors = launchExecutorPool(tf, c, out, w.opt.Concurrency, w.opt.QueueLength)
+	c.executors = launchExecutorPool(tf, c, shards, w.opt.Concurrency, w.opt.QueueLength)
 	w.contexts[task.ID] = c
 
 	if err := c.transformation.Setup(c); err != nil {
@@ -163,21 +156,13 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	return &lrmrpb.CreateTaskResponse{TaskID: task.ID}, nil
 }
 
-func (w *Worker) connectOutput(ctx context.Context, outDesc *lrmrpb.Output) (out output.Output, err error) {
-	out, err = output.NewFromDesc(outDesc)
-	if err != nil {
-		return
-	}
-	err = out.Connect(ctx, w.nodeManager.Self(), outDesc)
-	return
-}
-
 func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 	var ctx *taskContext
-	var conn connection
+	var conn *Connection
+	var onceBackpressure sync.Once
 	connLog := log
 
-	defer w.tryRecover(ctx, &conn)
+	defer w.tryRecover(conn)
 
 	for {
 		req, err := stream.Recv()
@@ -185,7 +170,17 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			if err == io.EOF {
 				break
 			}
-			return w.abortTask(ctx, conn, fmt.Errorf("stream recv: %v", err))
+			if grpcErr, ok := status.FromError(err); ok {
+				if grpcErr.Code() == codes.ResourceExhausted {
+					// incoming stream speed is too faster than processing speed
+					onceBackpressure.Do(func() {
+						connLog.Warn("Stream backpressure detected. waiting for stream queues to be drained.")
+					})
+					conn.WaitForCompletion()
+					continue
+				}
+			}
+			return w.abortTask(conn, fmt.Errorf("stream recv: %v", err))
 		}
 		if ctx == nil {
 			// first event of the stream. warm up
@@ -195,18 +190,14 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			}
 			atomic.AddInt32(&ctx.totalInputCounts, 1)
 
-			conn.executor = ctx.executors.NewExecutorHandle()
+			conn = newConnection(req.From, stream, ctx)
+			ctx.addConnection(conn)
 			go func() {
-				// report errors in executors
-				for err := range conn.executor.Errors {
-					_ = w.abortTask(ctx, conn, err)
+				// report errors in connection
+				for err := range conn.Errors {
+					_ = w.abortTask(conn, err)
 				}
 			}()
-			conn.fromHost = req.From.Host
-			conn.fromNodeID = req.From.ID
-			conn.stream = stream
-			connLog = log.WithAttrs(logger.Attrs{"task": ctx.task.Reference(), "from": req.From.Host})
-
 			log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
 
 		} else if !ctx.isRunning {
@@ -218,69 +209,72 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 		for _, data := range req.Inputs {
 			inputRow := make(lrdd.Row)
 			if err := inputRow.Unmarshal(data); err != nil {
-				return w.abortTask(ctx, conn, fmt.Errorf("unmarshal row: %v", err))
+				return w.abortTask(conn, fmt.Errorf("unmarshal row: %v", err))
 			}
-			conn.executor.Enqueue(inputRow)
+			conn.Enqueue(inputRow)
 		}
 	}
 	if ctx == nil {
 		return status.Errorf(codes.InvalidArgument, "no events but found EOF")
 	}
-	conn.executor.WaitForCompletion()
+	conn.WaitForCompletion()
 
 	atomic.AddInt32(&ctx.finishedInputCounts, 1)
 	if ctx.finishedInputCounts >= ctx.totalInputCounts {
 		// do finalize if all inputs have done
-		return w.finishTask(ctx, conn)
+		return w.finishTask(conn)
 	}
 	return stream.SendAndClose(&empty.Empty{})
 }
 
-func (w *Worker) finishTask(ctx *taskContext, conn connection) error {
-	log.Info("Task {} finished. Closing... ", ctx.task.Reference())
-	//ctx.executors.WaitForCompletion()
-
-	if err := ctx.transformation.Teardown(ctx); err != nil {
-		return w.abortTask(ctx, conn, fmt.Errorf("teardown: %v", err))
+func (w *Worker) finishTask(c *Connection) error {
+	log.Info("Task {} finished. Closing... ", c.ctx.task.Reference())
+	for _, conn := range c.ctx.connections {
+		conn.WaitForCompletion()
 	}
-	if err := ctx.output.Flush(); err != nil {
-		return w.abortTask(ctx, conn, fmt.Errorf("flush output: %v", err))
+	c.ctx.executors.Cancel()
+
+	if err := c.ctx.transformation.Teardown(c.ctx); err != nil {
+		return w.abortTask(c, fmt.Errorf("teardown: %v", err))
+	}
+	if err := c.ctx.shards.Flush(); err != nil {
+		return w.abortTask(c, fmt.Errorf("flush output: %v", err))
 	}
 	go func() {
-		if err := ctx.output.Close(); err != nil {
+		if err := c.ctx.shards.Close(); err != nil {
 			log.Error("error closing output", err)
 		}
 	}()
-	delete(w.contexts, ctx.task.ID)
+	delete(w.contexts, c.ctx.task.ID)
 
-	if err := w.jobReporter.ReportSuccess(ctx.task.Reference()); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", ctx.task.Reference(), err)
+	if err := w.jobReporter.ReportSuccess(c.ctx.task.Reference()); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", c.ctx.task.Reference(), err)
 		return status.Errorf(codes.Internal, "task success report failed: %w", err)
 	}
-	return conn.stream.SendAndClose(&empty.Empty{})
+	return c.stream.SendAndClose(&empty.Empty{})
 }
 
-func (w *Worker) tryRecover(ctx *taskContext, conn *connection) {
+func (w *Worker) tryRecover(c *Connection) {
 	if err := logutils.WrapRecover(recover()); err != nil {
-		if ctx != nil && conn != nil {
-			_ = w.abortTask(ctx, *conn, err)
+		if c != nil {
+			_ = w.abortTask(c, err)
 		} else {
 			log.Error("failed to warm up task. {}", err.Pretty())
 		}
 	}
 }
 
-func (w *Worker) abortTask(ctx *taskContext, conn connection, err error) error {
-	ctx.executors.Cancel()
+func (w *Worker) abortTask(c *Connection, err error) error {
+	c.ctx.executors.Cancel()
 
-	reportErr := w.jobReporter.ReportFailure(ctx.task.Reference(), err)
+	reportErr := w.jobReporter.ReportFailure(c.ctx.task.Reference(), err)
 	if reportErr != nil {
-		log.Error("Task {} failed with error: {}", ctx.task.Reference().String(), err)
+		log.Error("Task {} failed with error: {}", c.ctx.task.Reference().String(), err)
 		log.Error("While reporting the error, another error occurred", err)
 		return status.Errorf(codes.Internal, "task failure report failed: %v", reportErr)
 	}
-	log.Error("  Caused by connection from {} ({})", conn.fromHost, conn.fromNodeID)
-	return conn.stream.SendAndClose(&empty.Empty{})
+	log.Error("  Caused by connection from {} ({})", c.fromHost, c.fromNodeID)
+	return c.stream.SendAndClose(&empty.Empty{})
 }
 
 func (w *Worker) Stop() error {

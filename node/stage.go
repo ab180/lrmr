@@ -1,7 +1,6 @@
 package node
 
 import (
-	jsoniter "github.com/json-iterator/go"
 	"github.com/therne/lrmr/lrmrpb"
 	"time"
 )
@@ -39,11 +38,13 @@ func (ss *StageStatus) Complete(s Status) {
 }
 
 type StageOutput struct {
-	outputType lrmrpb.Output_Type
+	PartitionerType lrmrpb.Partitioner_Type `json:"partitioner"`
+	KeyColumn       string                  `json:"keyColumn,omitempty"`
+	FiniteKeys      []string                `json:"finiteKeys,omitempty"`
 
-	partitionerType lrmrpb.Partitioner_Type
-	partitionColumn string
-	partitionKeys   []string
+	// noOutput makes output shard empty on Build.
+	NoOutput bool `json:"-"`
+	Collect  bool `json:"-"`
 }
 
 func DescribingStageOutput() *StageOutput {
@@ -51,86 +52,45 @@ func DescribingStageOutput() *StageOutput {
 }
 
 func (so *StageOutput) Nothing() *StageOutput {
-	so.outputType = lrmrpb.Output_NONE
+	so.NoOutput = true
 	return so
 }
 
 func (so *StageOutput) WithFixedPartitions(keyColumn string, keys []string) *StageOutput {
-	so.outputType = lrmrpb.Output_PARTITIONER
-	so.partitionerType = lrmrpb.Partitioner_FINITE_KEY
-	so.partitionColumn = keyColumn
-	so.partitionKeys = keys
+	so.PartitionerType = lrmrpb.Partitioner_FINITE_KEY
+	so.KeyColumn = keyColumn
+	so.FiniteKeys = keys
 	return so
 }
 
 func (so *StageOutput) WithPartitions(keyColumn string) *StageOutput {
-	so.outputType = lrmrpb.Output_PARTITIONER
-	so.partitionerType = lrmrpb.Partitioner_HASH
-	so.partitionColumn = keyColumn
+	so.PartitionerType = lrmrpb.Partitioner_HASH_KEY
+	so.KeyColumn = keyColumn
 	return so
 }
 
-func (so *StageOutput) WithRoundRobin() *StageOutput {
-	so.outputType = lrmrpb.Output_ROUND_ROBIN
+func (so *StageOutput) WithFanout() *StageOutput {
 	return so
 }
 
 func (so *StageOutput) WithCollector() *StageOutput {
-	so.outputType = lrmrpb.Output_COLLECTOR
+	so.Collect = true
 	return so
 }
 
-func (so *StageOutput) Build(master *Node, shards []*Node) *lrmrpb.Output {
+func (so *StageOutput) Build(shards []*lrmrpb.HostMapping) *lrmrpb.Output {
 	out := &lrmrpb.Output{
-		Type: so.outputType,
+		Shards: shards,
+		Partitioner: &lrmrpb.Partitioner{
+			Type: so.PartitionerType,
+		},
 	}
-	switch out.Type {
-	case lrmrpb.Output_PARTITIONER:
-		out.Partitioner = &lrmrpb.Partitioner{
-			Type:               so.partitionerType,
-			PartitionKeyColumn: so.partitionColumn,
-			PartitionKeyToHost: make(map[string]string),
+	if so.PartitionerType != lrmrpb.Partitioner_NONE {
+		out.Partitioner.KeyColumn = so.KeyColumn
+		out.Partitioner.KeyToHost = make(map[string]string)
+		for i, key := range so.FiniteKeys {
+			out.Partitioner.KeyToHost[key] = shards[i%len(shards)].Host
 		}
-		for i, key := range so.partitionKeys {
-			out.Partitioner.PartitionKeyToHost[key] = shards[i%len(shards)].Host
-		}
-	case lrmrpb.Output_COLLECTOR:
-		out.Collector.DriverHost = master.Host
 	}
 	return out
-}
-
-func (so *StageOutput) MarshalJSON() ([]byte, error) {
-	msg := map[string]interface{}{
-		"type": so.outputType.String(),
-	}
-	if so.outputType == lrmrpb.Output_PARTITIONER {
-		msg["partitioner"] = map[string]interface{}{
-			"type":   so.partitionerType.String(),
-			"column": so.partitionColumn,
-			"keys":   so.partitionKeys,
-		}
-	}
-	return jsoniter.Marshal(msg)
-}
-
-func (so *StageOutput) UnmarshalJSON(data []byte) error {
-	var msg struct {
-		Type        string `json:"type"`
-		Partitioner struct {
-			Type   string   `json:"type"`
-			Column string   `json:"column"`
-			Keys   []string `json:"keys"`
-		} `json:"partitioner"`
-	}
-	if err := jsoniter.Unmarshal(data, &msg); err != nil {
-		return err
-	}
-	so.outputType = lrmrpb.Output_Type(lrmrpb.Output_Type_value[msg.Type])
-	if so.outputType == lrmrpb.Output_PARTITIONER {
-		so.partitionerType = lrmrpb.Partitioner_Type(lrmrpb.Partitioner_Type_value[msg.Partitioner.Type])
-		so.partitionColumn = msg.Partitioner.Column
-		so.partitionKeys = msg.Partitioner.Keys
-	}
-	return nil
 }

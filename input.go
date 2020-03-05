@@ -9,7 +9,7 @@ import (
 )
 
 type InputProvider interface {
-	ProvideInput(out output.Output) error
+	ProvideInput(out output.Writer) error
 }
 
 type inputProviderWrapper struct {
@@ -19,7 +19,7 @@ type inputProviderWrapper struct {
 
 var _ = transformation.Register(&inputProviderWrapper{})
 
-func (i inputProviderWrapper) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
+func (i inputProviderWrapper) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
 	return i.provider.ProvideInput(out)
 }
 
@@ -30,11 +30,11 @@ type localInput struct {
 
 var _ = transformation.Register(&localInput{})
 
-func (l localInput) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
+func (l localInput) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
 	return filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Send(lrdd.Row{"path": path})
+		return out.Write(lrdd.Row{"path": path})
 	})
 }

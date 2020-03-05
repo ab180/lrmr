@@ -23,7 +23,7 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 	return nil
 }
 
-func (cnt *Counter) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
+func (cnt *Counter) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
 	c.AddCustomMetric("Events", 1)
 	counter := cnt.counters[c.CurrentExecutor()]
 	counter[row["appID"].(string)] += 1

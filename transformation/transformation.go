@@ -13,7 +13,7 @@ var registry = make(map[string]reflect2.Type)
 
 type Transformation interface {
 	Setup(c Context) error
-	Apply(c Context, row lrdd.Row, out output.Output) error
+	Apply(c Context, row lrdd.Row, out output.Writer) error
 	Teardown(c Context) error
 }
 

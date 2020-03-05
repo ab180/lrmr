@@ -22,49 +22,38 @@ message Stage {
 }
 
 message Output {
-    enum Type {
-        NONE = 0;
-        PARTITIONER = 1;
-        COLLECTOR = 2;
-        ROUND_ROBIN = 3;
-    }
-    Type type = 1;
+    reserved 1;
 
     // shards contains an ordered mapping of output hostname to its task ID.
-    // On COLLECTOR, it must contain hostnames of master nodes only.
     repeated HostMapping shards = 2;
 
     Partitioner partitioner = 3;
-    Collector collector = 4;
 }
 
 message Partitioner {
     enum Type {
+        NONE = 0;
+
         // HashPartitioner will determine output shard of the partition
         // by calculating `hash(partitionKey) modulo shardCount.`
-        HASH = 0;
+        HASH_KEY = 1;
 
         // FiniteKeyPartitioner assigns partition keys to each shard and
         // will send an output partition to its designated shard.
-        FINITE_KEY = 1;
+        FINITE_KEY = 2;
     }
-    Type type = 2;
+    Type type = 1;
 
-    // PartitionKey is a column name of the key of the partition.
-    string partitionKeyColumn = 3;
+    // keyColumn is a column name of the key of the partition.
+    string keyColumn = 2;
 
     // PartitionKeyToHost contains mapping of partition key to worker node host.
     // Used only when the type is FINITE_KEY.
-    map<string, string> partitionKeyToHost = 4;
-}
-
-message Collector {
-    // DriverHost is a destination host for the outputs. (usually master node)
-    string driverHost = 1;
+    map<string, string> keyToHost = 3;
 }
 
 message HostMapping {
-    string Host = 1;
+    string host = 1;
     string taskID = 2;
 }
 

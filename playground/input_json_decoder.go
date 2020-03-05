@@ -21,7 +21,7 @@ func DecodeNDJSON() transformation.Transformation {
 	return &ndjsonDecoder{}
 }
 
-func (l *ndjsonDecoder) Apply(c transformation.Context, row lrdd.Row, out output.Output) error {
+func (l *ndjsonDecoder) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
 	path := row["path"].(string)
 
 	file, err := os.Open(path)
@@ -46,7 +46,7 @@ func (l *ndjsonDecoder) Apply(c transformation.Context, row lrdd.Row, out output
 		data := msg["data"].(map[string]interface{})
 		app := data["app"].(map[string]interface{})
 		msg["appID"] = strconv.Itoa(int(app["appID"].(float64)))
-		if err := out.Send(msg); err != nil {
+		if err := out.Write(msg); err != nil {
 			return err
 		}
 	}

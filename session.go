@@ -55,7 +55,7 @@ func (s *session) Broadcast(key string, val interface{}) {
 }
 
 func (s *session) AddStage(name string, tf transformation.Transformation) Session {
-	defaultOut := node.DescribingStageOutput().WithRoundRobin()
+	defaultOut := node.DescribingStageOutput().WithFanout()
 	s.stages = append(s.stages, node.NewStage(name, transformation.NameOf(tf), defaultOut))
 	s.tfs = append(s.tfs, tf)
 
@@ -87,23 +87,26 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 		defer conn.Close()
 	}
 
-	var inputStageOutput output.Output
+	var inputStageOutput *output.Shards
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
-	prevOutput := make([]*lrmrpb.HostMapping, 0)
+	var prevShards []*lrmrpb.HostMapping
+	lastStage := job.Stages[len(job.Stages)-1]
+	if lastStage.Output.Collect {
+		prevShards = append(prevShards, &lrmrpb.HostMapping{
+			Host:   s.master.node.Host,
+			TaskID: "master",
+		})
+	}
 	for i := len(job.Stages) - 1; i >= 0; i-- {
 		stage := job.Stages[i]
-
-		out := stage.Output.Build(s.master.node, stage.Workers)
-		out.Shards = prevOutput
-
 		req := &lrmrpb.CreateTaskRequest{
 			Stage: &lrmrpb.Stage{
 				JobID:          job.ID,
 				Name:           stage.Name,
 				Transformation: stage.Transformation,
 			},
-			Output:     out,
+			Output:     stage.Output.Build(prevShards),
 			Broadcasts: s.serializedBroadcasts,
 		}
 
@@ -112,21 +115,21 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 			if err := s.tfs[0].Setup(nil); err != nil {
 				return nil, fmt.Errorf("input stage setup: %w", err)
 			}
-			inputStageOutput, _ = output.NewFromDesc(req.Output)
-			if err := inputStageOutput.Connect(ctx, s.master.node, req.Output); err != nil {
+			inputStageOutput, err = output.DialShards(ctx, s.master.node, req.Output, s.master.opt.Master.Output)
+			if err != nil {
 				// plot twist ¯\_(ツ)_/¯
 				return nil, fmt.Errorf("input stage output setup: %w", err)
 			}
 			break
 		}
 
-		prevOutput = make([]*lrmrpb.HostMapping, len(stage.Workers))
+		prevShards = make([]*lrmrpb.HostMapping, len(stage.Workers))
 		for j, worker := range stage.Workers {
 			taskID, err := s.createTask(worker, req)
 			if err != nil {
 				return nil, fmt.Errorf("create task for stage %s on %s: %w", stage.Name, worker.Host, err)
 			}
-			prevOutput[j] = &lrmrpb.HostMapping{
+			prevShards[j] = &lrmrpb.HostMapping{
 				Host:   worker.Host,
 				TaskID: taskID,
 			}
@@ -134,7 +137,7 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	}
 
 	jobLog.Info("Starting input")
-	if err := s.tfs[0].Apply(nil, nil, inputStageOutput); err != nil {
+	if err := s.tfs[0].Apply(nil, nil, output.NewStreamWriter(inputStageOutput)); err != nil {
 		return nil, fmt.Errorf("running input: %w", err)
 	}
 	if err := inputStageOutput.Flush(); err != nil {

@@ -10,6 +10,8 @@ type Master struct {
 
 	jobTracker  *node.JobTracker
 	nodeManager node.Manager
+
+	opt *Options
 }
 
 func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
@@ -20,10 +22,11 @@ func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
 	return &Master{
 		node: &node.Node{
 			ID:   "master",
-			Host: opt.Host,
+			Host: opt.Master.AdvertisedHost,
 		},
 		jobTracker:  node.NewJobTracker(crd),
 		nodeManager: nm,
+		opt:         opt,
 	}, nil
 }
 

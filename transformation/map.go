@@ -14,12 +14,12 @@ type Map struct {
 	Simple
 }
 
-func (m *Map) Apply(row lrdd.Row, out output.Output, executorID int) error {
+func (m *Map) Apply(row lrdd.Row, out output.Writer, executorID int) error {
 	result, err := m.Map(row)
 	if err != nil {
 		return err
 	}
-	return out.Send(result)
+	return out.Write(result)
 }
 
 func (m *Map) Map(row lrdd.Row) (lrdd.Row, error) {

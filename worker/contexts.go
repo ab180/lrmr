@@ -13,8 +13,9 @@ type taskContext struct {
 	stage          *node.Stage
 	task           *node.Task
 	transformation transformation.Transformation
-	output         output.Output
+	shards         *output.Shards
 	executors      *executorPool
+	connections    []*Connection
 
 	finishedInputCounts int32
 	totalInputCounts    int32
@@ -63,6 +64,10 @@ func (w *taskContext) SetCustomMetric(name string, val int) {
 	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics node.Metrics) {
 		metrics[name] = val
 	})
+}
+
+func (w *taskContext) addConnection(c *Connection) {
+	w.connections = append(w.connections, c)
 }
 
 func (w *taskContext) forkForExecutor(executorID int) transformation.Context {
