@@ -7,17 +7,21 @@ import (
 
 type Writer interface {
 	Write(lrdd.Row) error
+	Flush() error
 }
 
 type StreamWriter struct {
 	sh          *Shards
+	buffers     map[string][][]byte
 	partitioner Partitioner
 }
 
 func NewStreamWriter(sh *Shards) Writer {
+	buffers := make(map[string][][]byte)
 	var hosts []string
 	for _, shard := range sh.Desc.Shards {
 		hosts = append(hosts, shard.Host)
+		buffers[shard.Host] = make([][]byte, 0, sh.opt.BufferLength)
 	}
 
 	var p Partitioner
@@ -32,6 +36,7 @@ func NewStreamWriter(sh *Shards) Writer {
 
 	return &StreamWriter{
 		sh:          sh,
+		buffers:     buffers,
 		partitioner: p,
 	}
 }
@@ -41,5 +46,27 @@ func (s *StreamWriter) Write(d lrdd.Row) error {
 	if err != nil {
 		return err
 	}
-	return s.sh.Shards[host].Send(d)
+	s.buffers[host] = append(s.buffers[host], d.Marshal())
+	if len(s.buffers[host]) == cap(s.buffers[host]) {
+		return s.flushHost(host)
+	}
+	return nil
+}
+
+func (s *StreamWriter) flushHost(h string) (err error) {
+	if len(s.buffers[h]) == 0 {
+		return
+	}
+	err = s.sh.Shards[h].Send(s.buffers[h])
+	s.buffers[h] = s.buffers[h][:0]
+	return
+}
+
+func (s *StreamWriter) Flush() error {
+	for host := range s.sh.Shards {
+		if err := s.flushHost(host); err != nil {
+			return err
+		}
+	}
+	return nil
 }

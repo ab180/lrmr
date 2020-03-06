@@ -3,11 +3,9 @@ package output
 import (
 	"context"
 	"fmt"
-	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc"
-	"sync"
 )
 
 type Shard struct {
@@ -15,9 +13,6 @@ type Shard struct {
 	self   *node.Node
 	stream lrmrpb.Worker_RunTaskClient
 	conn   *grpc.ClientConn
-
-	buffer [][]byte
-	lock   sync.Mutex
 }
 
 func DialShard(ctx context.Context, self *node.Node, host, taskID string, opt Options) (*Shard, error) {
@@ -50,37 +45,18 @@ func DialShard(ctx context.Context, self *node.Node, host, taskID string, opt Op
 		self:   self,
 		stream: stream,
 		conn:   conn,
-		buffer: make([][]byte, 0, opt.BufferLength),
 	}, nil
 }
 
-func (sw *Shard) Send(d lrdd.Row) error {
-	sw.lock.Lock()
-	sw.buffer = append(sw.buffer, d.Marshal())
-	sw.lock.Unlock()
-
-	if len(sw.buffer) == cap(sw.buffer) {
-		return sw.Flush()
-	}
-	return nil
-}
-
-func (sw *Shard) Flush() (err error) {
-	sw.lock.Lock()
-	defer sw.lock.Unlock()
-
-	err = sw.stream.Send(&lrmrpb.RunRequest{
+func (sw *Shard) Send(inputs [][]byte) error {
+	return sw.stream.Send(&lrmrpb.RunRequest{
 		From: &lrmrpb.Node{
 			Host: sw.self.Host,
 			ID:   sw.self.ID,
 		},
 		TaskID: sw.taskID,
-		Inputs: sw.buffer,
+		Inputs: inputs,
 	})
-
-	// this clears buffer length without GC
-	sw.buffer = sw.buffer[:0]
-	return
 }
 
 func (sw *Shard) Close() error {
@@ -93,6 +69,7 @@ func (sw *Shard) Close() error {
 type Shards struct {
 	Shards map[string]*Shard
 	Desc   *lrmrpb.Output
+	opt    Options
 }
 
 func DialShards(ctx context.Context, self *node.Node, desc *lrmrpb.Output, opt Options) (*Shards, error) {
@@ -107,16 +84,8 @@ func DialShards(ctx context.Context, self *node.Node, desc *lrmrpb.Output, opt O
 	return &Shards{
 		Shards: shards,
 		Desc:   desc,
+		opt:    opt,
 	}, nil
-}
-
-func (sh *Shards) Flush() error {
-	for _, shard := range sh.Shards {
-		if err := shard.Flush(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (sh *Shards) Close() error {

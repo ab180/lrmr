@@ -137,10 +137,11 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	}
 
 	jobLog.Info("Starting input")
-	if err := s.tfs[0].Apply(nil, nil, output.NewStreamWriter(inputStageOutput)); err != nil {
+	out := output.NewStreamWriter(inputStageOutput)
+	if err := s.tfs[0].Apply(nil, nil, out); err != nil {
 		return nil, fmt.Errorf("running input: %w", err)
 	}
-	if err := inputStageOutput.Flush(); err != nil {
+	if err := out.Flush(); err != nil {
 		return nil, fmt.Errorf("flushing input: %w", err)
 	}
 	go func() {
