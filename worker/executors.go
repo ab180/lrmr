@@ -8,21 +8,69 @@ import (
 	"github.com/therne/lrmr/transformation"
 )
 
-type executorPool struct {
-	tf     transformation.Transformation
-	c      *taskContext
-	shards *output.Shards
-
-	ctx    context.Context
-	Cancel context.CancelFunc
-
-	inputChans  []chan incomingData
-	Concurrency int
+type executor struct {
+	input   chan incomingData
+	c       transformation.Context
+	out     output.Writer
+	tf      transformation.Transformation
+	ctx     context.Context
+	errChan chan error
 }
 
 type incomingData struct {
 	sender *Connection
 	data   lrdd.Row
+}
+
+func newExecutor(
+	ctx context.Context,
+	id int,
+	tf transformation.Transformation,
+	c *taskContext,
+	shards *output.Shards,
+	errChan chan error,
+	queueLen int,
+) *executor {
+	// each executor owns its output writer while sharing output connections (=shards)
+	out := output.NewStreamWriter(shards)
+
+	return &executor{
+		input:   make(chan incomingData, queueLen),
+		c:       c.forkForExecutor(id),
+		out:     out,
+		tf:      tf,
+		ctx:     ctx,
+		errChan: errChan,
+	}
+}
+
+func (e *executor) Run() {
+	defer func() {
+		if err := logutils.WrapRecover(recover()); err != nil {
+			e.errChan <- err
+		}
+	}()
+	for {
+		select {
+		case in := <-e.input:
+			err := e.tf.Apply(e.c, in.data, e.out)
+			in.sender.wg.Done()
+			if err != nil {
+				_ = in.sender.AbortTask(err)
+				return
+			}
+		case <-e.ctx.Done():
+			return
+		}
+	}
+}
+
+type executorPool struct {
+	ctx         context.Context
+	Cancel      context.CancelFunc
+	Executors   []*executor
+	Errors      <-chan error
+	Concurrency int
 }
 
 func launchExecutorPool(
@@ -31,56 +79,37 @@ func launchExecutorPool(
 	shards *output.Shards,
 	concurrency, queueLen int,
 ) *executorPool {
-
 	execCtx, cancel := context.WithCancel(context.Background())
-	eg := &executorPool{
-		tf:          tf,
-		c:           c,
-		shards:      shards,
+	panics := make(chan error)
+
+	executors := make([]*executor, concurrency)
+	for i := 0; i < concurrency; i++ {
+		executors[i] = newExecutor(execCtx, i, tf, c, shards, panics, queueLen)
+		go executors[i].Run()
+	}
+
+	return &executorPool{
 		ctx:         execCtx,
 		Cancel:      cancel,
-		inputChans:  make([]chan incomingData, concurrency),
+		Executors:   executors,
+		Errors:      panics,
 		Concurrency: concurrency,
 	}
-
-	// spawn executors
-	for i := range eg.inputChans {
-		eg.inputChans[i] = make(chan incomingData, queueLen)
-		go eg.startConsume(execCtx, eg.inputChans[i], i)
-	}
-	return eg
 }
 
-func (ep *executorPool) startConsume(ctx context.Context, inputChan chan incomingData, executorID int) {
-	var in incomingData
-	defer func() {
-		if err := logutils.WrapRecover(recover()); err != nil {
-			if in.sender == nil {
-				log.Error("Failed to initialize executor: {}", err.Pretty())
-				return
-			}
-			in.sender.Errors <- err
-		}
-	}()
+func (ep *executorPool) Enqueue(slot int, data lrdd.Row, sender *Connection) {
+	ep.Executors[slot].input <- incomingData{
+		sender: sender,
+		data:   data,
+	}
+}
 
-	// each executor owns its output writer while sharing output connections (=shards)
-	out := output.NewStreamWriter(ep.shards)
-
-	for {
-		select {
-		case in = <-inputChan:
-			childCtx := ep.c.forkForExecutor(executorID)
-			err := ep.tf.Apply(childCtx, in.data, out)
-			in.sender.wg.Done()
-			if err != nil {
-				in.sender.Errors <- err
-				ep.Cancel()
-				return
-			}
-
-		case <-ctx.Done():
-			// eg.Cancel() called
-			return
+func (ep *executorPool) Close() error {
+	ep.Cancel()
+	for _, executor := range ep.Executors {
+		if err := executor.out.Flush(); err != nil {
+			return err
 		}
 	}
+	return nil
 }

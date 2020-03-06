@@ -35,7 +35,7 @@ func (w *taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (w *taskContext) NumExecutors() int {
-	return len(w.executors.inputChans)
+	return len(w.executors.Executors)
 }
 
 func (w *taskContext) CurrentExecutor() int {
