@@ -23,6 +23,7 @@ require (
 	github.com/json-iterator/go v1.1.9
 	github.com/maruel/panicparse v1.3.0
 	github.com/modern-go/reflect2 v1.0.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.0 // indirect
 	github.com/segmentio/fasthash v1.0.1
 	github.com/shamaton/msgpack v1.1.1

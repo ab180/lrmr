@@ -42,25 +42,13 @@ func (w *taskContext) CurrentExecutor() int {
 	return 0
 }
 
-func (w *taskContext) AddTotalProgress(incremented int) {
-	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *job.TaskStatus) {
-		ts.TotalProgress += uint64(incremented)
-	})
-}
-
-func (w *taskContext) AddProgress(incremented int) {
-	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *job.TaskStatus) {
-		ts.CurrentProgress += uint64(incremented)
-	})
-}
-
-func (w *taskContext) AddCustomMetric(name string, delta int) {
+func (w *taskContext) AddMetric(name string, delta int) {
 	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics job.Metrics) {
 		metrics[name] += delta
 	})
 }
 
-func (w *taskContext) SetCustomMetric(name string, val int) {
+func (w *taskContext) SetMetric(name string, val int) {
 	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics job.Metrics) {
 		metrics[name] = val
 	})

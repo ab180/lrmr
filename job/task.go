@@ -49,11 +49,8 @@ func (tr TaskReference) String() string {
 
 type TaskStatus struct {
 	baseStatus
-	Error string `json:"error,omitempty"`
-
-	CurrentProgress uint64  `json:"currentProgress"`
-	TotalProgress   uint64  `json:"totalProgress"`
-	Metrics         Metrics `json:"metrics"`
+	Error   string  `json:"error,omitempty"`
+	Metrics Metrics `json:"metrics"`
 }
 
 func newTaskStatus() *TaskStatus {
@@ -69,10 +66,8 @@ func (ts TaskStatus) Clone() TaskStatus {
 		m[k] = v
 	}
 	return TaskStatus{
-		baseStatus:      ts.baseStatus,
-		Error:           ts.Error,
-		CurrentProgress: ts.CurrentProgress,
-		TotalProgress:   ts.TotalProgress,
-		Metrics:         m,
+		baseStatus: ts.baseStatus,
+		Error:      ts.Error,
+		Metrics:    m,
 	}
 }

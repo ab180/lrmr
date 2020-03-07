@@ -26,7 +26,7 @@ func (cnt *Counter) Setup(c stage.Context) error {
 }
 
 func (cnt *Counter) Apply(c stage.Context, row lrdd.Row, out output.Writer) error {
-	c.AddCustomMetric("Events", 1)
+	c.AddMetric("Events", 1)
 	counter := cnt.counters[c.CurrentExecutor()]
 	counter[row["appID"].(string)] += 1
 	return nil

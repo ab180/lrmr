@@ -6,9 +6,6 @@ type Context interface {
 	NumExecutors() int
 	CurrentExecutor() int
 
-	AddTotalProgress(int)
-	AddProgress(int)
-
-	AddCustomMetric(name string, delta int)
-	SetCustomMetric(name string, val int)
+	AddMetric(name string, delta int)
+	SetMetric(name string, val int)
 }
