@@ -2,7 +2,7 @@ package lrmr
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/stage"
 )
 
@@ -29,19 +29,19 @@ func (d *Dataset) Then(runner stage.Runner) *Dataset {
 }
 
 func (d *Dataset) GroupByKey(keyColumn string) *Dataset {
-	d.Session.Output(node.DescribingStageOutput().
+	d.Session.Output(job.DescribingStageOutput().
 		WithPartitions(keyColumn))
 	return d
 }
 
 func (d *Dataset) GroupByKnownKeys(column string, knownKeys []string) *Dataset {
-	d.Session.Output(node.DescribingStageOutput().
+	d.Session.Output(job.DescribingStageOutput().
 		WithFixedPartitions(column, knownKeys))
 	return d
 }
 
 func (d *Dataset) NoOutput() *Dataset {
-	d.Session.Output(node.DescribingStageOutput().Nothing())
+	d.Session.Output(job.DescribingStageOutput().Nothing())
 	return d
 }
 

@@ -5,9 +5,9 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/therne/lrmr/internal/logutils"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
-	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"sync"
@@ -15,7 +15,7 @@ import (
 
 type Connection struct {
 	ctx         *taskContext
-	jobReporter *node.JobReporter
+	jobReporter *job.Reporter
 
 	stream     lrmrpb.Worker_RunTaskServer
 	fromHost   string
@@ -27,7 +27,7 @@ type Connection struct {
 	log logger.Logger
 }
 
-func newConnection(s lrmrpb.Worker_RunTaskServer, reporter *node.JobReporter) *Connection {
+func newConnection(s lrmrpb.Worker_RunTaskServer, reporter *job.Reporter) *Connection {
 	conn := &Connection{
 		jobReporter: reporter,
 		stream:      s,

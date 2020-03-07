@@ -1,8 +1,7 @@
 package node
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"github.com/therne/lrmr/internal/utils"
 )
 
 type Node struct {
@@ -18,15 +17,7 @@ type Node struct {
 
 func New(host string) *Node {
 	return &Node{
-		ID:   mustGenerateID("N"),
+		ID:   utils.GenerateID("N"),
 		Host: host,
 	}
-}
-
-func mustGenerateID(prefix string) string {
-	bytes := make([]byte, 4)
-	if _, err := rand.Read(bytes); err != nil {
-		panic(err)
-	}
-	return prefix + hex.EncodeToString(bytes)
 }

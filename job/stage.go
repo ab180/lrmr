@@ -1,7 +1,8 @@
-package node
+package job
 
 import (
 	"github.com/therne/lrmr/lrmrpb"
+	"github.com/therne/lrmr/node"
 	"time"
 )
 
@@ -9,7 +10,7 @@ type Stage struct {
 	Name       string       `json:"name"`
 	RunnerName string       `json:"runnerName"`
 	Output     *StageOutput `json:"output"`
-	Workers    []*Node      `json:"workers"`
+	Workers    []*node.Node `json:"workers"`
 	StartedAt  *time.Time   `json:"startedAt,omitempty"`
 }
 
@@ -24,17 +25,12 @@ func NewStage(name, runnerName string, output *StageOutput) *Stage {
 }
 
 type StageStatus struct {
-	Status Status   `json:"status"`
+	baseStatus
 	Errors []string `json:"errors,omitempty"`
-
-	SubmittedAt *time.Time `json:"submittedAt"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }
 
-func (ss *StageStatus) Complete(s Status) {
-	now := time.Now()
-	ss.Status = s
-	ss.CompletedAt = &now
+func newStageStatus() *StageStatus {
+	return &StageStatus{baseStatus: newBaseStatus()}
 }
 
 type StageOutput struct {

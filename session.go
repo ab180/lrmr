@@ -6,6 +6,7 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/internal/logutils"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
@@ -22,7 +23,7 @@ type Session interface {
 	Broadcast(key string, val interface{})
 	SetInput(ip InputProvider) Session
 	AddStage(runnerName string, runner stage.Runner) Session
-	Output(out *node.StageOutput) Session
+	Output(out *job.StageOutput) Session
 
 	Run(ctx context.Context, name string) (*RunningJob, error)
 }
@@ -30,7 +31,7 @@ type Session interface {
 type session struct {
 	master  *Master
 	input   InputProvider
-	stages  []*node.Stage
+	stages  []*job.Stage
 	runners []stage.Runner
 
 	broadcasts           map[string]interface{}
@@ -63,9 +64,9 @@ func (s *session) SetInput(ip InputProvider) Session {
 }
 
 func (s *session) AddStage(runnerName string, runner stage.Runner) Session {
-	defaultOut := node.DescribingStageOutput().WithFanout()
+	defaultOut := job.DescribingStageOutput().WithFanout()
 	name := fmt.Sprintf("%s%d", runnerName, len(s.stages))
-	s.stages = append(s.stages, node.NewStage(name, runnerName, defaultOut))
+	s.stages = append(s.stages, job.NewStage(name, runnerName, defaultOut))
 	s.runners = append(s.runners, runner)
 
 	data, err := msgpack.Encode(runner)
@@ -83,7 +84,7 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 			s.log.Error("running session: {}", err.Pretty())
 		}
 	}()
-	job, err := s.master.nodeManager.CreateJob(ctx, name, s.stages)
+	job, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, fmt.Errorf("create job: %w", err)
 	}
@@ -176,7 +177,7 @@ func (s *session) createTask(worker *node.Node, req *lrmrpb.CreateTaskRequest) (
 }
 
 // Output sets last stage output with given output spec.
-func (s *session) Output(out *node.StageOutput) Session {
+func (s *session) Output(out *job.StageOutput) Session {
 	s.stages[len(s.stages)-1].Output = out
 	return s
 }

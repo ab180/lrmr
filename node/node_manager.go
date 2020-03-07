@@ -29,7 +29,6 @@ type Manager interface {
 	Connect(ctx context.Context, n *Node) (*grpc.ClientConn, error)
 	List(ctx context.Context) ([]*Node, error)
 	UnregisterNode(nid string) error
-	JobManager
 }
 
 type manager struct {

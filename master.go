@@ -2,13 +2,15 @@ package lrmr
 
 import (
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/node"
 )
 
 type Master struct {
 	node *node.Node
 
-	jobTracker  *node.JobTracker
+	jobTracker  *job.Tracker
+	jobManager  job.Manager
 	nodeManager node.Manager
 
 	opt *Options
@@ -24,7 +26,8 @@ func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
 			ID:   "master",
 			Host: opt.Master.AdvertisedHost,
 		},
-		jobTracker:  node.NewJobTracker(crd),
+		jobTracker:  job.NewJobTracker(crd),
+		jobManager:  job.NewManager(nm, crd),
 		nodeManager: nm,
 		opt:         opt,
 	}, nil

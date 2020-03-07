@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
 )
@@ -9,9 +9,9 @@ import (
 type taskContext struct {
 	worker *Worker
 
-	job         *node.Job
-	stage       *node.Stage
-	task        *node.Task
+	job         *job.Job
+	stage       *job.Stage
+	task        *job.Task
 	runner      stage.Runner
 	shards      *output.Shards
 	executors   *executorPool
@@ -43,25 +43,25 @@ func (w *taskContext) CurrentExecutor() int {
 }
 
 func (w *taskContext) AddTotalProgress(incremented int) {
-	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *node.TaskStatus) {
+	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *job.TaskStatus) {
 		ts.TotalProgress += uint64(incremented)
 	})
 }
 
 func (w *taskContext) AddProgress(incremented int) {
-	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *node.TaskStatus) {
+	w.worker.jobReporter.UpdateStatus(w.task.Reference(), func(ts *job.TaskStatus) {
 		ts.CurrentProgress += uint64(incremented)
 	})
 }
 
 func (w *taskContext) AddCustomMetric(name string, delta int) {
-	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics node.Metrics) {
+	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics job.Metrics) {
 		metrics[name] += delta
 	})
 }
 
 func (w *taskContext) SetCustomMetric(name string, val int) {
-	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics node.Metrics) {
+	w.worker.jobReporter.UpdateMetric(w.task.Reference(), func(metrics job.Metrics) {
 		metrics[name] = val
 	})
 }

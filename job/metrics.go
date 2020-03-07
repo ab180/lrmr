@@ -1,4 +1,4 @@
-package node
+package job
 
 type Metrics map[string]int
 

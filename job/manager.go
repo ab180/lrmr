@@ -1,11 +1,14 @@
-package node
+package job
 
 import (
 	"context"
 	"fmt"
+	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/internal/utils"
+	"github.com/therne/lrmr/node"
 	"path"
-	"time"
 )
 
 const (
@@ -18,7 +21,7 @@ const (
 	jobStatusNs   = "status/jobs"
 )
 
-type JobManager interface {
+type Manager interface {
 	CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error)
 	GetJob(ctx context.Context, jobID string) (*Job, error)
 
@@ -26,32 +29,43 @@ type JobManager interface {
 	ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error)
 
 	CreateTask(ctx context.Context, task *Task) (*TaskStatus, error)
+	GetTask(ctx context.Context, ref TaskReference) (*Task, error)
+	GetTaskStatus(ctx context.Context, ref TaskReference) (*TaskStatus, error)
 }
 
-func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
-	allNodes, err := m.List(ctx)
+type jobManager struct {
+	nodeManager node.Manager
+	crd         coordinator.Coordinator
+	log         logger.Logger
+}
+
+func NewManager(nm node.Manager, crd coordinator.Coordinator) Manager {
+	return &jobManager{
+		nodeManager: nm,
+		crd:         crd,
+		log:         logger.New("jobmanager"),
+	}
+}
+
+func (m *jobManager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
+	allNodes, err := m.nodeManager.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}
 	if len(allNodes) == 0 {
-		return nil, ErrNodeNotFound
+		return nil, node.ErrNodeNotFound
 	}
-	js := &JobStatus{Status: Starting}
+	js := newStatus()
 	j := &Job{
-		ID:          mustGenerateID("j"),
+		ID:          utils.GenerateID("J"),
 		Name:        name,
 		Workers:     allNodes,
 		Stages:      stages,
-		SubmittedAt: time.Now(),
+		SubmittedAt: js.SubmittedAt,
 	}
 	for _, stage := range j.Stages {
-		if stage.Name == "__input" || stage.Name == "__collect" {
-			// input / collector stage runs on the master
-			stage.Workers = []*Node{{ID: "master", Host: "localhost"}}
-		} else {
-			// TODO: resource-based scheduling
-			stage.Workers = allNodes
-		}
+		// TODO: resource-based scheduling
+		stage.Workers = allNodes
 	}
 
 	writes := []coordinator.BatchOp{
@@ -60,10 +74,7 @@ func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (
 	}
 	for _, stage := range j.Stages {
 		statKey := path.Join(stageStatusNs, j.ID, stage.Name)
-		statVal := &StageStatus{
-			Status:      Starting,
-			SubmittedAt: now(),
-		}
+		statVal := newStageStatus()
 		writes = append(writes, coordinator.Put(statKey, statVal))
 	}
 	if err := m.crd.Batch(ctx, writes...); err != nil {
@@ -73,7 +84,7 @@ func (m *manager) CreateJob(ctx context.Context, name string, stages []*Stage) (
 	return j, nil
 }
 
-func (m *manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
+func (m *jobManager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	job := &Job{}
 	if err := m.crd.Get(ctx, path.Join(jobNs, jobID), job); err != nil {
 		return nil, err
@@ -81,7 +92,7 @@ func (m *manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	return job, nil
 }
 
-func (m *manager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {
+func (m *jobManager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {
 	keyPrefix := path.Join(jobNs, fmt.Sprintf(prefixFormat, args...))
 	results, err := m.crd.Scan(ctx, keyPrefix)
 	if err != nil {
@@ -98,7 +109,7 @@ func (m *manager) ListJobs(ctx context.Context, prefixFormat string, args ...int
 	return jobs, nil
 }
 
-func (m *manager) ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error) {
+func (m *jobManager) ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error) {
 	keyPrefix := path.Join(taskNs, fmt.Sprintf(prefixFormat, args...))
 	results, err := m.crd.Scan(ctx, keyPrefix)
 	if err != nil {
@@ -115,21 +126,33 @@ func (m *manager) ListTasks(ctx context.Context, prefixFormat string, args ...in
 	return tasks, nil
 }
 
-func (m *manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
+func (m *jobManager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	if err := m.crd.Put(ctx, path.Join(taskNs, task.ID), task); err != nil {
-		return nil, fmt.Errorf("task creation: %w", err)
+		return nil, errors.Wrap(err, "task creation")
 	}
-	status := &TaskStatus{
-		Status:      Starting,
-		SubmittedAt: &task.SubmittedAt,
-		Metrics:     make(Metrics),
-	}
+	status := newTaskStatus()
 	ops := []coordinator.BatchOp{
 		coordinator.Put(path.Join(taskStatusNs, task.Reference().String()), status),
 		coordinator.IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")),
 	}
 	if err := m.crd.Batch(ctx, ops...); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
+	}
+	return status, nil
+}
+
+func (m *jobManager) GetTask(ctx context.Context, ref TaskReference) (*Task, error) {
+	task := &Task{}
+	if err := m.crd.Get(ctx, path.Join(taskNs, ref.TaskID), task); err != nil {
+		return nil, errors.Wrap(err, "get task")
+	}
+	return task, nil
+}
+
+func (m *jobManager) GetTaskStatus(ctx context.Context, ref TaskReference) (*TaskStatus, error) {
+	status := &TaskStatus{}
+	if err := m.crd.Get(ctx, path.Join(taskStatusNs, ref.String()), status); err != nil {
+		return nil, errors.Wrap(err, "get task")
 	}
 	return status, nil
 }

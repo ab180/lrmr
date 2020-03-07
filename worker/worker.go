@@ -10,6 +10,7 @@ import (
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/logutils"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
@@ -29,7 +30,8 @@ var log = logger.New("worker")
 
 type Worker struct {
 	nodeManager node.Manager
-	jobReporter *node.JobReporter
+	jobManager  job.Manager
+	jobReporter *job.Reporter
 	server      *grpc.Server
 
 	contexts        map[string]*taskContext
@@ -59,7 +61,8 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 
 	return &Worker{
 		nodeManager:     nm,
-		jobReporter:     node.NewJobReporter(crd),
+		jobReporter:     job.NewJobReporter(crd),
+		jobManager:      job.NewManager(nm, crd),
 		server:          srv,
 		contexts:        make(map[string]*taskContext),
 		workerLocalOpts: make(map[string]interface{}),
@@ -90,11 +93,11 @@ func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 }
 
 func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*lrmrpb.CreateTaskResponse, error) {
-	job, err := w.nodeManager.GetJob(ctx, req.Stage.JobID)
+	j, err := w.jobManager.GetJob(ctx, req.Stage.JobID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get job info: %w", err)
 	}
-	s := job.GetStage(req.Stage.Name)
+	s := j.GetStage(req.Stage.Name)
 	if s == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.Stage.Name, req.Stage.JobID)
 	}
@@ -123,19 +126,19 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
 
-	task := node.NewTask(w.nodeManager.Self(), job, s)
-	ts, err := w.nodeManager.CreateTask(ctx, task)
+	task := job.NewTask(w.nodeManager.Self(), j, s)
+	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create task failed: %w", err)
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, s.Name, job.Name)
+	log.Info("Create task {} of {}/{} (Job: {})", task.ID, j.ID, s.Name, j.Name)
 	log.Info("  output: {}", req.Output.String())
 
 	c := &taskContext{
 		worker:     w,
-		job:        job,
+		job:        j,
 		stage:      s,
 		task:       task,
 		runner:     runner,
@@ -197,8 +200,8 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 
 		} else if !ctx.isRunning {
 			ctx.isRunning = true
-			w.jobReporter.UpdateStatus(ctx.task.Reference(), func(ts *node.TaskStatus) {
-				ts.Status = node.Running
+			w.jobReporter.UpdateStatus(ctx.task.Reference(), func(ts *job.TaskStatus) {
+				ts.Status = job.Running
 			})
 		}
 		for _, data := range req.Inputs {
