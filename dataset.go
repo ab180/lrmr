@@ -3,8 +3,7 @@ package lrmr
 import (
 	"fmt"
 	"github.com/therne/lrmr/node"
-	"github.com/therne/lrmr/transformation"
-	"reflect"
+	"github.com/therne/lrmr/stage"
 )
 
 // Dataset is less-resilient distributed dataset
@@ -14,24 +13,18 @@ type Dataset struct {
 }
 
 func Input(provider InputProvider, m *Master) *Dataset {
-	sess := NewSession(m)
-	sess.AddStage("__input", &inputProviderWrapper{provider: provider})
+	sess := NewSession(m).SetInput(provider)
 	return &Dataset{Session: sess}
 }
 
 func TextFile(uri string, m *Master) *Dataset {
-	sess := NewSession(m)
-	sess.AddStage("__input", &localInput{Path: uri})
+	sess := NewSession(m).SetInput(&localInput{Path: uri})
 	return &Dataset{Session: sess}
 }
 
-func (d *Dataset) Map(m transformation.Mapper) *Dataset {
-	d.Session.AddStage(d.stageName(m), m)
-	return d
-}
-
-func (d *Dataset) Then(m transformation.Transformation) *Dataset {
-	d.Session.AddStage(d.stageName(m), m)
+func (d *Dataset) Then(runner stage.Runner) *Dataset {
+	s := stage.LookupByRunner(runner)
+	d.Session.AddStage(s.Name, runner)
 	return d
 }
 
@@ -52,12 +45,8 @@ func (d *Dataset) NoOutput() *Dataset {
 	return d
 }
 
-func (d *Dataset) stageName(i interface{}) string {
-	typ := reflect.TypeOf(i)
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-	name := fmt.Sprintf("%s%d", typ.Name(), d.NumStages)
+func (d *Dataset) stageName(s stage.Stage) string {
+	name := fmt.Sprintf("%s%d", s.Name, d.NumStages)
 	d.NumStages += 1
 	return name
 }

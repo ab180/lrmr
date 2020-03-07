@@ -3,19 +3,19 @@ package worker
 import (
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 )
 
 type taskContext struct {
 	worker *Worker
 
-	job            *node.Job
-	stage          *node.Stage
-	task           *node.Task
-	transformation transformation.Transformation
-	shards         *output.Shards
-	executors      *executorPool
-	connections    []*Connection
+	job         *node.Job
+	stage       *node.Stage
+	task        *node.Task
+	runner      stage.Runner
+	shards      *output.Shards
+	executors   *executorPool
+	connections []*Connection
 
 	finishedInputCounts int32
 	totalInputCounts    int32
@@ -70,7 +70,7 @@ func (w *taskContext) addConnection(c *Connection) {
 	w.connections = append(w.connections, c)
 }
 
-func (w *taskContext) forkForExecutor(executorID int) transformation.Context {
+func (w *taskContext) forkForExecutor(executorID int) stage.Context {
 	return &taskContextForExecutor{
 		taskContext: w,
 		executorID:  executorID,

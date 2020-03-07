@@ -6,20 +6,20 @@ import (
 )
 
 type Stage struct {
-	Name           string       `json:"name"`
-	Transformation string       `json:"transformation"`
-	Output         *StageOutput `json:"output"`
-	Workers        []*Node      `json:"workers"`
-	StartedAt      *time.Time   `json:"startedAt,omitempty"`
+	Name       string       `json:"name"`
+	RunnerName string       `json:"runnerName"`
+	Output     *StageOutput `json:"output"`
+	Workers    []*Node      `json:"workers"`
+	StartedAt  *time.Time   `json:"startedAt,omitempty"`
 }
 
 // NewStage creates new stage.
 // JobIDs and workers will be filled by JobManager.
-func NewStage(name, transformationID string, output *StageOutput) *Stage {
+func NewStage(name, runnerName string, output *StageOutput) *Stage {
 	return &Stage{
-		Name:           name,
-		Transformation: transformationID,
-		Output:         output,
+		Name:       name,
+		RunnerName: runnerName,
+		Output:     output,
 	}
 }
 

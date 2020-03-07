@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/shamaton/msgpack"
+	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 )
 
 type Result struct {
@@ -19,16 +20,18 @@ type Result struct {
 
 type Session interface {
 	Broadcast(key string, val interface{})
-	AddStage(name string, tf transformation.Transformation) Session
+	SetInput(ip InputProvider) Session
+	AddStage(runnerName string, runner stage.Runner) Session
 	Output(out *node.StageOutput) Session
 
 	Run(ctx context.Context, name string) (*RunningJob, error)
 }
 
 type session struct {
-	master *Master
-	stages []*node.Stage
-	tfs    []transformation.Transformation
+	master  *Master
+	input   InputProvider
+	stages  []*node.Stage
+	runners []stage.Runner
 
 	broadcasts           map[string]interface{}
 	serializedBroadcasts map[string][]byte
@@ -54,12 +57,18 @@ func (s *session) Broadcast(key string, val interface{}) {
 	s.broadcasts["Broadcast/"+key] = val
 }
 
-func (s *session) AddStage(name string, tf transformation.Transformation) Session {
-	defaultOut := node.DescribingStageOutput().WithFanout()
-	s.stages = append(s.stages, node.NewStage(name, transformation.NameOf(tf), defaultOut))
-	s.tfs = append(s.tfs, tf)
+func (s *session) SetInput(ip InputProvider) Session {
+	s.input = ip
+	return s
+}
 
-	data, err := msgpack.Encode(tf)
+func (s *session) AddStage(runnerName string, runner stage.Runner) Session {
+	defaultOut := node.DescribingStageOutput().WithFanout()
+	name := fmt.Sprintf("%s%d", runnerName, len(s.stages))
+	s.stages = append(s.stages, node.NewStage(name, runnerName, defaultOut))
+	s.runners = append(s.runners, runner)
+
+	data, err := msgpack.Encode(runner)
 	if err != nil {
 		panic(fmt.Sprintf("broadcasting %s: %v", name, err))
 	}
@@ -69,6 +78,11 @@ func (s *session) AddStage(name string, tf transformation.Transformation) Sessio
 }
 
 func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
+	defer func() {
+		if err := logutils.WrapRecover(recover()); err != nil {
+			s.log.Error("running session: {}", err.Pretty())
+		}
+	}()
 	job, err := s.master.nodeManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, fmt.Errorf("create job: %w", err)
@@ -87,8 +101,6 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 		defer conn.Close()
 	}
 
-	var inputStageOutput *output.Shards
-
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	var prevShards []*lrmrpb.HostMapping
 	lastStage := job.Stages[len(job.Stages)-1]
@@ -102,27 +114,13 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 		stage := job.Stages[i]
 		req := &lrmrpb.CreateTaskRequest{
 			Stage: &lrmrpb.Stage{
-				JobID:          job.ID,
-				Name:           stage.Name,
-				Transformation: stage.Transformation,
+				JobID:      job.ID,
+				Name:       stage.Name,
+				RunnerName: stage.RunnerName,
 			},
 			Output:     stage.Output.Build(prevShards),
 			Broadcasts: s.serializedBroadcasts,
 		}
-
-		if i == 0 {
-			// prepare input stage (1st stage)
-			if err := s.tfs[0].Setup(nil); err != nil {
-				return nil, fmt.Errorf("input stage setup: %w", err)
-			}
-			inputStageOutput, err = output.DialShards(ctx, s.master.node, req.Output, s.master.opt.Master.Output)
-			if err != nil {
-				// plot twist ¯\_(ツ)_/¯
-				return nil, fmt.Errorf("input stage output setup: %w", err)
-			}
-			break
-		}
-
 		prevShards = make([]*lrmrpb.HostMapping, len(stage.Workers))
 		for j, worker := range stage.Workers {
 			taskID, err := s.createTask(worker, req)
@@ -137,15 +135,23 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	}
 
 	jobLog.Info("Starting input")
-	out := output.NewStreamWriter(inputStageOutput)
-	if err := s.tfs[0].Apply(nil, nil, out); err != nil {
+	outDesc := &lrmrpb.Output{
+		Shards:      prevShards,
+		Partitioner: &lrmrpb.Partitioner{Type: lrmrpb.Partitioner_NONE},
+	}
+	firstShards, err := output.DialShards(ctx, s.master.node, outDesc, s.master.opt.Master.Output)
+	if err != nil {
+		return nil, fmt.Errorf("connecting input: %w", err)
+	}
+	out := output.NewStreamWriter(firstShards)
+	if err := s.input.ProvideInput(out); err != nil {
 		return nil, fmt.Errorf("running input: %w", err)
 	}
 	if err := out.Flush(); err != nil {
 		return nil, fmt.Errorf("flushing input: %w", err)
 	}
 	go func() {
-		if err := inputStageOutput.Close(); err != nil {
+		if err := firstShards.Close(); err != nil {
 			jobLog.Error("Failed to close input stage output", err)
 		}
 	}()

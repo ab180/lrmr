@@ -75,7 +75,7 @@ func (c *Connection) FinishTask() error {
 	if err := c.ctx.executors.Close(); err != nil {
 		return c.AbortTask(fmt.Errorf("flush output: %v", err))
 	}
-	if err := c.ctx.transformation.Teardown(c.ctx); err != nil {
+	if err := c.ctx.runner.Teardown(c.ctx); err != nil {
 		return c.AbortTask(fmt.Errorf("teardown: %v", err))
 	}
 	go func() {

@@ -18,7 +18,7 @@ message CreateTaskRequest {
 message Stage {
     string jobID = 1;
     string name = 2;
-    string transformation = 3;
+    string runnerName = 3;
 }
 
 message Output {

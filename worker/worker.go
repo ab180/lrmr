@@ -14,7 +14,7 @@ import (
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -94,10 +94,12 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get job info: %w", err)
 	}
-	stage := job.GetStage(req.Stage.Name)
-	if stage == nil {
+	s := job.GetStage(req.Stage.Name)
+	if s == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.Stage.Name, req.Stage.JobID)
 	}
+	st := stage.Lookup(req.Stage.RunnerName)
+	runner := st.Constructor()
 
 	broadcasts := make(map[string]interface{})
 	for key, broadcast := range req.Broadcasts {
@@ -108,10 +110,9 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		broadcasts[key] = val
 	}
 
-	// restore transformation object from broadcasts
-	tf := transformation.Lookup(req.Stage.Transformation)
+	// restore runner object contents from broadcasts
 	if data, ok := broadcasts["__stage/"+req.Stage.Name].([]byte); ok {
-		err := msgpack.Decode(data, tf)
+		err := msgpack.Decode(data, runner)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "recover transformation: %w", err)
 		}
@@ -122,31 +123,31 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
 
-	task := node.NewTask(w.nodeManager.Self(), job, stage)
+	task := node.NewTask(w.nodeManager.Self(), job, s)
 	ts, err := w.nodeManager.CreateTask(ctx, task)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create task failed: %w", err)
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, stage.Name, job.Name)
+	log.Info("Create task {} of {}/{} (Job: {})", task.ID, job.ID, s.Name, job.Name)
 	log.Info("  output: {}", req.Output.String())
 
 	c := &taskContext{
-		worker:         w,
-		job:            job,
-		stage:          stage,
-		task:           task,
-		transformation: tf,
-		shards:         shards,
-		broadcasts:     broadcasts,
-		workerCfgs:     w.workerLocalOpts,
-		states:         make(map[string]interface{}),
+		worker:     w,
+		job:        job,
+		stage:      s,
+		task:       task,
+		runner:     runner,
+		shards:     shards,
+		broadcasts: broadcasts,
+		workerCfgs: w.workerLocalOpts,
+		states:     make(map[string]interface{}),
 	}
-	c.executors = launchExecutorPool(tf, c, shards, w.opt.Concurrency, w.opt.QueueLength)
+	c.executors = launchExecutorPool(runner, c, shards, w.opt.Concurrency, w.opt.QueueLength)
 	w.contexts[task.ID] = c
 
-	if err := c.transformation.Setup(c); err != nil {
+	if err := c.runner.Setup(c); err != nil {
 		c.executors.Cancel()
 		_ = w.jobReporter.ReportFailure(task.Reference(), err)
 		delete(w.contexts, task.ID)

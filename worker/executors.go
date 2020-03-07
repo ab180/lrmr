@@ -5,14 +5,14 @@ import (
 	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 )
 
 type executor struct {
 	input   chan incomingData
-	c       transformation.Context
+	c       stage.Context
 	out     output.Writer
-	tf      transformation.Transformation
+	runner  stage.Runner
 	ctx     context.Context
 	errChan chan error
 }
@@ -25,7 +25,7 @@ type incomingData struct {
 func newExecutor(
 	ctx context.Context,
 	id int,
-	tf transformation.Transformation,
+	runner stage.Runner,
 	c *taskContext,
 	shards *output.Shards,
 	errChan chan error,
@@ -38,7 +38,7 @@ func newExecutor(
 		input:   make(chan incomingData, queueLen),
 		c:       c.forkForExecutor(id),
 		out:     out,
-		tf:      tf,
+		runner:  runner,
 		ctx:     ctx,
 		errChan: errChan,
 	}
@@ -53,7 +53,7 @@ func (e *executor) Run() {
 	for {
 		select {
 		case in := <-e.input:
-			err := e.tf.Apply(e.c, in.data, e.out)
+			err := e.runner.Apply(e.c, in.data, e.out)
 			in.sender.wg.Done()
 			if err != nil {
 				_ = in.sender.AbortTask(err)
@@ -74,7 +74,7 @@ type executorPool struct {
 }
 
 func launchExecutorPool(
-	tf transformation.Transformation,
+	runner stage.Runner,
 	c *taskContext,
 	shards *output.Shards,
 	concurrency, queueLen int,
@@ -84,7 +84,7 @@ func launchExecutorPool(
 
 	executors := make([]*executor, concurrency)
 	for i := 0; i < concurrency; i++ {
-		executors[i] = newExecutor(execCtx, i, tf, c, shards, panics, queueLen)
+		executors[i] = newExecutor(execCtx, i, runner, c, shards, panics, queueLen)
 		go executors[i].Run()
 	}
 

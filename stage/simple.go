@@ -1,4 +1,4 @@
-package transformation
+package stage
 
 import (
 	"github.com/therne/lrmr/lrdd"
@@ -19,4 +19,4 @@ func (s *Simple) Teardown(c Context) error {
 	return nil
 }
 
-var _ Transformation = &Simple{}
+var _ Runner = &Simple{}

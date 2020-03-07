@@ -1,4 +1,4 @@
-package transformation
+package stage
 
 type Context interface {
 	Broadcast(key string) interface{}

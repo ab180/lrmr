@@ -4,18 +4,20 @@ import (
 	"fmt"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 )
+
+var _ = stage.Register("CountByApp", CountByApp())
 
 type Counter struct {
 	counters []map[string]int
 }
 
-func CountByApp() transformation.Transformation {
+func CountByApp() stage.Runner {
 	return &Counter{}
 }
 
-func (cnt *Counter) Setup(c transformation.Context) error {
+func (cnt *Counter) Setup(c stage.Context) error {
 	cnt.counters = make([]map[string]int, c.NumExecutors())
 	for i := range cnt.counters {
 		cnt.counters[i] = make(map[string]int)
@@ -23,14 +25,14 @@ func (cnt *Counter) Setup(c transformation.Context) error {
 	return nil
 }
 
-func (cnt *Counter) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
+func (cnt *Counter) Apply(c stage.Context, row lrdd.Row, out output.Writer) error {
 	c.AddCustomMetric("Events", 1)
 	counter := cnt.counters[c.CurrentExecutor()]
 	counter[row["appID"].(string)] += 1
 	return nil
 }
 
-func (cnt *Counter) Teardown(c transformation.Context) error {
+func (cnt *Counter) Teardown(c stage.Context) error {
 	summary := make(map[string]int)
 	for _, counter := range cnt.counters {
 		for appID, count := range counter {

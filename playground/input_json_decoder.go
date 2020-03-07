@@ -7,21 +7,23 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/stage"
 	"io"
 	"os"
 	"strconv"
 )
 
+var _ = stage.Register("DecodeJSON", DecodeNDJSON())
+
 type ndjsonDecoder struct {
-	transformation.Simple
+	stage.Simple
 }
 
-func DecodeNDJSON() transformation.Transformation {
+func DecodeNDJSON() stage.Runner {
 	return &ndjsonDecoder{}
 }
 
-func (l *ndjsonDecoder) Apply(c transformation.Context, row lrdd.Row, out output.Writer) error {
+func (l *ndjsonDecoder) Apply(c stage.Context, row lrdd.Row, out output.Writer) error {
 	path := row["path"].(string)
 
 	file, err := os.Open(path)
