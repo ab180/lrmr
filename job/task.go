@@ -62,3 +62,17 @@ func newTaskStatus() *TaskStatus {
 		Metrics:    make(Metrics),
 	}
 }
+
+func (ts TaskStatus) Clone() TaskStatus {
+	m := make(Metrics)
+	for k, v := range ts.Metrics {
+		m[k] = v
+	}
+	return TaskStatus{
+		baseStatus:      ts.baseStatus,
+		Error:           ts.Error,
+		CurrentProgress: ts.CurrentProgress,
+		TotalProgress:   ts.TotalProgress,
+		Metrics:         m,
+	}
+}

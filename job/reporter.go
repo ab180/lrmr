@@ -134,10 +134,11 @@ func (r *Reporter) flushTaskStatus() error {
 			tsh := item.(*taskStatusHolder)
 
 			tsh.lock.RLock()
+			status := tsh.status.Clone()
 			defer tsh.lock.RUnlock()
 
 			key := path.Join(taskStatusNs, task.String())
-			updates = append(updates, coordinator.Put(key, tsh.status))
+			updates = append(updates, coordinator.Put(key, status))
 		}
 		return true
 	})
