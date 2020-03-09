@@ -68,6 +68,8 @@ func (w *taskContext) forkForExecutor(executorID int) stage.Context {
 type taskContextForExecutor struct {
 	*taskContext
 	executorID int
+
+	metric job.Metrics
 }
 
 func (tce *taskContextForExecutor) CurrentExecutor() int {

@@ -140,7 +140,7 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 		Shards:      prevShards,
 		Partitioner: &lrmrpb.Partitioner{Type: lrmrpb.Partitioner_NONE},
 	}
-	firstShards, err := output.DialShards(ctx, s.master.node, outDesc, s.master.opt.Master.Output)
+	firstShards, err := output.DialShards(ctx, s.master, outDesc, s.master.opt.Master.Output)
 	if err != nil {
 		return nil, fmt.Errorf("connecting input: %w", err)
 	}

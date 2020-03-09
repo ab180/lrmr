@@ -70,6 +70,18 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	}, nil
 }
 
+func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
+	w.workerLocalOpts[key] = value
+}
+
+func (w *Worker) NodeInfo() *lrmrpb.Node {
+	n := w.nodeManager.Self()
+	return &lrmrpb.Node{
+		Host: n.Host,
+		ID:   n.ID,
+	}
+}
+
 func (w *Worker) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -86,10 +98,6 @@ func (w *Worker) Start() error {
 		return err
 	}
 	return w.server.Serve(lis)
-}
-
-func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
-	w.workerLocalOpts[key] = value
 }
 
 func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*lrmrpb.CreateTaskResponse, error) {
@@ -121,7 +129,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 	}
 
-	shards, err := output.DialShards(ctx, w.nodeManager.Self(), req.Output, w.opt.Output)
+	shards, err := output.DialShards(ctx, w, req.Output, w.opt.Output)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
 	}
@@ -196,7 +204,11 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			conn.SetContext(ctx, req.From)
 			ctx.addConnection(conn)
 
-			log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
+			if _, ok := stream.(*output.LocalPipeStream); ok {
+				log.Debug("Task {} ({}/{}) connected with local", req.TaskID, ctx.job.ID, ctx.stage.Name)
+			} else {
+				log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
+			}
 
 		} else if !ctx.isRunning {
 			ctx.isRunning = true

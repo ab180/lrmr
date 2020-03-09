@@ -105,10 +105,6 @@ func (c *Connection) AbortTask(err error) error {
 
 func (c *Connection) TryRecover() {
 	if err := logutils.WrapRecover(recover()); err != nil {
-		if c != nil {
-			_ = c.AbortTask(err)
-		} else {
-			log.Error("failed to warm up task. {}", err.Pretty())
-		}
+		_ = c.AbortTask(err)
 	}
 }

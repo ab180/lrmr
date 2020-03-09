@@ -3,6 +3,7 @@ package lrmr
 import (
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
 
@@ -31,6 +32,13 @@ func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
 		nodeManager: nm,
 		opt:         opt,
 	}, nil
+}
+
+func (m *Master) NodeInfo() *lrmrpb.Node {
+	return &lrmrpb.Node{
+		Host: m.node.Host,
+		ID:   m.node.ID,
+	}
 }
 
 func (m *Master) Start() {

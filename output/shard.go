@@ -3,57 +3,69 @@ package output
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrmrpb"
-	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc"
+	"io"
 )
 
 type Shard struct {
 	taskID string
-	self   *node.Node
+	self   *lrmrpb.Node
 	stream lrmrpb.Worker_RunTaskClient
-	conn   *grpc.ClientConn
+	conn   io.Closer
 }
 
-func DialShard(ctx context.Context, self *node.Node, host, taskID string, opt Options) (*Shard, error) {
-	dialCtx, cancel := context.WithTimeout(ctx, opt.DialTimeout)
-	defer cancel()
+type Node interface {
+	NodeInfo() *lrmrpb.Node
+}
 
-	conn, err := grpc.DialContext(dialCtx, host, opt.DialOpts...)
+func DialShard(ctx context.Context, self Node, host, taskID string, opt Options) (*Shard, error) {
+	conn, stream, err := connect(ctx, self, host, opt)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "connect to %s", host)
 	}
-	client := lrmrpb.NewWorkerClient(conn)
-	stream, err := client.RunTask(context.Background(), grpc.MaxCallSendMsgSize(opt.MaxSendMsgSize))
-	if err != nil {
-		return nil, err
-	}
-
 	warmUpReq := &lrmrpb.RunRequest{
 		TaskID: taskID,
-		From: &lrmrpb.Node{
-			Host: self.Host,
-			ID:   self.ID,
-		},
+		From:   self.NodeInfo(),
 	}
 	if err := stream.Send(warmUpReq); err != nil {
-		return nil, fmt.Errorf("warm up: %w", err)
+		return nil, errors.Wrap(err, "warm up")
 	}
-
 	return &Shard{
 		taskID: taskID,
-		self:   self,
+		self:   self.NodeInfo(),
 		stream: stream,
 		conn:   conn,
 	}, nil
 }
 
+func connect(ctx context.Context, self Node, host string, opt Options) (io.Closer, lrmrpb.Worker_RunTaskClient, error) {
+	if self.NodeInfo().Host == host {
+		w, r := localPipe()
+		if workSrv, ok := self.(lrmrpb.WorkerServer); ok {
+			go workSrv.RunTask(r)
+		}
+		return w, w, nil
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, opt.DialTimeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(dialCtx, host, opt.DialOpts...)
+	if err != nil {
+		return nil, nil, err
+	}
+	client := lrmrpb.NewWorkerClient(conn)
+	stream, err := client.RunTask(context.Background(), grpc.MaxCallSendMsgSize(opt.MaxSendMsgSize))
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, stream, nil
+}
+
 func (sw *Shard) Send(inputs [][]byte) error {
 	return sw.stream.Send(&lrmrpb.RunRequest{
-		From: &lrmrpb.Node{
-			Host: sw.self.Host,
-			ID:   sw.self.ID,
-		},
+		From:   sw.self,
 		TaskID: sw.taskID,
 		Inputs: inputs,
 	})
@@ -72,7 +84,7 @@ type Shards struct {
 	opt    Options
 }
 
-func DialShards(ctx context.Context, self *node.Node, desc *lrmrpb.Output, opt Options) (*Shards, error) {
+func DialShards(ctx context.Context, self Node, desc *lrmrpb.Output, opt Options) (*Shards, error) {
 	shards := make(map[string]*Shard)
 	for _, s := range desc.Shards {
 		sh, err := DialShard(ctx, self, s.Host, s.TaskID, opt)
