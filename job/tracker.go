@@ -129,8 +129,7 @@ func (t *Tracker) finalizeStage(ctx context.Context, job *Job, stageID string) e
 	delete(t.totalTasksOfStage, stageID)
 	t.lock.Unlock()
 
-	// exclude input stage
-	totalStages := int64(len(job.Stages) - 1)
+	totalStages := int64(len(job.Stages))
 	t.log.Info("Stage {} {}. ({}/{})", stageID, s.Status, doneStages, totalStages)
 
 	if s.Status == Failed {
