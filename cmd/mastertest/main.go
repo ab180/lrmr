@@ -18,9 +18,9 @@ func main() {
 	defer m.Stop()
 
 	sess := lrmr.TextFile("/Users/vista/testdata/", m).
-		Then(DecodeNDJSON()).
-		GroupByKey("appID").
-		Then(CountByApp())
+		FlatMap(DecodeJSON()).
+		GroupByKey().
+		Reduce(Count())
 
 	job, err := sess.Run(context.TODO(), "GroupByApp")
 	if err != nil {

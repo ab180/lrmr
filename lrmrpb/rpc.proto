@@ -44,9 +44,6 @@ message Partitioner {
     }
     Type type = 1;
 
-    // keyColumn is a column name of the key of the partition.
-    string keyColumn = 2;
-
     // PartitionKeyToHost contains mapping of partition key to worker node host.
     // Used only when the type is FINITE_KEY.
     map<string, string> keyToHost = 3;

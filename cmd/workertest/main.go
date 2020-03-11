@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/playground"
+	_ "github.com/therne/lrmr/playground"
 	"os"
 	"strconv"
 )
-
-var _ = &playground.Counter{}
 
 func main() {
 	opt := lrmr.DefaultOptions()

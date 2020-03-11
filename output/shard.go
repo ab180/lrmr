@@ -42,11 +42,11 @@ func DialShard(ctx context.Context, self Node, host, taskID string, opt Options)
 
 func connect(ctx context.Context, self Node, host string, opt Options) (io.Closer, lrmrpb.Worker_RunTaskClient, error) {
 	if self.NodeInfo().Host == host {
-		w, r := localPipe()
-		if workSrv, ok := self.(lrmrpb.WorkerServer); ok {
-			go workSrv.RunTask(r)
-		}
-		return w, w, nil
+		//w, r := localPipe()
+		//if workSrv, ok := self.(lrmrpb.WorkerServer); ok {
+		//	go workSrv.RunTask(r)
+		//}
+		//return w, w, nil
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, opt.DialTimeout)
 	defer cancel()

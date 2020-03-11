@@ -1,55 +1,81 @@
 package output
 
 import (
+	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
+	"time"
 )
+
+var log = logger.New("output")
 
 type Writer interface {
 	Write(lrdd.Row) error
-	Flush() error
+	Errors() <-chan error
+	FlushAndClose() error
 }
 
 type StreamWriter struct {
 	sh          *Shards
 	buffers     map[string][][]byte
 	partitioner Partitioner
+
+	dataChan  chan lrdd.Row
+	errorChan chan error
 }
 
 func NewStreamWriter(sh *Shards) Writer {
 	buffers := make(map[string][][]byte)
 	var hosts []string
-	for _, shard := range sh.Desc.Shards {
-		hosts = append(hosts, shard.Host)
-		buffers[shard.Host] = make([][]byte, 0, sh.opt.BufferLength)
+	for host := range sh.Shards {
+		hosts = append(hosts, host)
+		buffers[host] = make([][]byte, 0, sh.opt.BufferLength)
 	}
 
 	var p Partitioner
 	switch sh.Desc.Partitioner.Type {
 	case lrmrpb.Partitioner_HASH_KEY:
-		p = NewHashKeyPartitioner(sh.Desc.Partitioner.KeyColumn, hosts)
+		p = NewHashKeyPartitioner(hosts)
 	case lrmrpb.Partitioner_FINITE_KEY:
-		p = NewFiniteKeyPartitioner(sh.Desc.Partitioner.KeyColumn, sh.Desc.Partitioner.KeyToHost)
+		p = NewFiniteKeyPartitioner(sh.Desc.Partitioner.KeyToHost)
 	default:
 		p = NewFanoutPartitioner(hosts)
 	}
 
-	return &StreamWriter{
+	s := &StreamWriter{
 		sh:          sh,
 		buffers:     buffers,
 		partitioner: p,
+		dataChan:    make(chan lrdd.Row, 1000000),
+		errorChan:   make(chan error),
+	}
+	go s.dispatch()
+	return s
+}
+
+func (s *StreamWriter) dispatch() {
+	for d := range s.dataChan {
+		host, err := s.partitioner.DetermineHost(d)
+		if err != nil {
+			if err == ErrNoOutput {
+				return
+			}
+			s.errorChan <- err
+			return
+		}
+		s.buffers[host] = append(s.buffers[host], d.Encode())
+		if len(s.buffers[host]) == cap(s.buffers[host]) {
+			err := s.flushHost(host)
+			if err != nil {
+				s.errorChan <- err
+			}
+		}
 	}
 }
 
 func (s *StreamWriter) Write(d lrdd.Row) error {
-	host, err := s.partitioner.DetermineHost(d)
-	if err != nil {
-		return err
-	}
-	s.buffers[host] = append(s.buffers[host], d.Marshal())
-	if len(s.buffers[host]) == cap(s.buffers[host]) {
-		return s.flushHost(host)
-	}
+	s.dataChan <- d
 	return nil
 }
 
@@ -62,10 +88,21 @@ func (s *StreamWriter) flushHost(h string) (err error) {
 	return
 }
 
-func (s *StreamWriter) Flush() error {
+func (s *StreamWriter) Errors() <-chan error {
+	return s.errorChan
+}
+
+func (s *StreamWriter) FlushAndClose() error {
+	for len(s.dataChan) > 0 {
+		// wait for the queue to drain
+		time.Sleep(100 * time.Millisecond)
+	}
+	close(s.dataChan)
+	close(s.errorChan)
+
 	for host := range s.sh.Shards {
 		if err := s.flushHost(host); err != nil {
-			return err
+			return errors.Wrapf(err, "flush %s", host)
 		}
 	}
 	return nil

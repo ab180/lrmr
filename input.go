@@ -20,6 +20,6 @@ func (l localInput) ProvideInput(out output.Writer) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Write(lrdd.Row{"path": path})
+		return out.Write(lrdd.Value(path))
 	})
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/shamaton/msgpack"
-	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
@@ -22,17 +21,16 @@ type Result struct {
 type Session interface {
 	Broadcast(key string, val interface{})
 	SetInput(ip InputProvider) Session
-	AddStage(runnerName string, runner stage.Runner) Session
+	AddStage(stage.Stage, interface{}) Session
 	Output(out *job.StageOutput) Session
 
 	Run(ctx context.Context, name string) (*RunningJob, error)
 }
 
 type session struct {
-	master  *Master
-	input   InputProvider
-	stages  []*job.Stage
-	runners []stage.Runner
+	master *Master
+	input  InputProvider
+	stages []*job.Stage
 
 	broadcasts           map[string]interface{}
 	serializedBroadcasts map[string][]byte
@@ -63,13 +61,12 @@ func (s *session) SetInput(ip InputProvider) Session {
 	return s
 }
 
-func (s *session) AddStage(runnerName string, runner stage.Runner) Session {
-	defaultOut := job.DescribingStageOutput().WithFanout()
-	name := fmt.Sprintf("%s%d", runnerName, len(s.stages))
-	s.stages = append(s.stages, job.NewStage(name, runnerName, defaultOut))
-	s.runners = append(s.runners, runner)
+func (s *session) AddStage(st stage.Stage, box interface{}) Session {
+	defaultOut := job.DescribingStageOutput().NoPartition()
+	name := fmt.Sprintf("%s%d", st.Name, len(s.stages))
+	s.stages = append(s.stages, job.NewStage(name, st.Name, defaultOut))
 
-	data, err := msgpack.Encode(runner)
+	data, err := msgpack.Encode(box)
 	if err != nil {
 		panic(fmt.Sprintf("broadcasting %s: %v", name, err))
 	}
@@ -79,11 +76,8 @@ func (s *session) AddStage(runnerName string, runner stage.Runner) Session {
 }
 
 func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
-	defer func() {
-		if err := logutils.WrapRecover(recover()); err != nil {
-			s.log.Error("running session: {}", err.Pretty())
-		}
-	}()
+	defer s.log.Recover()
+
 	job, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, fmt.Errorf("create job: %w", err)
@@ -148,7 +142,7 @@ func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	if err := s.input.ProvideInput(out); err != nil {
 		return nil, fmt.Errorf("running input: %w", err)
 	}
-	if err := out.Flush(); err != nil {
+	if err := out.FlushAndClose(); err != nil {
 		return nil, fmt.Errorf("flushing input: %w", err)
 	}
 	go func() {

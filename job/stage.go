@@ -34,9 +34,8 @@ func newStageStatus() *StageStatus {
 }
 
 type StageOutput struct {
-	PartitionerType lrmrpb.Partitioner_Type `json:"partitioner"`
-	KeyColumn       string                  `json:"keyColumn,omitempty"`
-	FiniteKeys      []string                `json:"finiteKeys,omitempty"`
+	Partition  lrmrpb.Partitioner_Type `json:"partition"`
+	FiniteKeys []string                `json:"finiteKeys,omitempty"`
 
 	// noOutput makes output shard empty on Build.
 	NoOutput bool `json:"-"`
@@ -52,20 +51,18 @@ func (so *StageOutput) Nothing() *StageOutput {
 	return so
 }
 
-func (so *StageOutput) WithFixedPartitions(keyColumn string, keys []string) *StageOutput {
-	so.PartitionerType = lrmrpb.Partitioner_FINITE_KEY
-	so.KeyColumn = keyColumn
+func (so *StageOutput) WithFixedPartitions(keys []string) *StageOutput {
+	so.Partition = lrmrpb.Partitioner_FINITE_KEY
 	so.FiniteKeys = keys
 	return so
 }
 
-func (so *StageOutput) WithPartitions(keyColumn string) *StageOutput {
-	so.PartitionerType = lrmrpb.Partitioner_HASH_KEY
-	so.KeyColumn = keyColumn
+func (so *StageOutput) WithPartitions() *StageOutput {
+	so.Partition = lrmrpb.Partitioner_HASH_KEY
 	return so
 }
 
-func (so *StageOutput) WithFanout() *StageOutput {
+func (so *StageOutput) NoPartition() *StageOutput {
 	return so
 }
 
@@ -78,11 +75,10 @@ func (so *StageOutput) Build(shards []*lrmrpb.HostMapping) *lrmrpb.Output {
 	out := &lrmrpb.Output{
 		Shards: shards,
 		Partitioner: &lrmrpb.Partitioner{
-			Type: so.PartitionerType,
+			Type: so.Partition,
 		},
 	}
-	if so.PartitionerType != lrmrpb.Partitioner_NONE {
-		out.Partitioner.KeyColumn = so.KeyColumn
+	if so.Partition != lrmrpb.Partitioner_NONE {
 		out.Partitioner.KeyToHost = make(map[string]string)
 		for i, key := range so.FiniteKeys {
 			out.Partitioner.KeyToHost[key] = shards[i%len(shards)].Host

@@ -1,15 +1,14 @@
 package output
 
 import (
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/therne/lrmr/lrdd"
 )
 
 var (
-	// ErrKeyNotFound is raised when given partition key column does not exist in data.
-	ErrKeyNotFound = errors.New("key not found")
+	ErrNoOutput = errors.New("no output")
 )
 
 type Partitioner interface {
@@ -21,40 +20,31 @@ type finiteKeyPartitioner struct {
 	keyToHost map[string]string
 }
 
-func NewFiniteKeyPartitioner(key string, keyToHost map[string]string) Partitioner {
-	return &finiteKeyPartitioner{key: key, keyToHost: keyToHost}
+func NewFiniteKeyPartitioner(keyToHost map[string]string) Partitioner {
+	return &finiteKeyPartitioner{keyToHost: keyToHost}
 }
 
 func (f *finiteKeyPartitioner) DetermineHost(row lrdd.Row) (host string, err error) {
-	key, ok := row[f.key].(string)
+	host, ok := f.keyToHost[row.Key]
 	if !ok {
-		err = ErrKeyNotFound
-		return
-	}
-	host, ok = f.keyToHost[key]
-	if !ok {
-		err = fmt.Errorf("unknown key: %s", key)
+		err = fmt.Errorf("unknown key: %s", row.Key)
 		return
 	}
 	return
 }
 
 type hashKeyPartitioner struct {
-	key   string
 	hosts []string
 }
 
-func NewHashKeyPartitioner(key string, hosts []string) Partitioner {
-	return &hashKeyPartitioner{key: key, hosts: hosts}
+func NewHashKeyPartitioner(hosts []string) Partitioner {
+	return &hashKeyPartitioner{hosts: hosts}
 }
 
 func (h *hashKeyPartitioner) DetermineHost(row lrdd.Row) (string, error) {
-	key, ok := row[h.key].(string)
-	if !ok {
-		return "", ErrKeyNotFound
-	}
 	// uses Fowler–Noll–Vo hash to determine output shard
-	return h.hosts[fnv1a.HashString64(key)%uint64(len(h.hosts))], nil
+	slot := fnv1a.HashString64(row.Key) % uint64(len(h.hosts))
+	return h.hosts[slot], nil
 }
 
 func NewFanoutPartitioner(hosts []string) Partitioner {
@@ -67,6 +57,9 @@ type fanoutPartitioner struct {
 }
 
 func (f *fanoutPartitioner) DetermineHost(lrdd.Row) (string, error) {
+	if len(f.hosts) == 0 {
+		return "", ErrNoOutput
+	}
 	shard := f.sentEvents % uint64(len(f.hosts))
 	f.sentEvents++
 	return f.hosts[shard], nil

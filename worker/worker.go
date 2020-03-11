@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/airbloc/logger"
+	"github.com/airbloc/logger/module/loggergrpc"
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	"github.com/ivpusic/grpool"
+	"github.com/pkg/errors"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/internal/logutils"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
@@ -22,7 +23,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -34,7 +34,7 @@ type Worker struct {
 	jobReporter *job.Reporter
 	server      *grpc.Server
 
-	contexts        map[string]*taskContext
+	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
 
 	opt *Options
@@ -49,13 +49,12 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.MaxRecvSize),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			grpc_recovery.UnaryServerInterceptor(
-				grpc_recovery.WithRecoveryHandler(func(r interface{}) error {
-					err := logutils.WrapRecover(r)
-					log.Error(err.Pretty())
-					return status.Errorf(codes.Internal, err.Error())
-				}),
-			),
+			loggergrpc.UnaryServerLogger(log),
+			loggergrpc.UnaryServerRecover(),
+		)),
+		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+			loggergrpc.StreamServerLogger(log),
+			loggergrpc.StreamServerRecover(),
 		)),
 	)
 
@@ -64,10 +63,13 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 		jobReporter:     job.NewJobReporter(crd),
 		jobManager:      job.NewManager(nm, crd),
 		server:          srv,
-		contexts:        make(map[string]*taskContext),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
 	}, nil
+}
+
+func (w *Worker) getWorkerLocalOption(key string) interface{} {
+	return w.workerLocalOpts[key]
 }
 
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
@@ -110,7 +112,6 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.Stage.Name, req.Stage.JobID)
 	}
 	st := stage.Lookup(req.Stage.RunnerName)
-	runner := st.Constructor()
 
 	broadcasts := make(map[string]interface{})
 	for key, broadcast := range req.Broadcasts {
@@ -119,14 +120,6 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %w", key, err)
 		}
 		broadcasts[key] = val
-	}
-
-	// restore runner object contents from broadcasts
-	if data, ok := broadcasts["__stage/"+req.Stage.Name].([]byte); ok {
-		err := msgpack.Decode(data, runner)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "recover transformation: %w", err)
-		}
 	}
 
 	shards, err := output.DialShards(ctx, w, req.Output, w.opt.Output)
@@ -142,38 +135,25 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	w.jobReporter.Add(task.Reference(), ts)
 
 	log.Info("Create task {} of {}/{} (Job: {})", task.ID, j.ID, s.Name, j.Name)
-	log.Info("  output: {}", req.Output.String())
+	log.Info("  Output: Partition({}), Shards({})", req.Output.Partitioner.Type.String(), len(req.Output.Shards))
 
-	c := &taskContext{
+	t := &runningTask{
 		worker:     w,
 		job:        j,
 		stage:      s,
 		task:       task,
-		runner:     runner,
 		shards:     shards,
+		pool:       grpool.NewPool(w.opt.PoolSize, w.opt.QueueLength),
 		broadcasts: broadcasts,
-		workerCfgs: w.workerLocalOpts,
-		states:     make(map[string]interface{}),
 	}
-	c.executors = launchExecutorPool(runner, c, shards, w.opt.Concurrency, w.opt.QueueLength)
-	w.contexts[task.ID] = c
-
-	if err := c.runner.Setup(c); err != nil {
-		c.executors.Cancel()
-		_ = w.jobReporter.ReportFailure(task.Reference(), err)
-		delete(w.contexts, task.ID)
-
-		return nil, status.Errorf(codes.Internal, "failed to set up task")
-	}
+	t.executors = newExecutors(st, t, shards)
+	w.runningTasks.Store(task.ID, t)
 	return &lrmrpb.CreateTaskResponse{TaskID: task.ID}, nil
 }
 
 func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
-	var ctx *taskContext
-	var onceBackpressure sync.Once
-
-	conn := newConnection(stream, w.jobReporter)
-	defer conn.TryRecover()
+	var t *runningTask
+	defer t.TryRecover()
 
 	for {
 		req, err := stream.Recv()
@@ -181,63 +161,48 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			if err == io.EOF {
 				break
 			}
-			if grpcErr, ok := status.FromError(err); ok {
-				if grpcErr.Code() == codes.ResourceExhausted {
-					// incoming stream speed is too faster than processing speed
-					onceBackpressure.Do(func() {
-						conn.log.Warn("Stream backpressure detected. waiting for stream queues to be drained.")
-					})
-					conn.WaitForCompletion()
-					continue
-				}
-			}
-			return conn.AbortTask(fmt.Errorf("stream recv: %v", err))
+			return t.Abort(fmt.Errorf("stream recv: %v", err))
 		}
-		if ctx == nil {
+		if t == nil {
 			// first event of the stream. warm up
-			ctx = w.contexts[req.TaskID]
-			if ctx == nil {
+			rt, ok := w.runningTasks.Load(req.TaskID)
+			if !ok {
 				return status.Errorf(codes.NotFound, "task not found: %s", req.TaskID)
 			}
-			atomic.AddInt32(&ctx.totalInputCounts, 1)
+			t = rt.(*runningTask)
+			t.addConnection(stream)
 
-			conn.SetContext(ctx, req.From)
-			ctx.addConnection(conn)
-
+			var from string
 			if _, ok := stream.(*output.LocalPipeStream); ok {
-				log.Debug("Task {} ({}/{}) connected with local", req.TaskID, ctx.job.ID, ctx.stage.Name)
+				from = "local"
 			} else {
-				log.Debug("Task {} ({}/{}) connected with {} ({})", req.TaskID, ctx.job.ID, ctx.stage.Name, req.From.Host, req.From.ID)
+				from = fmt.Sprintf("%s (%s)", req.From.Host, req.From.ID)
 			}
+			log.Debug("Task {} ({}/{}) connected with {}", req.TaskID, t.job.ID, t.stage.Name, from)
 
-		} else if !ctx.isRunning {
-			ctx.isRunning = true
-			w.jobReporter.UpdateStatus(ctx.task.Reference(), func(ts *job.TaskStatus) {
+		} else if !t.isRunning {
+			t.isRunning = true
+			w.jobReporter.UpdateStatus(t.task.Reference(), func(ts *job.TaskStatus) {
 				ts.Status = job.Running
 			})
 		}
 		for _, data := range req.Inputs {
-			inputRow := make(lrdd.Row)
-			if err := inputRow.Unmarshal(data); err != nil {
-				return conn.AbortTask(fmt.Errorf("unmarshal row: %v", err))
+			row, err := lrdd.Decode(data)
+			if err != nil {
+				return t.Abort(errors.Wrap(err, "unmarshal row"))
 			}
-			conn.Enqueue(inputRow)
+			if err := t.executors.Apply(row); err != nil {
+				return t.Abort(err)
+			}
 		}
 	}
-	if ctx == nil {
+	if t == nil {
 		return status.Errorf(codes.InvalidArgument, "no events but found EOF")
 	}
-	conn.WaitForCompletion()
 
-	atomic.AddInt32(&ctx.finishedInputCounts, 1)
-	if ctx.finishedInputCounts >= ctx.totalInputCounts {
-		// do finalize if all inputs have done
-		log.Info("Task {} finished. Closing... ", ctx.task.Reference())
-		for _, c := range conn.ctx.connections {
-			c.WaitForCompletion()
-		}
-		delete(w.contexts, ctx.task.ID)
-		return conn.FinishTask()
+	if allDone := t.finishConnection(); allDone {
+		w.runningTasks.Delete(t.task.ID)
+		return t.Finish()
 	}
 	return stream.SendAndClose(&empty.Empty{})
 }

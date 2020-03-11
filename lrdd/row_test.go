@@ -2,27 +2,68 @@ package lrdd
 
 import (
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/vmihailenco/msgpack"
+	"math"
 	"testing"
 )
 
-func TestRow_Marshal(t *testing.T) {
-	Convey("Given a row", t, func() {
-		r := Row{
-			"foo": "bar",
-			"goo": []string{"nono", "dede"},
-		}
-		Convey("When marshalling it", func() {
-			data := r.Marshal()
-			decoded := make(Row)
-			So(msgpack.Unmarshal(data, &decoded), ShouldBeNil)
+func TestRow_Encode(t *testing.T) {
+	Convey("When encoding a row", t, func() {
+		Convey("With int", func() {
+			var decoded int
+			v := 1234
+			raw := Value(v).Encode()
 
 			Convey("Its type should be preserved", func() {
-				So(decoded["foo"], ShouldHaveSameTypeAs, "bar")
-				So(decoded["foo"], ShouldEqual, "bar")
-				So(decoded["goo"], ShouldHaveSameTypeAs, []string{"dede"})
-				So(decoded["goo"], ShouldEqual, []string{"nono", "dede"})
+				row, err := Decode(raw)
+				So(err, ShouldBeNil)
+				row.UnmarshalValue(&decoded)
+				So(decoded, ShouldEqual, v)
+			})
+		})
+
+		Convey("With int64", func() {
+			var decoded int64
+			v := int64(1234)
+			raw := Value(v).Encode()
+
+			Convey("Its type should be preserved", func() {
+				row, err := Decode(raw)
+				So(err, ShouldBeNil)
+				row.UnmarshalValue(&decoded)
+				So(decoded, ShouldEqual, v)
+			})
+		})
+
+		Convey("With float64", func() {
+			var decoded float64
+			v := float64(math.Pi)
+			raw := Value(v).Encode()
+
+			Convey("Its type should be preserved", func() {
+				row, err := Decode(raw)
+				So(err, ShouldBeNil)
+				row.UnmarshalValue(&decoded)
+				So(decoded, ShouldEqual, v)
+			})
+		})
+
+		Convey("With struct", func() {
+			var decoded testStruct
+			v := &testStruct{Foo: math.Pi, Bar: "good"}
+			raw := Value(v).Encode()
+
+			Convey("Its type should be preserved", func() {
+				row, err := Decode(raw)
+				So(err, ShouldBeNil)
+				row.UnmarshalValue(&decoded)
+				So(decoded.Foo, ShouldEqual, v.Foo)
+				So(decoded.Bar, ShouldEqual, v.Bar)
 			})
 		})
 	})
+}
+
+type testStruct struct {
+	Foo float64
+	Bar string
 }

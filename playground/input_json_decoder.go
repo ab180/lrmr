@@ -3,32 +3,33 @@ package playground
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"github.com/airbloc/logger"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
 	"io"
 	"os"
 	"strconv"
 )
 
-var _ = stage.Register("DecodeJSON", DecodeNDJSON())
+var _ = stage.RegisterFlatMap("DecodeJSON", DecodeJSON())
 
-type ndjsonDecoder struct {
-	stage.Simple
+type jsonDecoder struct{}
+
+func DecodeJSON() stage.FlatMapper {
+	return &jsonDecoder{}
 }
 
-func DecodeNDJSON() stage.Runner {
-	return &ndjsonDecoder{}
-}
+func (l *jsonDecoder) FlatMap(c stage.Context, in lrdd.Row) (result []lrdd.Row, err error) {
+	var path string
+	in.UnmarshalValue(&path)
 
-func (l *ndjsonDecoder) Apply(c stage.Context, row lrdd.Row, out output.Writer) error {
-	path := row["path"].(string)
+	logger.New("jsondecoder").Verbose("Opening {}", path)
 
 	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("open file : %w", err)
+		return nil, errors.Wrap(err, "open file")
 	}
 	c.AddMetric("Files", 1)
 
@@ -39,20 +40,18 @@ func (l *ndjsonDecoder) Apply(c stage.Context, row lrdd.Row, out output.Writer) 
 			if err == io.EOF {
 				break
 			}
-			return err
+			return nil, err
 		}
-		msg := make(lrdd.Row)
+		msg := map[string]interface{}{}
 		if err := jsoniter.Unmarshal(line, &msg); err != nil {
-			return err
+			return nil, err
 		}
 		data := msg["data"].(map[string]interface{})
 		app := data["app"].(map[string]interface{})
-		msg["appID"] = strconv.Itoa(int(app["appID"].(float64)))
-		if err := out.Write(msg); err != nil {
-			return err
-		}
+		appID := strconv.Itoa(int(app["appID"].(float64)))
+		result = append(result, lrdd.KeyValue(appID, msg))
 	}
-	return file.Close()
+	return result, file.Close()
 }
 
 func readline(r *bufio.Reader) (line []byte, err error) {

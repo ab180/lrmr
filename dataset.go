@@ -22,21 +22,23 @@ func TextFile(uri string, m *Master) *Dataset {
 	return &Dataset{Session: sess}
 }
 
-func (d *Dataset) Then(runner stage.Runner) *Dataset {
-	s := stage.LookupByRunner(runner)
-	d.Session.AddStage(s.Name, runner)
+func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {
+	d.Session.AddStage(stage.LookupByRunner(mapper), mapper)
 	return d
 }
 
-func (d *Dataset) GroupByKey(keyColumn string) *Dataset {
-	d.Session.Output(job.DescribingStageOutput().
-		WithPartitions(keyColumn))
+func (d *Dataset) Reduce(reducer stage.Reducer) *Dataset {
+	d.Session.AddStage(stage.LookupByRunner(reducer), reducer)
 	return d
 }
 
-func (d *Dataset) GroupByKnownKeys(column string, knownKeys []string) *Dataset {
-	d.Session.Output(job.DescribingStageOutput().
-		WithFixedPartitions(column, knownKeys))
+func (d *Dataset) GroupByKey() *Dataset {
+	d.Session.Output(job.DescribingStageOutput().WithPartitions())
+	return d
+}
+
+func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
+	d.Session.Output(job.DescribingStageOutput().WithFixedPartitions(knownKeys))
 	return d
 }
 

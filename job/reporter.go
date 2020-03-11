@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/internal/logutils"
 	"path"
 	"sync"
 	"time"
@@ -88,8 +87,8 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 		elapsed := ts.CompletedAt.Sub(ts.SubmittedAt)
 
 		switch err.(type) {
-		case *logutils.PanicError:
-			panicErr := err.(*logutils.PanicError)
+		case *logger.PanicError:
+			panicErr := err.(*logger.PanicError)
 			r.log.Error("Task {} failed after {} with {}", ref.String(), elapsed.String(), panicErr.Pretty())
 		default:
 			r.log.Error("Task {} failed after {} with error: {}", ref.String(), elapsed.String(), err.Error())

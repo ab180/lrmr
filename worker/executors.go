@@ -1,115 +1,100 @@
 package worker
 
 import (
-	"context"
-	"github.com/therne/lrmr/internal/logutils"
+	"github.com/pkg/errors"
+	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
+	"sync"
 )
 
+type executors struct {
+	executors map[string]*executor
+	lock      sync.RWMutex
+
+	stage  stage.Stage
+	task   *runningTask
+	shards *output.Shards
+}
+
+func newExecutors(st stage.Stage, t *runningTask, shards *output.Shards) *executors {
+	return &executors{
+		executors: make(map[string]*executor),
+		stage:     st,
+		task:      t,
+		shards:    shards,
+	}
+}
+
+func (ee *executors) Apply(data lrdd.Row) error {
+	ee.lock.RLock()
+	executor, exists := ee.executors[data.Key]
+	ee.lock.RUnlock()
+
+	if !exists {
+		ee.lock.Lock()
+		defer ee.lock.Unlock()
+
+		// set up new executor bound to the key as new partition found
+		exec, err := newExecutor(data.Key, ee.stage, ee.task, ee.shards)
+		if err != nil {
+			return errors.Wrap(err, "new executor")
+		}
+		if err := exec.Setup(); err != nil {
+			return errors.Wrap(err, "setup stage")
+		}
+		ee.executors[data.Key] = exec
+		executor = exec
+	}
+	return executor.Apply(data)
+}
+
+func (ee *executors) Teardown() error {
+	for partitionKey, executor := range ee.executors {
+		if err := executor.Teardown(); err != nil {
+			return errors.Wrapf(err, "teardown %s executor", partitionKey)
+		}
+	}
+	return nil
+}
+
+// executor is bound to partition.
 type executor struct {
-	input   chan incomingData
-	c       stage.Context
-	out     output.Writer
-	runner  stage.Runner
-	ctx     context.Context
-	errChan chan error
+	c      stage.Context
+	runner stage.Runner
+	output output.Writer
 }
 
-type incomingData struct {
-	sender *Connection
-	data   lrdd.Row
-}
-
-func newExecutor(
-	ctx context.Context,
-	id int,
-	runner stage.Runner,
-	c *taskContext,
-	shards *output.Shards,
-	errChan chan error,
-	queueLen int,
-) *executor {
+func newExecutor(partitionKey string, st stage.Stage, t *runningTask, shards *output.Shards) (*executor, error) {
+	box := st.NewBox()
+	if serialized, ok := t.broadcasts["__stage/"+st.Name].([]byte); ok {
+		err := msgpack.Decode(serialized, box)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid broadcast")
+		}
+	}
 	// each executor owns its output writer while sharing output connections (=shards)
 	out := output.NewStreamWriter(shards)
 
 	return &executor{
-		input:   make(chan incomingData, queueLen),
-		c:       c.forkForExecutor(id),
-		out:     out,
-		runner:  runner,
-		ctx:     ctx,
-		errChan: errChan,
-	}
+		c:      t.createContext(partitionKey),
+		runner: st.Constructor(box),
+		output: out,
+	}, nil
 }
 
-func (e *executor) Run() {
-	defer func() {
-		if err := logutils.WrapRecover(recover()); err != nil {
-			e.errChan <- err
-		}
-	}()
-	for {
-		select {
-		case in := <-e.input:
-			err := e.runner.Apply(e.c, in.data, e.out)
-			in.sender.wg.Done()
-			if err != nil {
-				_ = in.sender.AbortTask(err)
-				return
-			}
-		case <-e.ctx.Done():
-			return
-		}
-	}
+func (e *executor) Setup() error {
+	return e.runner.Setup(e.c)
 }
 
-type executorPool struct {
-	ctx         context.Context
-	Cancel      context.CancelFunc
-	Executors   []*executor
-	Errors      <-chan error
-	Concurrency int
+func (e *executor) Apply(data lrdd.Row) error {
+	return e.runner.Apply(e.c, data, e.output)
 }
 
-func launchExecutorPool(
-	runner stage.Runner,
-	c *taskContext,
-	shards *output.Shards,
-	concurrency, queueLen int,
-) *executorPool {
-	execCtx, cancel := context.WithCancel(context.Background())
-	panics := make(chan error)
-
-	executors := make([]*executor, concurrency)
-	for i := 0; i < concurrency; i++ {
-		executors[i] = newExecutor(execCtx, i, runner, c, shards, panics, queueLen)
-		go executors[i].Run()
+func (e *executor) Teardown() error {
+	if err := e.runner.Teardown(e.c, e.output); err != nil {
+		return err
 	}
-
-	return &executorPool{
-		ctx:         execCtx,
-		Cancel:      cancel,
-		Executors:   executors,
-		Errors:      panics,
-		Concurrency: concurrency,
-	}
-}
-
-func (ep *executorPool) Enqueue(slot int, data lrdd.Row, sender *Connection) {
-	ep.Executors[slot].input <- incomingData{
-		sender: sender,
-		data:   data,
-	}
-}
-
-func (ep *executorPool) Close() error {
-	ep.Cancel()
-	for _, executor := range ep.Executors {
-		if err := executor.out.Flush(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return e.output.FlushAndClose()
 }
