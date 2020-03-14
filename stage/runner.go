@@ -12,7 +12,7 @@ type Bootstrapper interface {
 
 type Runner interface {
 	Bootstrapper
-	Apply(c Context, row lrdd.Row, out output.Writer) error
+	Apply(c Context, row *lrdd.Row, out output.Writer) error
 }
 
 func Register(name string, r Runner) Stage {

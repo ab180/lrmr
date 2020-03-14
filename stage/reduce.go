@@ -7,7 +7,7 @@ import (
 
 type Reducer interface {
 	InitialValue() interface{}
-	Reduce(c Context, prev interface{}, cur lrdd.Row) (next interface{}, err error)
+	Reduce(c Context, prev interface{}, cur *lrdd.Row) (next interface{}, err error)
 }
 
 func RegisterReducer(name string, r Reducer) (s Stage) {
@@ -35,7 +35,7 @@ func (rs *reduceStage) Setup(c Context) error {
 	return nil
 }
 
-func (rs *reduceStage) Apply(c Context, in lrdd.Row, out output.Writer) error {
+func (rs *reduceStage) Apply(c Context, in *lrdd.Row, out output.Writer) error {
 	next, err := rs.r.Reduce(c, rs.Prev, in)
 	if err != nil {
 		return err

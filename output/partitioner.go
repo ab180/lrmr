@@ -12,7 +12,7 @@ var (
 )
 
 type Partitioner interface {
-	DetermineHost(row lrdd.Row) (string, error)
+	DetermineHost(row *lrdd.Row) (string, error)
 }
 
 type finiteKeyPartitioner struct {
@@ -24,7 +24,7 @@ func NewFiniteKeyPartitioner(keyToHost map[string]string) Partitioner {
 	return &finiteKeyPartitioner{keyToHost: keyToHost}
 }
 
-func (f *finiteKeyPartitioner) DetermineHost(row lrdd.Row) (host string, err error) {
+func (f *finiteKeyPartitioner) DetermineHost(row *lrdd.Row) (host string, err error) {
 	host, ok := f.keyToHost[row.Key]
 	if !ok {
 		err = fmt.Errorf("unknown key: %s", row.Key)
@@ -41,7 +41,7 @@ func NewHashKeyPartitioner(hosts []string) Partitioner {
 	return &hashKeyPartitioner{hosts: hosts}
 }
 
-func (h *hashKeyPartitioner) DetermineHost(row lrdd.Row) (string, error) {
+func (h *hashKeyPartitioner) DetermineHost(row *lrdd.Row) (string, error) {
 	// uses Fowler–Noll–Vo hash to determine output shard
 	slot := fnv1a.HashString64(row.Key) % uint64(len(h.hosts))
 	return h.hosts[slot], nil
@@ -56,7 +56,7 @@ type fanoutPartitioner struct {
 	sentEvents uint64
 }
 
-func (f *fanoutPartitioner) DetermineHost(lrdd.Row) (string, error) {
+func (f *fanoutPartitioner) DetermineHost(*lrdd.Row) (string, error) {
 	if len(f.hosts) == 0 {
 		return "", ErrNoOutput
 	}

@@ -27,7 +27,7 @@ func newExecutors(st stage.Stage, t *runningTask, shards *output.Shards) *execut
 	}
 }
 
-func (ee *executors) Apply(data lrdd.Row) error {
+func (ee *executors) Apply(data *lrdd.Row) error {
 	ee.lock.RLock()
 	executor, exists := ee.executors[data.Key]
 	ee.lock.RUnlock()
@@ -88,7 +88,7 @@ func (e *executor) Setup() error {
 	return e.runner.Setup(e.c)
 }
 
-func (e *executor) Apply(data lrdd.Row) error {
+func (e *executor) Apply(data *lrdd.Row) error {
 	return e.runner.Apply(e.c, data, e.output)
 }
 

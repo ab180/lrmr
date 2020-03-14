@@ -1,6 +1,7 @@
 package lrdd
 
 import (
+	"github.com/gogo/protobuf/proto"
 	. "github.com/smartystreets/goconvey/convey"
 	"math"
 	"testing"
@@ -8,13 +9,14 @@ import (
 
 func TestRow_Encode(t *testing.T) {
 	Convey("When encoding a row", t, func() {
+		var row Row
 		Convey("With int", func() {
 			var decoded int
 			v := 1234
-			raw := Value(v).Encode()
+			raw, _ := Value(v).Marshal()
 
 			Convey("Its type should be preserved", func() {
-				row, err := Decode(raw)
+				err := proto.Unmarshal(raw, &row)
 				So(err, ShouldBeNil)
 				row.UnmarshalValue(&decoded)
 				So(decoded, ShouldEqual, v)
@@ -24,10 +26,10 @@ func TestRow_Encode(t *testing.T) {
 		Convey("With int64", func() {
 			var decoded int64
 			v := int64(1234)
-			raw := Value(v).Encode()
+			raw, _ := Value(v).Marshal()
 
 			Convey("Its type should be preserved", func() {
-				row, err := Decode(raw)
+				err := proto.Unmarshal(raw, &row)
 				So(err, ShouldBeNil)
 				row.UnmarshalValue(&decoded)
 				So(decoded, ShouldEqual, v)
@@ -37,10 +39,10 @@ func TestRow_Encode(t *testing.T) {
 		Convey("With float64", func() {
 			var decoded float64
 			v := float64(math.Pi)
-			raw := Value(v).Encode()
+			raw, _ := Value(v).Marshal()
 
 			Convey("Its type should be preserved", func() {
-				row, err := Decode(raw)
+				err := proto.Unmarshal(raw, &row)
 				So(err, ShouldBeNil)
 				row.UnmarshalValue(&decoded)
 				So(decoded, ShouldEqual, v)
@@ -50,10 +52,10 @@ func TestRow_Encode(t *testing.T) {
 		Convey("With struct", func() {
 			var decoded testStruct
 			v := &testStruct{Foo: math.Pi, Bar: "good"}
-			raw := Value(v).Encode()
+			raw, _ := Value(v).Marshal()
 
 			Convey("Its type should be preserved", func() {
-				row, err := Decode(raw)
+				err := proto.Unmarshal(raw, &row)
 				So(err, ShouldBeNil)
 				row.UnmarshalValue(&decoded)
 				So(decoded.Foo, ShouldEqual, v.Foo)

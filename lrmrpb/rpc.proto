@@ -3,6 +3,7 @@ package lrmrpb;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
+import "lrdd/row.proto";
 
 service Worker {
     rpc CreateTask (CreateTaskRequest) returns (CreateTaskResponse);
@@ -61,7 +62,7 @@ message CreateTaskResponse {
 message RunRequest {
     Node from = 1;
     string taskID = 2;
-    repeated bytes inputs = 3;
+    repeated lrdd.Row inputs = 3;
 }
 
 message Node {

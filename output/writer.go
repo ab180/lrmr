@@ -11,26 +11,26 @@ import (
 var log = logger.New("output")
 
 type Writer interface {
-	Write(lrdd.Row) error
+	Write(*lrdd.Row) error
 	Errors() <-chan error
 	FlushAndClose() error
 }
 
 type StreamWriter struct {
 	sh          *Shards
-	buffers     map[string][][]byte
+	buffers     map[string][]*lrdd.Row
 	partitioner Partitioner
 
-	dataChan  chan lrdd.Row
+	dataChan  chan *lrdd.Row
 	errorChan chan error
 }
 
 func NewStreamWriter(sh *Shards) Writer {
-	buffers := make(map[string][][]byte)
+	buffers := make(map[string][]*lrdd.Row)
 	var hosts []string
 	for host := range sh.Shards {
 		hosts = append(hosts, host)
-		buffers[host] = make([][]byte, 0, sh.opt.BufferLength)
+		buffers[host] = make([]*lrdd.Row, 0, sh.opt.BufferLength)
 	}
 
 	var p Partitioner
@@ -47,7 +47,7 @@ func NewStreamWriter(sh *Shards) Writer {
 		sh:          sh,
 		buffers:     buffers,
 		partitioner: p,
-		dataChan:    make(chan lrdd.Row, 1000000),
+		dataChan:    make(chan *lrdd.Row, 1000000),
 		errorChan:   make(chan error),
 	}
 	go s.dispatch()
@@ -64,7 +64,7 @@ func (s *StreamWriter) dispatch() {
 			s.errorChan <- err
 			return
 		}
-		s.buffers[host] = append(s.buffers[host], d.Encode())
+		s.buffers[host] = append(s.buffers[host], d)
 		if len(s.buffers[host]) == cap(s.buffers[host]) {
 			err := s.flushHost(host)
 			if err != nil {
@@ -74,7 +74,7 @@ func (s *StreamWriter) dispatch() {
 	}
 }
 
-func (s *StreamWriter) Write(d lrdd.Row) error {
+func (s *StreamWriter) Write(d *lrdd.Row) error {
 	s.dataChan <- d
 	return nil
 }

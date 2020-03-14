@@ -27,7 +27,7 @@ proto:
 	@for PROTO in $(PROTO_SRCS); do \
 	  protoc -I/usr/local/include -I. \
 	  		-I$(GOGOPROTO) \
-			--gogofaster_out=plugins=grpc:. \
+			--gogofaster_out=plugins=grpc,paths=source_relative:. \
 			$$PROTO; \
 	done
 

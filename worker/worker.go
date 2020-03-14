@@ -8,11 +8,9 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/ivpusic/grpool"
-	"github.com/pkg/errors"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
@@ -187,11 +185,7 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 			})
 		}
 		for _, data := range req.Inputs {
-			row, err := lrdd.Decode(data)
-			if err != nil {
-				return t.Abort(errors.Wrap(err, "unmarshal row"))
-			}
-			if err := t.executors.Apply(row); err != nil {
+			if err := t.executors.Apply(data); err != nil {
 				return t.Abort(err)
 			}
 		}

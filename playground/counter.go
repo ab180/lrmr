@@ -22,7 +22,7 @@ func (cnt *counter) InitialValue() interface{} {
 	return uint64(0)
 }
 
-func (cnt *counter) Reduce(c stage.Context, prev interface{}, cur lrdd.Row) (next interface{}, err error) {
+func (cnt *counter) Reduce(c stage.Context, prev interface{}, cur *lrdd.Row) (next interface{}, err error) {
 	cnt.value = prev.(uint64) + 1
 	return cnt.value, nil
 }

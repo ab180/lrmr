@@ -7,7 +7,7 @@ import (
 )
 
 type FlatMapper interface {
-	FlatMap(Context, lrdd.Row) ([]lrdd.Row, error)
+	FlatMap(Context, *lrdd.Row) ([]*lrdd.Row, error)
 }
 
 func RegisterFlatMap(name string, fm FlatMapper) (s Stage) {
@@ -34,7 +34,7 @@ func (fs *flatMapStage) Setup(c Context) error {
 	return nil
 }
 
-func (fs *flatMapStage) Apply(c Context, in lrdd.Row, out output.Writer) error {
+func (fs *flatMapStage) Apply(c Context, in *lrdd.Row, out output.Writer) error {
 	fs.wg.Add(1)
 	c.Spawn(func() (err error) {
 		defer fs.wg.Done()

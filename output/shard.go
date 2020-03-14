@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"google.golang.org/grpc"
 	"io"
@@ -63,7 +64,7 @@ func connect(ctx context.Context, self Node, host string, opt Options) (io.Close
 	return conn, stream, nil
 }
 
-func (sw *Shard) Send(inputs [][]byte) error {
+func (sw *Shard) Send(inputs []*lrdd.Row) error {
 	return sw.stream.Send(&lrmrpb.RunRequest{
 		From:   sw.self,
 		TaskID: sw.taskID,

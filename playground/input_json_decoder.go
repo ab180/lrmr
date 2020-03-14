@@ -21,7 +21,7 @@ func DecodeJSON() stage.FlatMapper {
 	return &jsonDecoder{}
 }
 
-func (l *jsonDecoder) FlatMap(c stage.Context, in lrdd.Row) (result []lrdd.Row, err error) {
+func (l *jsonDecoder) FlatMap(c stage.Context, in *lrdd.Row) (result []*lrdd.Row, err error) {
 	var path string
 	in.UnmarshalValue(&path)
 
