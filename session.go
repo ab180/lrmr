@@ -66,10 +66,7 @@ func (s *session) AddStage(st stage.Stage, box interface{}) Session {
 	name := fmt.Sprintf("%s%d", st.Name, len(s.stages))
 	s.stages = append(s.stages, job.NewStage(name, st.Name, defaultOut))
 
-	data, err := msgpack.Encode(box)
-	if err != nil {
-		panic(fmt.Sprintf("broadcasting %s: %v", name, err))
-	}
+	data := st.Serialize(box)
 	s.broadcasts["__stage/"+name] = data
 	s.serializedBroadcasts["__stage/"+name] = data
 	return s

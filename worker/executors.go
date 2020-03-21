@@ -2,7 +2,6 @@ package worker
 
 import (
 	"github.com/pkg/errors"
-	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
@@ -67,19 +66,20 @@ type executor struct {
 }
 
 func newExecutor(partitionKey string, st stage.Stage, t *runningTask, shards *output.Shards) (*executor, error) {
-	box := st.NewBox()
-	if serialized, ok := t.broadcasts["__stage/"+st.Name].([]byte); ok {
-		err := msgpack.Decode(serialized, box)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid broadcast")
-		}
+	var serialized []byte
+	if s, ok := t.broadcasts["__stage/"+st.Name].([]byte); ok {
+		serialized = s
+	}
+	runner, err := st.Deserialize(serialized)
+	if err != nil {
+		return nil, errors.Wrap(err, "deserialize stage")
 	}
 	// each executor owns its output writer while sharing output connections (=shards)
 	out := output.NewStreamWriter(shards)
 
 	return &executor{
 		c:      t.createContext(partitionKey),
-		runner: st.Constructor(box),
+		runner: runner,
 		output: out,
 	}, nil
 }
