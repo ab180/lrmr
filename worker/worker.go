@@ -184,10 +184,8 @@ func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
 				ts.Status = job.Running
 			})
 		}
-		for _, data := range req.Inputs {
-			if err := t.executors.Apply(data); err != nil {
-				return t.Abort(err)
-			}
+		if err := t.executors.Apply(req.Inputs); err != nil {
+			return t.Abort(err)
 		}
 	}
 	if t == nil {

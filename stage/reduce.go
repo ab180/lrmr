@@ -35,12 +35,14 @@ func (rs *reduceStage) Setup(c Context) error {
 	return nil
 }
 
-func (rs *reduceStage) Apply(c Context, in *lrdd.Row, out output.Writer) error {
-	next, err := rs.r.Reduce(c, rs.Prev, in)
-	if err != nil {
-		return err
+func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Writer) error {
+	for _, row := range rows {
+		next, err := rs.r.Reduce(c, rs.Prev, row)
+		if err != nil {
+			return err
+		}
+		rs.Prev = next
 	}
-	rs.Prev = next
 	return nil
 }
 

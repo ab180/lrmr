@@ -34,14 +34,18 @@ func (fs *flatMapStage) Setup(c Context) error {
 	return nil
 }
 
-func (fs *flatMapStage) Apply(c Context, in *lrdd.Row, out output.Writer) error {
+func (fs *flatMapStage) Apply(c Context, rows []*lrdd.Row, out output.Writer) error {
 	fs.wg.Add(1)
 	c.Spawn(func() (err error) {
 		defer fs.wg.Done()
 
-		results, err := fs.fm.FlatMap(c, in)
-		if err != nil {
-			return err
+		var results []*lrdd.Row
+		for _, row := range rows {
+			r, err := fs.fm.FlatMap(c, row)
+			if err != nil {
+				return err
+			}
+			results = append(results, r...)
 		}
 		for _, result := range results {
 			if err := out.Write(result); err != nil {
