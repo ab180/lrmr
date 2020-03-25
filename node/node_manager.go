@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"path"
+	"sync"
 )
 
 var (
@@ -26,9 +27,10 @@ const (
 type Manager interface {
 	RegisterSelf(ctx context.Context, n *Node) error
 	Self() *Node
-	Connect(ctx context.Context, n *Node) (*grpc.ClientConn, error)
+	Connect(ctx context.Context, host string) (*grpc.ClientConn, error)
 	List(ctx context.Context) ([]*Node, error)
 	UnregisterNode(nid string) error
+	Close() error
 }
 
 type manager struct {
@@ -37,6 +39,7 @@ type manager struct {
 
 	// gRPC options for inter-node communication
 	grpcOpts []grpc.DialOption
+	conns    sync.Map
 
 	opt *ManagerOptions
 	log logger.Logger
@@ -56,6 +59,7 @@ func NewManager(crd coordinator.Coordinator, opt *ManagerOptions) (Manager, erro
 		log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
+	grpcOpts = append(grpcOpts, grpc.WithBlock())
 
 	return &manager{
 		crd:      crd,
@@ -81,8 +85,20 @@ func (m *manager) Self() *Node {
 	return m.self
 }
 
-func (m *manager) Connect(ctx context.Context, n *Node) (*grpc.ClientConn, error) {
-	return grpc.DialContext(ctx, n.Host, m.grpcOpts...)
+func (m *manager) Connect(ctx context.Context, host string) (*grpc.ClientConn, error) {
+	dialCtx, cancel := context.WithTimeout(ctx, m.opt.ConnectTimeout)
+	defer cancel()
+
+	conn, ok := m.conns.Load(host)
+	if !ok {
+		c, err := grpc.DialContext(dialCtx, host, m.grpcOpts...)
+		if err != nil {
+			return nil, err
+		}
+		conn = c
+		m.conns.Store(host, conn)
+	}
+	return conn.(*grpc.ClientConn), nil
 }
 
 func (m *manager) List(ctx context.Context) ([]*Node, error) {
@@ -107,4 +123,15 @@ func (m *manager) UnregisterNode(nid string) error {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
 	return nil
+}
+
+func (m *manager) Close() (err error) {
+	m.conns.Range(func(k, v interface{}) bool {
+		conn := v.(*grpc.ClientConn)
+		if err = conn.Close(); err != nil {
+			return false
+		}
+		return true
+	})
+	return
 }

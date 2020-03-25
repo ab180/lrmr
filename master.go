@@ -3,7 +3,6 @@ package lrmr
 import (
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
 
@@ -40,4 +39,7 @@ func (m *Master) Start() {
 
 func (m *Master) Stop() {
 	m.jobTracker.Close()
+	if err := m.nodeManager.Close(); err != nil {
+		log.Error("failed to close node manager", err)
+	}
 }

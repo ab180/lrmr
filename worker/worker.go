@@ -230,5 +230,8 @@ func (w *Worker) loadTaskExecutorFromHeader(stream grpc.ServerStream) (*TaskExec
 func (w *Worker) Stop() error {
 	w.server.Stop()
 	w.jobReporter.Close()
-	return w.nodeManager.UnregisterNode(w.nodeManager.Self().ID)
+	if err := w.nodeManager.UnregisterNode(w.nodeManager.Self().ID); err != nil {
+		return errors.Wrap(err, "unregister node")
+	}
+	return w.nodeManager.Close()
 }
