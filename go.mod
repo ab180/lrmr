@@ -3,7 +3,7 @@ module github.com/therne/lrmr
 go 1.13
 
 require (
-	github.com/airbloc/logger v1.3.1
+	github.com/airbloc/logger v1.4.2
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -19,7 +19,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.13.0 // indirect
-	github.com/ivpusic/grpool v1.0.0
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/json-iterator/go v1.1.9
 	github.com/maruel/panicparse v1.3.0
