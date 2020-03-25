@@ -14,7 +14,7 @@ type partitionKeyContext struct {
 	partitionKey string
 }
 
-func WithPartitionKey(c Context, key string) Context {
+func ContextWithPartitionKey(c Context, key string) Context {
 	return &partitionKeyContext{
 		Context:      c,
 		partitionKey: key,

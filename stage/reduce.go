@@ -1,6 +1,9 @@
 package stage
 
 import (
+	"github.com/jinzhu/copier"
+	"github.com/modern-go/reflect2"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 )
@@ -15,7 +18,12 @@ func RegisterReducer(name string, r Reducer) (s Stage) {
 		Name:    name,
 		BoxType: typeOf(r),
 		Constructor: func(boxed interface{}) Runner {
-			return &reduceStage{r: boxed.(Reducer)}
+			return &reduceStage{
+				reducerType:      reflect2.Type2(typeOf(boxed)),
+				reducerPrototype: boxed.(Reducer),
+				reducers:         make(map[string]Reducer),
+				prev:             make(map[string]interface{}),
+			}
 		},
 	}
 	register(s)
@@ -23,13 +31,26 @@ func RegisterReducer(name string, r Reducer) (s Stage) {
 }
 
 type reduceStage struct {
-	r    Reducer
-	Prev interface{}
+	reducerType      reflect2.Type
+	reducerPrototype Reducer
+
+	reducers map[string]Reducer
+	prev     map[string]interface{}
 }
 
-func (rs *reduceStage) Setup(c Context) error {
-	rs.Prev = rs.r.InitialValue()
-	if b, ok := rs.r.(Bootstrapper); ok {
+func (rs *reduceStage) Setup(c Context) error { return nil }
+
+func (rs *reduceStage) instantiateReducer(c Context) error {
+	// clone reducer object from prototype
+	r := reflect2.Type2(typeOf(rs.reducerPrototype)).New()
+	if err := copier.Copy(r, rs.reducerPrototype); err != nil {
+		panic("failed to instantiate reducer: " + err.Error())
+	}
+	reducer := r.(Reducer)
+	rs.reducers[c.PartitionKey()] = reducer
+	rs.prev[c.PartitionKey()] = reducer.InitialValue()
+
+	if b, ok := reducer.(Bootstrapper); ok {
 		return b.Setup(c)
 	}
 	return nil
@@ -37,24 +58,36 @@ func (rs *reduceStage) Setup(c Context) error {
 
 func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Output) error {
 	for _, row := range rows {
-		next, err := rs.r.Reduce(c, rs.Prev, row)
+		ctx := ContextWithPartitionKey(c, row.Key)
+		if rs.reducers[row.Key] == nil {
+			if err := rs.instantiateReducer(ctx); err != nil {
+				return errors.Wrapf(err, "setup reducer for %s", row.Key)
+			}
+		}
+		next, err := rs.reducers[row.Key].Reduce(ctx, rs.prev[row.Key], row)
 		if err != nil {
 			return err
 		}
-		rs.Prev = next
+		rs.prev[row.Key] = next
 	}
 	return nil
 }
 
 func (rs *reduceStage) Teardown(c Context, out output.Output) error {
-	rows := []*lrdd.Row{
-		lrdd.KeyValue(c.PartitionKey(), rs.Prev),
+	var rows []*lrdd.Row
+	for partitionKey, finalVal := range rs.prev {
+		rows = append(rows, lrdd.KeyValue(partitionKey, finalVal))
 	}
 	if err := out.Write(rows); err != nil {
 		return err
 	}
-	if b, ok := rs.r.(Bootstrapper); ok {
-		return b.Teardown(c, out)
+	for partitionKey, reducer := range rs.reducers {
+		if b, ok := reducer.(Bootstrapper); ok {
+			ctx := ContextWithPartitionKey(c, partitionKey)
+			if err := b.Teardown(ctx, out); err != nil {
+				return errors.Wrapf(err, "teardown reducer for %s", partitionKey)
+			}
+		}
 	}
 	return nil
 }
