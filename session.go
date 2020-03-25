@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
+	"path"
 )
 
 type Result struct {
@@ -75,96 +77,101 @@ func (s *session) AddStage(st stage.Stage, box interface{}) Session {
 func (s *session) Run(ctx context.Context, name string) (*RunningJob, error) {
 	defer s.log.Recover()
 
-	job, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
+	j, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, fmt.Errorf("create job: %w", err)
 	}
-	s.master.jobTracker.AddJob(job)
+	s.master.jobTracker.AddJob(j)
 
-	jobLog := s.log.WithAttrs(logger.Attrs{"job": job.ID, "jobName": job.Name})
+	jobLog := s.log.WithAttrs(logger.Attrs{"job": j.ID, "jobName": j.Name})
 
-	workerConns := make(map[string]lrmrpb.WorkerClient, len(job.Workers))
-	for _, worker := range job.Workers {
-		conn, err := s.master.nodeManager.Connect(ctx, worker)
+	workerConns := make(map[string]lrmrpb.WorkerClient, len(j.Workers))
+	for _, worker := range j.Workers {
+		conn, err := s.master.nodeManager.Connect(ctx, worker.Host)
 		if err != nil {
 			return nil, fmt.Errorf("dial %s: %w", worker.Host, err)
 		}
 		workerConns[worker.Host] = lrmrpb.NewWorkerClient(conn)
-		defer conn.Close()
 	}
 
-	// initialize tasks reversely, so that outputs can be connected with next stage
-	var prevShards []*lrmrpb.HostMapping
-	lastStage := job.Stages[len(job.Stages)-1]
-	if lastStage.Output.Collect {
-		prevShards = append(prevShards, &lrmrpb.HostMapping{
-			Host:   s.master.node.Host,
-			TaskID: "master",
-		})
+	partitions := make([]*lrmrpb.Output, len(j.Stages)+1)
+	for i, st := range j.Stages {
+		var nextStageName string
+		if i == len(j.Stages)-1 {
+			nextStageName = "__none"
+		} else {
+			nextStageName = j.Stages[i+1].Name
+		}
+		partitions[i+1] = st.Output.Build(nextStageName, st.Workers)
 	}
-	for i := len(job.Stages) - 1; i >= 0; i-- {
-		stage := job.Stages[i]
-		req := &lrmrpb.CreateTaskRequest{
-			Stage: &lrmrpb.Stage{
-				JobID:      job.ID,
-				Name:       stage.Name,
-				RunnerName: stage.RunnerName,
-			},
-			Output:     stage.Output.Build(prevShards),
-			Broadcasts: s.serializedBroadcasts,
-		}
-		prevShards = make([]*lrmrpb.HostMapping, len(stage.Workers))
-		for j, worker := range stage.Workers {
-			taskID, err := s.createTask(worker, req)
-			if err != nil {
-				return nil, fmt.Errorf("create task for stage %s on %s: %w", stage.Name, worker.Host, err)
+	// TODO: set input stage partitioner
+	partitions[0] = job.DescribingStageOutput().Build(j.Stages[0].Name, j.Stages[0].Workers)
+
+	// initialize tasks reversely, so that outputs can be connected with next stage
+	prevPartitions := &lrmrpb.Output{
+		Type:            lrmrpb.Output_PUSH,
+		Partitioner:     lrmrpb.Output_SHUFFLE,
+		PartitionToHost: map[string]string{},
+		StageName:       "__none",
+	}
+	if j.Stages[len(j.Stages)-1].Output.Collect {
+		prevPartitions.PartitionToHost["0"] = s.master.node.Host
+		prevPartitions.StageName = "__collect"
+	}
+	for i := len(j.Stages) - 1; i >= 0; i-- {
+		curStage := j.Stages[i]
+
+		for key, host := range partitions[i].PartitionToHost {
+			w := &node.Node{Host: host}
+			req := &lrmrpb.CreateTaskRequest{
+				Stage: &lrmrpb.Stage{
+					JobID:      j.ID,
+					Name:       curStage.Name,
+					RunnerName: curStage.RunnerName,
+				},
+				PartitionKey: key,
+				Output:       prevPartitions,
+				Broadcasts:   s.serializedBroadcasts,
 			}
-			prevShards[j] = &lrmrpb.HostMapping{
-				Host:   worker.Host,
-				TaskID: taskID,
+			if err := s.createTask(w, req); err != nil {
+				return nil, errors.Wrapf(err, "create task for %s/%s/%s on %s", j.Name, curStage.Name, key, host)
 			}
 		}
+		prevPartitions = partitions[i]
 	}
 
 	jobLog.Info("Starting input")
-	outDesc := &lrmrpb.Output{
-		Shards:      prevShards,
-		Partitioner: &lrmrpb.Partitioner{Type: lrmrpb.Partitioner_NONE},
+	outs := make(map[string]output.Output)
+	for key, host := range prevPartitions.PartitionToHost {
+		taskID := path.Join(j.ID, prevPartitions.StageName, key)
+		out, err := output.NewPushStream(ctx, s.master.nodeManager, host, taskID)
+		if err != nil {
+			return nil, errors.Wrapf(err, "connect %s for input", host)
+		}
+		outs[key] = out
 	}
-	firstShards, err := output.DialShards(ctx, s.master, outDesc, s.master.opt.Master.Output)
-	if err != nil {
-		return nil, fmt.Errorf("connecting input: %w", err)
-	}
-	out := output.NewStreamWriter(firstShards)
+	out := output.NewWriter(output.NewShuffledPartitioner(len(outs)), outs)
+
 	if err := s.input.ProvideInput(out); err != nil {
 		return nil, fmt.Errorf("running input: %w", err)
 	}
-	if err := out.FlushAndClose(); err != nil {
-		return nil, fmt.Errorf("flushing input: %w", err)
+	if err := out.Close(); err != nil {
+		return nil, fmt.Errorf("close input: %w", err)
 	}
-	go func() {
-		if err := firstShards.Close(); err != nil {
-			jobLog.Error("Failed to close input stage output", err)
-		}
-	}()
 	jobLog.Info("Finished providing input. Running...")
 	return &RunningJob{
 		master: s.master,
-		Job:    job,
+		Job:    j,
 	}, nil
 }
 
-func (s *session) createTask(worker *node.Node, req *lrmrpb.CreateTaskRequest) (string, error) {
-	conn, err := s.master.nodeManager.Connect(context.TODO(), worker)
+func (s *session) createTask(worker *node.Node, req *lrmrpb.CreateTaskRequest) error {
+	conn, err := s.master.nodeManager.Connect(context.TODO(), worker.Host)
 	if err != nil {
-		return "", fmt.Errorf("grpc dial: %w", err)
+		return errors.Wrap(err, "grpc dial")
 	}
-	w := lrmrpb.NewWorkerClient(conn)
-	res, err := w.CreateTask(context.TODO(), req)
-	if err != nil {
-		return "", err
-	}
-	return res.TaskID, nil
+	_, err = lrmrpb.NewWorkerClient(conn).CreateTask(context.TODO(), req)
+	return err
 }
 
 // Output sets last stage output with given output spec.

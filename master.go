@@ -34,13 +34,6 @@ func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
 	}, nil
 }
 
-func (m *Master) NodeInfo() *lrmrpb.Node {
-	return &lrmrpb.Node{
-		Host: m.node.Host,
-		ID:   m.node.ID,
-	}
-}
-
 func (m *Master) Start() {
 	m.jobTracker.Start()
 }

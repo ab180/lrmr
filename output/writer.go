@@ -1,108 +1,48 @@
 package output
 
 import (
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/lrmrpb"
-	"time"
 )
 
-var log = logger.New("output")
-
-type Writer interface {
-	Write(*lrdd.Row) error
-	Errors() <-chan error
-	FlushAndClose() error
-}
-
-type StreamWriter struct {
-	sh          *Shards
-	buffers     map[string][]*lrdd.Row
+type Writer struct {
 	partitioner Partitioner
 
-	dataChan  chan *lrdd.Row
-	errorChan chan error
+	// outputs is a mapping of partition key to an output.
+	outputs map[string]Output
 }
 
-func NewStreamWriter(sh *Shards) Writer {
-	buffers := make(map[string][]*lrdd.Row)
-	var hosts []string
-	for host := range sh.Shards {
-		hosts = append(hosts, host)
-		buffers[host] = make([]*lrdd.Row, 0, sh.opt.BufferLength)
-	}
-
-	var p Partitioner
-	switch sh.Desc.Partitioner.Type {
-	case lrmrpb.Partitioner_HASH_KEY:
-		p = NewHashKeyPartitioner(hosts)
-	case lrmrpb.Partitioner_FINITE_KEY:
-		p = NewFiniteKeyPartitioner(sh.Desc.Partitioner.KeyToHost)
-	default:
-		p = NewFanoutPartitioner(hosts)
-	}
-
-	s := &StreamWriter{
-		sh:          sh,
-		buffers:     buffers,
+func NewWriter(p Partitioner, outputs map[string]Output) *Writer {
+	return &Writer{
 		partitioner: p,
-		dataChan:    make(chan *lrdd.Row, 1000000),
-		errorChan:   make(chan error),
+		outputs:     outputs,
 	}
-	go s.dispatch()
-	return s
 }
 
-func (s *StreamWriter) dispatch() {
-	for d := range s.dataChan {
-		host, err := s.partitioner.DetermineHost(d)
+func (w *Writer) Write(data []*lrdd.Row) error {
+	writes := make(map[string][]*lrdd.Row)
+	for _, row := range data {
+		pk, err := w.partitioner.DeterminePartitionKey(row)
 		if err != nil {
 			if err == ErrNoOutput {
-				return
+				continue
 			}
-			s.errorChan <- err
-			return
+			return err
 		}
-		s.buffers[host] = append(s.buffers[host], d)
-		if len(s.buffers[host]) == cap(s.buffers[host]) {
-			err := s.flushHost(host)
-			if err != nil {
-				s.errorChan <- err
-			}
+		writes[pk] = append(writes[pk], row)
+	}
+	for pk, rows := range writes {
+		if err := w.outputs[pk].Write(rows); err != nil {
+			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), pk)
 		}
 	}
-}
-
-func (s *StreamWriter) Write(d *lrdd.Row) error {
-	s.dataChan <- d
 	return nil
 }
 
-func (s *StreamWriter) flushHost(h string) (err error) {
-	if len(s.buffers[h]) == 0 {
-		return
-	}
-	err = s.sh.Shards[h].Send(s.buffers[h])
-	s.buffers[h] = s.buffers[h][:0]
-	return
-}
-
-func (s *StreamWriter) Errors() <-chan error {
-	return s.errorChan
-}
-
-func (s *StreamWriter) FlushAndClose() error {
-	for len(s.dataChan) > 0 {
-		// wait for the queue to drain
-		time.Sleep(100 * time.Millisecond)
-	}
-	close(s.dataChan)
-	close(s.errorChan)
-
-	for host := range s.sh.Shards {
-		if err := s.flushHost(host); err != nil {
-			return errors.Wrapf(err, "flush %s", host)
+func (w *Writer) Close() error {
+	for _, out := range w.outputs {
+		if err := out.Close(); err != nil {
+			return err
 		}
 	}
 	return nil

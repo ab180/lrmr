@@ -1,10 +1,10 @@
 package output
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/therne/lrmr/lrdd"
+	"strconv"
 )
 
 var (
@@ -12,55 +12,47 @@ var (
 )
 
 type Partitioner interface {
-	DetermineHost(row *lrdd.Row) (string, error)
+	DeterminePartitionKey(row *lrdd.Row) (key string, err error)
 }
 
-type finiteKeyPartitioner struct {
-	key       string
-	keyToHost map[string]string
+type finiteKeyPartitioner struct{}
+
+func NewFiniteKeyPartitioner() Partitioner {
+	return &finiteKeyPartitioner{}
 }
 
-func NewFiniteKeyPartitioner(keyToHost map[string]string) Partitioner {
-	return &finiteKeyPartitioner{keyToHost: keyToHost}
-}
-
-func (f *finiteKeyPartitioner) DetermineHost(row *lrdd.Row) (host string, err error) {
-	host, ok := f.keyToHost[row.Key]
-	if !ok {
-		err = fmt.Errorf("unknown key: %s", row.Key)
-		return
-	}
-	return
+func (f *finiteKeyPartitioner) DeterminePartitionKey(row *lrdd.Row) (string, error) {
+	return row.Key, nil
 }
 
 type hashKeyPartitioner struct {
-	hosts []string
+	numPartitions uint64
 }
 
-func NewHashKeyPartitioner(hosts []string) Partitioner {
-	return &hashKeyPartitioner{hosts: hosts}
+func NewHashKeyPartitioner(numPartitions int) Partitioner {
+	return &hashKeyPartitioner{numPartitions: uint64(numPartitions)}
 }
 
-func (h *hashKeyPartitioner) DetermineHost(row *lrdd.Row) (string, error) {
+func (h *hashKeyPartitioner) DeterminePartitionKey(row *lrdd.Row) (string, error) {
 	// uses Fowler–Noll–Vo hash to determine output shard
-	slot := fnv1a.HashString64(row.Key) % uint64(len(h.hosts))
-	return h.hosts[slot], nil
+	slot := fnv1a.HashString64(row.Key) % h.numPartitions
+	return strconv.FormatUint(slot, 10), nil
 }
 
-func NewFanoutPartitioner(hosts []string) Partitioner {
-	return &fanoutPartitioner{hosts: hosts}
+func NewShuffledPartitioner(numPartitions int) Partitioner {
+	return &shuffledPartitioner{numPartitions: numPartitions}
 }
 
-type fanoutPartitioner struct {
-	hosts      []string
-	sentEvents uint64
+type shuffledPartitioner struct {
+	numPartitions int
+	sentEvents    int
 }
 
-func (f *fanoutPartitioner) DetermineHost(*lrdd.Row) (string, error) {
-	if len(f.hosts) == 0 {
+func (f *shuffledPartitioner) DeterminePartitionKey(*lrdd.Row) (string, error) {
+	if f.numPartitions == 0 {
 		return "", ErrNoOutput
 	}
-	shard := f.sentEvents % uint64(len(f.hosts))
+	slot := f.sentEvents % f.numPartitions
 	f.sentEvents++
-	return f.hosts[shard], nil
+	return strconv.Itoa(slot), nil
 }

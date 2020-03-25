@@ -8,18 +8,18 @@ import (
 )
 
 type InputProvider interface {
-	ProvideInput(out output.Writer) error
+	ProvideInput(out output.Output) error
 }
 
 type localInput struct {
 	Path string
 }
 
-func (l localInput) ProvideInput(out output.Writer) error {
+func (l localInput) ProvideInput(out output.Output) error {
 	return filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Write(lrdd.Value(path))
+		return out.Write([]*lrdd.Row{lrdd.Value(path)})
 	})
 }

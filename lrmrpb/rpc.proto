@@ -6,14 +6,17 @@ import "google/protobuf/empty.proto";
 import "lrdd/row.proto";
 
 service Worker {
-    rpc CreateTask (CreateTaskRequest) returns (CreateTaskResponse);
-    rpc RunTask (stream RunRequest) returns (google.protobuf.Empty);
+    rpc CreateTask (CreateTaskRequest) returns (google.protobuf.Empty);
+    rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
+    rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
 }
 
 message CreateTaskRequest {
     Stage stage = 1;
-    Output output = 2;
-    map<string, bytes> broadcasts = 3;
+    string partitionKey = 2;
+    Input input = 3;
+    Output output = 4;
+    map<string, bytes> broadcasts = 5;
 }
 
 message Stage {
@@ -22,32 +25,41 @@ message Stage {
     string runnerName = 3;
 }
 
-message Output {
-    reserved 1;
+message Input {
+    enum Type {
+        PUSH = 0;
+        POLL = 1;
+    }
+    Type type = 1;
+    string stageName = 2;
 
-    // shards contains an ordered mapping of output hostname to its task ID.
-    repeated HostMapping shards = 2;
-
-    Partitioner partitioner = 3;
+    // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
+    map<string, string> partitionToHost = 3;
 }
 
-message Partitioner {
+message Output {
     enum Type {
-        NONE = 0;
+        PUSH = 0;
+        POLL = 1;
+    }
+    Type type = 1;
+    string stageName = 2;
+
+    enum PartitionerType {
+        SHUFFLE = 0;
 
         // HashPartitioner will determine output shard of the partition
-        // by calculating `hash(partitionKey) modulo shardCount.`
+        // by calculating `hash(row.Key) modulo shardCount.`
         HASH_KEY = 1;
 
         // FiniteKeyPartitioner assigns partition keys to each shard and
         // will send an output partition to its designated shard.
         FINITE_KEY = 2;
     }
-    Type type = 1;
+    PartitionerType partitioner = 3;
 
-    // PartitionKeyToHost contains mapping of partition key to worker node host.
-    // Used only when the type is FINITE_KEY.
-    map<string, string> keyToHost = 3;
+    // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
+    map<string, string> partitionToHost = 4;
 }
 
 message HostMapping {
@@ -59,13 +71,25 @@ message CreateTaskResponse {
     string taskID = 1;
 }
 
-message RunRequest {
-    Node from = 1;
-    string taskID = 2;
-    repeated lrdd.Row inputs = 3;
+// PushDataRequest is a request to push data for a worker to process.
+// metadata with key "header" and value of DataHeader is required.
+message PushDataRequest {
+    repeated lrdd.Row data = 1;
 }
 
-message Node {
-    string host = 1;
-    string ID = 2;
+// PollDataRequest is a request to poll data for a worker to process.
+// metadata with key "header" and value of DataHeader is required.
+message PollDataRequest {
+    // N is maximum number of the data returned.
+    int64 n = 1;
+}
+
+message PollDataResponse {
+    repeated lrdd.Row data = 1;
+}
+
+message DataHeader {
+    string taskID = 1;
+    string fromHost = 2;
+    string fromNodeID = 3;
 }

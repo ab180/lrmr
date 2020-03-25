@@ -16,6 +16,7 @@ const (
 	taskNs = "tasks/"
 
 	statusNs      = "status/"
+	nodeStatusNs  = "status/node/"
 	stageStatusNs = "status/stages/"
 	taskStatusNs  = "status/tasks/"
 	jobStatusNs   = "status/jobs"
@@ -127,13 +128,12 @@ func (m *jobManager) ListTasks(ctx context.Context, prefixFormat string, args ..
 }
 
 func (m *jobManager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
-	if err := m.crd.Put(ctx, path.Join(taskNs, task.ID), task); err != nil {
-		return nil, errors.Wrap(err, "task creation")
-	}
 	status := newTaskStatus()
 	ops := []coordinator.BatchOp{
+		coordinator.Put(path.Join(taskNs, task.ID()), task),
 		coordinator.Put(path.Join(taskStatusNs, task.Reference().String()), status),
 		coordinator.IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")),
+		coordinator.IncrementCounter(path.Join(nodeStatusNs, task.NodeID, "totalTasks")),
 	}
 	if err := m.crd.Batch(ctx, ops...); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)

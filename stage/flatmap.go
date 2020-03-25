@@ -3,7 +3,6 @@ package stage
 import (
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
-	"sync"
 )
 
 type FlatMapper interface {
@@ -24,7 +23,6 @@ func RegisterFlatMap(name string, fm FlatMapper) (s Stage) {
 
 type flatMapStage struct {
 	fm FlatMapper
-	wg sync.WaitGroup
 }
 
 func (fs *flatMapStage) Setup(c Context) error {
@@ -34,31 +32,20 @@ func (fs *flatMapStage) Setup(c Context) error {
 	return nil
 }
 
-func (fs *flatMapStage) Apply(c Context, rows []*lrdd.Row, out output.Writer) error {
-	fs.wg.Add(1)
-	c.Spawn(func() (err error) {
-		defer fs.wg.Done()
-
-		var results []*lrdd.Row
-		for _, row := range rows {
-			r, err := fs.fm.FlatMap(c, row)
-			if err != nil {
-				return err
-			}
-			results = append(results, r...)
+func (fs *flatMapStage) Apply(c Context, rows []*lrdd.Row, out output.Output) error {
+	for _, row := range rows {
+		rows, err := fs.fm.FlatMap(c, row)
+		if err != nil {
+			return err
 		}
-		for _, result := range results {
-			if err := out.Write(result); err != nil {
-				return err
-			}
+		if err := out.Write(rows); err != nil {
+			return err
 		}
-		return nil
-	})
+	}
 	return nil
 }
 
-func (fs *flatMapStage) Teardown(c Context, out output.Writer) error {
-	fs.wg.Wait()
+func (fs *flatMapStage) Teardown(c Context, out output.Output) error {
 	if b, ok := fs.fm.(Bootstrapper); ok {
 		return b.Teardown(c, out)
 	}

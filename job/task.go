@@ -2,15 +2,15 @@ package job
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/internal/utils"
 	"github.com/therne/lrmr/node"
+	"net/url"
 	"time"
 )
 
 type Task struct {
-	JobID     string `json:"jobId"`
-	StageName string `json:"stageId"`
-	ID        string `json:"id"`
+	JobID        string `json:"jobId"`
+	StageName    string `json:"stageId"`
+	PartitionKey string `json:"id"`
 
 	NodeID   string `json:"nodeId"`
 	NodeHost string `json:"nodeHost"`
@@ -18,22 +18,26 @@ type Task struct {
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
-func NewTask(node *node.Node, job *Job, stage *Stage) *Task {
+func NewTask(partitionKey string, node *node.Node, job *Job, stage *Stage) *Task {
 	return &Task{
-		ID:          utils.GenerateID("T"),
-		StageName:   stage.Name,
-		JobID:       job.ID,
-		NodeID:      node.ID,
-		NodeHost:    node.Host,
-		SubmittedAt: time.Now(),
+		PartitionKey: partitionKey,
+		StageName:    stage.Name,
+		JobID:        job.ID,
+		NodeID:       node.ID,
+		NodeHost:     node.Host,
+		SubmittedAt:  time.Now(),
 	}
+}
+
+func (t *Task) ID() string {
+	return url.QueryEscape(t.PartitionKey)
 }
 
 func (t Task) Reference() TaskReference {
 	return TaskReference{
 		JobID:     t.JobID,
 		StageName: t.StageName,
-		TaskID:    t.ID,
+		TaskID:    t.ID(),
 	}
 }
 

@@ -7,12 +7,12 @@ import (
 
 type Bootstrapper interface {
 	Setup(c Context) error
-	Teardown(c Context, out output.Writer) error
+	Teardown(c Context, out output.Output) error
 }
 
 type Runner interface {
 	Bootstrapper
-	Apply(c Context, rows []*lrdd.Row, out output.Writer) error
+	Apply(c Context, rows []*lrdd.Row, out output.Output) error
 }
 
 func Register(name string, r Runner) Stage {

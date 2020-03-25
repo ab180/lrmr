@@ -35,7 +35,7 @@ func (rs *reduceStage) Setup(c Context) error {
 	return nil
 }
 
-func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Writer) error {
+func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Output) error {
 	for _, row := range rows {
 		next, err := rs.r.Reduce(c, rs.Prev, row)
 		if err != nil {
@@ -46,8 +46,11 @@ func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Writer) err
 	return nil
 }
 
-func (rs *reduceStage) Teardown(c Context, out output.Writer) error {
-	if err := out.Write(lrdd.KeyValue(c.PartitionKey(), rs.Prev)); err != nil {
+func (rs *reduceStage) Teardown(c Context, out output.Output) error {
+	rows := []*lrdd.Row{
+		lrdd.KeyValue(c.PartitionKey(), rs.Prev),
+	}
+	if err := out.Write(rows); err != nil {
 		return err
 	}
 	if b, ok := rs.r.(Bootstrapper); ok {

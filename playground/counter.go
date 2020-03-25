@@ -31,7 +31,7 @@ func (cnt *counter) Setup(c stage.Context) error {
 	return nil
 }
 
-func (cnt *counter) Teardown(c stage.Context, out output.Writer) error {
+func (cnt *counter) Teardown(c stage.Context, out output.Output) error {
 	c.AddMetric("Events", int(cnt.value))
 	log.Info("App {}: {}", c.PartitionKey(), cnt.value)
 	return nil

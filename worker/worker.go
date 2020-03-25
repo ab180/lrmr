@@ -7,9 +7,11 @@ import (
 	"github.com/airbloc/logger/module/loggergrpc"
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/ivpusic/grpool"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/input"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
@@ -17,9 +19,10 @@ import (
 	"github.com/therne/lrmr/stage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"io"
 	"net"
+	"path"
 	"sync"
 	"time"
 )
@@ -43,7 +46,6 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.MaxRecvSize),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
@@ -51,11 +53,30 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 			loggergrpc.UnaryServerRecover(),
 		)),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+				err := handler(srv, ss)
+				if err != nil {
+					ss.Context()
+					md, ok := metadata.FromIncomingContext(ss.Context())
+					if !ok {
+						return err
+					}
+					entries := md.Get("dataHeader")
+					if len(entries) < 1 {
+						return err
+					}
+					header := new(lrmrpb.DataHeader)
+					if e := jsoniter.UnmarshalFromString(entries[0], header); e != nil {
+						return err
+					}
+					log.Error(" By {} (From {})", header.TaskID, header.FromHost)
+				}
+				return err
+			},
 			loggergrpc.StreamServerLogger(log),
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
-
 	return &Worker{
 		nodeManager:     nm,
 		jobReporter:     job.NewJobReporter(crd),
@@ -72,14 +93,6 @@ func (w *Worker) getWorkerLocalOption(key string) interface{} {
 
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
-}
-
-func (w *Worker) NodeInfo() *lrmrpb.Node {
-	n := w.nodeManager.Self()
-	return &lrmrpb.Node{
-		Host: n.Host,
-		ID:   n.ID,
-	}
 }
 
 func (w *Worker) Start() error {
@@ -100,10 +113,10 @@ func (w *Worker) Start() error {
 	return w.server.Serve(lis)
 }
 
-func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*lrmrpb.CreateTaskResponse, error) {
+func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*empty.Empty, error) {
 	j, err := w.jobManager.GetJob(ctx, req.Stage.JobID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get job info: %w", err)
+		return nil, status.Errorf(codes.Internal, "failed to get job info: %v", err)
 	}
 	s := j.GetStage(req.Stage.Name)
 	if s == nil {
@@ -115,88 +128,103 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	for key, broadcast := range req.Broadcasts {
 		var val interface{}
 		if err := msgpack.Decode(broadcast, &val); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %w", key, err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %v", key, err)
 		}
 		broadcasts[key] = val
 	}
-
-	shards, err := output.DialShards(ctx, w, req.Output, w.opt.Output)
+	in := input.NewReader(w.opt.QueueLength)
+	out, err := w.newOutputWriter(ctx, req.Stage, req.Output)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to connect output: %w", err)
+		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	task := job.NewTask(w.nodeManager.Self(), j, s)
+	task := job.NewTask(req.PartitionKey, w.nodeManager.Self(), j, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "create task failed: %w", err)
+		return nil, status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	log.Info("Create task {} of {}/{} (Job: {})", task.ID, j.ID, s.Name, j.Name)
-	log.Info("  Output: Partition({}), Shards({})", req.Output.Partitioner.Type.String(), len(req.Output.Shards))
+	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
+	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), len(req.Output.PartitionToHost))
 
-	t := &runningTask{
-		worker:     w,
-		job:        j,
-		stage:      s,
-		task:       task,
-		shards:     shards,
-		pool:       grpool.NewPool(w.opt.PoolSize, w.opt.QueueLength),
-		broadcasts: broadcasts,
+	c := NewTaskContext(w, task, broadcasts)
+	exec, err := NewTaskExecutor(c, task, st, in, out)
+	if err != nil {
+		err = errors.Wrap(err, "failed to start executor")
+		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
+			return nil, reportErr
+		}
+		return nil, err
 	}
-	t.executors = newExecutors(st, t, shards)
-	w.runningTasks.Store(task.ID, t)
-	return &lrmrpb.CreateTaskResponse{TaskID: task.ID}, nil
+	taskID := path.Join(j.ID, s.Name, task.PartitionKey)
+	w.runningTasks.Store(taskID, exec)
+	go exec.Run()
+	return &empty.Empty{}, nil
 }
 
-func (w *Worker) RunTask(stream lrmrpb.Worker_RunTaskServer) error {
-	var t *runningTask
-	defer t.TryRecover()
+func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb.Output) (*output.Writer, error) {
+	var p output.Partitioner
+	switch o.Partitioner {
+	case lrmrpb.Output_FINITE_KEY:
+		p = output.NewFiniteKeyPartitioner()
+	case lrmrpb.Output_HASH_KEY:
+		p = output.NewHashKeyPartitioner(len(o.PartitionToHost))
+	default:
+		p = output.NewShuffledPartitioner(len(o.PartitionToHost))
+	}
 
-	for {
-		req, err := stream.Recv()
+	outputs := make(map[string]output.Output)
+	for key, host := range o.PartitionToHost {
+		taskID := path.Join(s.JobID, o.StageName, key)
+		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return t.Abort(fmt.Errorf("stream recv: %v", err))
+			return nil, err
 		}
-		if t == nil {
-			// first event of the stream. warm up
-			rt, ok := w.runningTasks.Load(req.TaskID)
-			if !ok {
-				return status.Errorf(codes.NotFound, "task not found: %s", req.TaskID)
-			}
-			t = rt.(*runningTask)
-			t.addConnection(stream)
-
-			var from string
-			if _, ok := stream.(*output.LocalPipeStream); ok {
-				from = "local"
-			} else {
-				from = fmt.Sprintf("%s (%s)", req.From.Host, req.From.ID)
-			}
-			log.Debug("Task {} ({}/{}) connected with {}", req.TaskID, t.job.ID, t.stage.Name, from)
-
-		} else if !t.isRunning {
-			t.isRunning = true
-			w.jobReporter.UpdateStatus(t.task.Reference(), func(ts *job.TaskStatus) {
-				ts.Status = job.Running
-			})
-		}
-		if err := t.executors.Apply(req.Inputs); err != nil {
-			return t.Abort(err)
-		}
+		outputs[key] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
 	}
-	if t == nil {
-		return status.Errorf(codes.InvalidArgument, "no events but found EOF")
-	}
+	return output.NewWriter(p, outputs), nil
+}
 
-	if allDone := t.finishConnection(); allDone {
-		w.runningTasks.Delete(t.task.ID)
-		return t.Finish()
+func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
+	exec, err := w.loadTaskExecutorFromHeader(stream)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	in := input.NewPushStream(exec.Input, stream)
+	if err := in.Dispatch(); err != nil {
+		return err
+	}
+	exec.WaitForFinish()
 	return stream.SendAndClose(&empty.Empty{})
+}
+
+func (w *Worker) PollData(stream lrmrpb.Worker_PollDataServer) error {
+	_, err := w.loadTaskExecutorFromHeader(stream)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	panic("implement me")
+}
+
+func (w *Worker) loadTaskExecutorFromHeader(stream grpc.ServerStream) (*TaskExecutor, error) {
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok {
+		return nil, errors.New("no metadata")
+	}
+	entries := md.Get("dataHeader")
+	if len(entries) < 1 {
+		return nil, errors.New("error parsing metadata: dataHeader is required")
+	}
+	header := new(lrmrpb.DataHeader)
+	if err := jsoniter.UnmarshalFromString(entries[0], header); err != nil {
+		return nil, errors.Wrap(err, "parse dataHeader")
+	}
+	r, ok := w.runningTasks.Load(header.TaskID)
+	if !ok {
+		return nil, errors.Errorf("task not found: %s", header.TaskID)
+	}
+	return r.(*TaskExecutor), nil
 }
 
 func (w *Worker) Stop() error {

@@ -10,6 +10,7 @@ import (
 	"github.com/therne/lrmr/stage"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -25,7 +26,7 @@ func (l *jsonDecoder) FlatMap(c stage.Context, in *lrdd.Row) (result []*lrdd.Row
 	var path string
 	in.UnmarshalValue(&path)
 
-	logger.New("jsondecoder").Verbose("Opening {}", path)
+	logger.New("jsondecoder").Verbose("Opening {}", filepath.Base(path))
 
 	file, err := os.Open(path)
 	if err != nil {
