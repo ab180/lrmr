@@ -54,24 +54,14 @@ func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
 		)),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-				err := handler(srv, ss)
-				if err != nil {
-					ss.Context()
-					md, ok := metadata.FromIncomingContext(ss.Context())
-					if !ok {
-						return err
+				// dump header on stream failure
+				if err := handler(srv, ss); err != nil {
+					if h, err := parseHeaderFromMetadata(ss); err == nil {
+						log.Error(" By {} (From {})", h.TaskID, h.FromHost)
 					}
-					entries := md.Get("dataHeader")
-					if len(entries) < 1 {
-						return err
-					}
-					header := new(lrmrpb.DataHeader)
-					if e := jsoniter.UnmarshalFromString(entries[0], header); e != nil {
-						return err
-					}
-					log.Error(" By {} (From {})", header.TaskID, header.FromHost)
+					return err
 				}
-				return err
+				return nil
 			},
 			loggergrpc.StreamServerLogger(log),
 			loggergrpc.StreamServerRecover(),
@@ -187,27 +177,40 @@ func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb
 }
 
 func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
-	exec, err := w.loadTaskExecutorFromHeader(stream)
+	h, err := parseHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	e, ok := w.runningTasks.Load(h.TaskID)
+	if !ok {
+		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
+	}
+	exec := e.(*TaskExecutor)
+
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(); err != nil {
 		return err
 	}
 	exec.WaitForFinish()
+
+	w.runningTasks.Delete(h.TaskID)
 	return stream.SendAndClose(&empty.Empty{})
 }
 
 func (w *Worker) PollData(stream lrmrpb.Worker_PollDataServer) error {
-	_, err := w.loadTaskExecutorFromHeader(stream)
+	h, err := parseHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	e, ok := w.runningTasks.Load(h.TaskID)
+	if !ok {
+		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
+	}
+	_ = e.(*TaskExecutor)
 	panic("implement me")
 }
 
-func (w *Worker) loadTaskExecutorFromHeader(stream grpc.ServerStream) (*TaskExecutor, error) {
+func parseHeaderFromMetadata(stream grpc.ServerStream) (*lrmrpb.DataHeader, error) {
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
 		return nil, errors.New("no metadata")
@@ -220,11 +223,7 @@ func (w *Worker) loadTaskExecutorFromHeader(stream grpc.ServerStream) (*TaskExec
 	if err := jsoniter.UnmarshalFromString(entries[0], header); err != nil {
 		return nil, errors.Wrap(err, "parse dataHeader")
 	}
-	r, ok := w.runningTasks.Load(header.TaskID)
-	if !ok {
-		return nil, errors.Errorf("task not found: %s", header.TaskID)
-	}
-	return r.(*TaskExecutor), nil
+	return header, nil
 }
 
 func (w *Worker) Stop() error {
