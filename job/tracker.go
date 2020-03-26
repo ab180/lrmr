@@ -152,17 +152,6 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 		return fmt.Errorf("update job status: %w", err)
 	}
 	t.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
-
-	// print metrics collected from the stage
-	m, err := t.collectMetric(job)
-	if err != nil {
-		t.log.Warn("failed to collect metric: {}", err)
-	}
-	t.log.Info("{} metrics have been collected.", len(m))
-	for k, v := range m {
-		t.log.Info("    {} = {}", k, v)
-	}
-
 	for _, notifyCh := range t.subscriptions[job.ID] {
 		notifyCh <- &js
 	}
@@ -170,7 +159,7 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 	return nil
 }
 
-func (t *Tracker) collectMetric(j *Job) (Metrics, error) {
+func (t *Tracker) CollectMetric(j *Job) (Metrics, error) {
 	total := make(Metrics)
 	for _, stage := range j.Stages {
 		prefix := path.Join(taskStatusNs, j.ID, stage.Name)

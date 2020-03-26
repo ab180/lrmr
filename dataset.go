@@ -2,7 +2,8 @@ package lrmr
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/job/partitions"
+	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/stage"
 )
 
@@ -10,20 +11,28 @@ import (
 type Dataset struct {
 	Session
 	NumStages int
+
+	defaultPartitionOpts []partitions.PlanOptions
 }
 
-func Input(provider InputProvider, m *Master) *Dataset {
+func FromInput(provider InputProvider, m *Master) *Dataset {
 	sess := NewSession(m).SetInput(provider)
 	return &Dataset{Session: sess}
 }
 
-func TextFile(uri string, m *Master) *Dataset {
+func FromURI(uri string, m *Master) *Dataset {
 	sess := NewSession(m).SetInput(&localInput{Path: uri})
 	return &Dataset{Session: sess}
 }
 
+func (d *Dataset) addStage(runner interface{}) {
+	d.Session.AddStage(stage.LookupByRunner(runner), runner)
+	d.Session.SetPartitionOption(d.defaultPartitionOpts...)
+	return
+}
+
 func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {
-	d.Session.AddStage(stage.LookupByRunner(mapper), mapper)
+	d.addStage(mapper)
 	return d
 }
 
@@ -33,17 +42,33 @@ func (d *Dataset) Reduce(reducer stage.Reducer) *Dataset {
 }
 
 func (d *Dataset) GroupByKey() *Dataset {
-	d.Session.Output(job.DescribingStageOutput().WithPartitions())
+	d.Session.SetPartitionType(lrmrpb.Output_HASH_KEY)
 	return d
 }
 
 func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
-	d.Session.Output(job.DescribingStageOutput().WithFixedPartitions(knownKeys))
+	d.Session.SetPartitionType(lrmrpb.Output_FINITE_KEY)
+	d.Session.SetPartitionOption(partitions.WithFixedKeys(knownKeys))
 	return d
 }
 
-func (d *Dataset) NoOutput() *Dataset {
-	d.Session.Output(job.DescribingStageOutput().Nothing())
+func (d *Dataset) Repartition(n int) *Dataset {
+	d.Session.SetPartitionOption(partitions.WithFixedCount(n))
+	return d
+}
+
+func (d *Dataset) Broadcast(key string, value interface{}) *Dataset {
+	d.Session.Broadcast(key, value)
+	return d
+}
+
+func (d *Dataset) WithWorkerCount(n int) *Dataset {
+	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithLimitNodes(n))
+	return d
+}
+
+func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
+	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithExecutorsPerNode(n))
 	return d
 }
 

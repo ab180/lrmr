@@ -2,34 +2,48 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/airbloc/logger"
 	"github.com/therne/lrmr"
+	"github.com/therne/lrmr/job"
 	. "github.com/therne/lrmr/playground"
-	"os"
 )
+
+var log = logger.New("master")
 
 func main() {
 	m, err := lrmr.RunMaster()
 	if err != nil {
-		fmt.Println("error starting master:", err.Error())
-		os.Exit(1)
+		log.Fatal("failed to start master", err)
 	}
 	m.Start()
 	defer m.Stop()
 
-	sess := lrmr.TextFile("/Users/vista/testdata/", m).
+	sess := lrmr.FromURI("/Users/vista/testdata/", m).
 		FlatMap(DecodeJSON()).
-		GroupByKey().
-		Reduce(Count())
+		Reduce(Count()).
+		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"})
 
-	job, err := sess.Run(context.TODO(), "GroupByApp")
+	j, err := sess.Run(context.TODO(), "GroupByApp")
 	if err != nil {
-		fmt.Println("run session:", err.Error())
-		os.Exit(1)
+		log.Fatal("failed to run session", err)
 	}
-	if _, err := job.WaitForResult(); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+	if _, err := j.WaitForResult(); err != nil {
+		log.Fatal(err.Error())
 	}
-	fmt.Println("Done!")
+
+	// print metrics
+	metrics, err := j.Metrics()
+	if err != nil {
+		log.Warn("failed to collect metric: {}", err)
+	}
+	log.Info("{} metrics have been collected.", len(metrics))
+	for k, v := range metrics {
+		log.Info("    {} = {}", k, v)
+	}
+
+	if j.Status() == job.Succeeded {
+		log.Info("Done!")
+	} else {
+		log.Fatal("Failed.")
+	}
 }
