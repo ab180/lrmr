@@ -167,6 +167,13 @@ func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb
 	outputs := make(map[string]output.Output)
 	for key, host := range o.PartitionToHost {
 		taskID := path.Join(s.JobID, o.StageName, key)
+		if host == w.nodeManager.Self().Host {
+			t, ok := w.runningTasks.Load(taskID)
+			if ok {
+				outputs[key] = NewLocalPipe(t.(*TaskExecutor).Input)
+				continue
+			}
+		}
 		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
 		if err != nil {
 			return nil, err
