@@ -15,13 +15,22 @@ type Partitioner interface {
 	DeterminePartitionKey(row *lrdd.Row) (key string, err error)
 }
 
-type finiteKeyPartitioner struct{}
+type finiteKeyPartitioner struct {
+	allowedKeys map[string]bool
+}
 
-func NewFiniteKeyPartitioner() Partitioner {
-	return &finiteKeyPartitioner{}
+func NewFiniteKeyPartitioner(keys []string) Partitioner {
+	keySet := make(map[string]bool)
+	for _, k := range keys {
+		keySet[k] = true
+	}
+	return &finiteKeyPartitioner{keySet}
 }
 
 func (f *finiteKeyPartitioner) DeterminePartitionKey(row *lrdd.Row) (string, error) {
+	if !f.allowedKeys[row.Key] {
+		return "", ErrNoOutput
+	}
 	return row.Key, nil
 }
 

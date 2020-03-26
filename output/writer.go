@@ -31,9 +31,13 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 		}
 		writes[pk] = append(writes[pk], row)
 	}
-	for pk, rows := range writes {
-		if err := w.outputs[pk].Write(rows); err != nil {
-			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), pk)
+	for slot, rows := range writes {
+		out, ok := w.outputs[slot]
+		if !ok {
+			return errors.Errorf("unknown partition %s", slot)
+		}
+		if err := out.Write(rows); err != nil {
+			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), slot)
 		}
 	}
 	return nil
