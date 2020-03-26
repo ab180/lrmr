@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	jobNs  = "jobs/"
-	taskNs = "tasks/"
-
+	jobNs         = "jobs/"
+	taskNs        = "tasks/"
 	statusNs      = "status/"
 	nodeStatusNs  = "status/node/"
 	stageStatusNs = "status/stages/"
@@ -49,26 +48,13 @@ func NewManager(nm node.Manager, crd coordinator.Coordinator) Manager {
 }
 
 func (m *jobManager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
-	allNodes, err := m.nodeManager.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list nodes: %w", err)
-	}
-	if len(allNodes) == 0 {
-		return nil, node.ErrNodeNotFound
-	}
 	js := newStatus()
 	j := &Job{
 		ID:          utils.GenerateID("J"),
 		Name:        name,
-		Workers:     allNodes,
 		Stages:      stages,
 		SubmittedAt: js.SubmittedAt,
 	}
-	for _, stage := range j.Stages {
-		// TODO: resource-based scheduling
-		stage.Workers = allNodes
-	}
-
 	writes := []coordinator.BatchOp{
 		coordinator.Put(path.Join(jobNs, j.ID), j),
 		coordinator.Put(path.Join(jobStatusNs, j.ID), js),

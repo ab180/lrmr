@@ -1,17 +1,13 @@
 package job
 
 import (
-	"github.com/therne/lrmr/node"
 	"time"
 )
 
 type Job struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-
-	Stages  []*Stage     `json:"stages"`
-	Workers []*node.Node `json:"workers"`
-
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Stages      []*Stage  `json:"stages"`
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
