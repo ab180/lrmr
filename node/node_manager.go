@@ -2,9 +2,9 @@ package node
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -28,7 +28,7 @@ type Manager interface {
 	RegisterSelf(ctx context.Context, n *Node) error
 	Self() *Node
 	Connect(ctx context.Context, host string) (*grpc.ClientConn, error)
-	List(ctx context.Context) ([]*Node, error)
+	List(context.Context, Type) ([]*Node, error)
 	UnregisterNode(nid string) error
 	Close() error
 }
@@ -101,20 +101,22 @@ func (m *manager) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 	return conn.(*grpc.ClientConn), nil
 }
 
-func (m *manager) List(ctx context.Context) ([]*Node, error) {
+func (m *manager) List(ctx context.Context, typ Type) (nn []*Node, err error) {
 	items, err := m.crd.Scan(ctx, nodeNs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read from etcd: %v", err)
+		return nil, errors.Wrap(err, "scan etcd")
 	}
-	nn := make([]*Node, len(items))
-	for i, item := range items {
-		var n Node
-		if err := item.Unmarshal(&n); err != nil {
-			return nil, fmt.Errorf("unable to unmarshal one of the node info: %v", err)
+	for _, item := range items {
+		n := new(Node)
+		if err := item.Unmarshal(n); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
 		}
-		nn[i] = &n
+		if n.Type != typ {
+			continue
+		}
+		nn = append(nn, n)
 	}
-	return nn, nil
+	return
 }
 
 func (m *manager) UnregisterNode(nid string) error {

@@ -91,7 +91,9 @@ func (w *Worker) Start() error {
 
 	w.jobReporter.Start()
 
-	if err := w.nodeManager.RegisterSelf(ctx, node.New(w.opt.Host)); err != nil {
+	n := node.New(w.opt.Host)
+	n.Type = node.Worker
+	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}
 
@@ -123,7 +125,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		broadcasts[key] = val
 	}
 	in := input.NewReader(w.opt.QueueLength)
-	out, err := w.newOutputWriter(ctx, req.Stage, req.Output)
+	out, err := w.newOutputWriter(ctx, j, s, req.Output)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
@@ -153,11 +155,11 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb.Output) (*output.Writer, error) {
+func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, o *lrmrpb.Output) (*output.Writer, error) {
 	var p output.Partitioner
 	switch o.Partitioner {
 	case lrmrpb.Output_FINITE_KEY:
-		p = output.NewFiniteKeyPartitioner()
+		p = output.NewFiniteKeyPartitioner(s.Partitions.Keys)
 	case lrmrpb.Output_HASH_KEY:
 		p = output.NewHashKeyPartitioner(len(o.PartitionToHost))
 	default:
@@ -166,7 +168,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb
 
 	outputs := make(map[string]output.Output)
 	for key, host := range o.PartitionToHost {
-		taskID := path.Join(s.JobID, o.StageName, key)
+		taskID := path.Join(j.ID, o.StageName, key)
 		if host == w.nodeManager.Self().Host {
 			t, ok := w.runningTasks.Load(taskID)
 			if ok {
@@ -174,6 +176,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, s *lrmrpb.Stage, o *lrmrpb
 				continue
 			}
 		}
+		log.Warn("{}/{} opened remote connection to {}", j.ID, s.Name, taskID)
 		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
 		if err != nil {
 			return nil, err

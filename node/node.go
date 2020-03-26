@@ -5,9 +5,17 @@ import (
 	"runtime"
 )
 
+type Type string
+
+const (
+	Master Type = "master"
+	Worker Type = "worker"
+)
+
 type Node struct {
 	ID   string `json:"id"`
 	Host string `json:"host"`
+	Type Type   `json:"type"`
 
 	Executors int `json:"executors"`
 
