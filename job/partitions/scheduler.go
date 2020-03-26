@@ -28,8 +28,8 @@ func NewSchedulerWithNodes(ctx context.Context, coord coordinator.Coordinator, n
 	}, nil
 }
 
-func (s *Scheduler) Plan(opts ...PlanOptions) (lp LogicalPlans, pp PhysicalPlans) {
-	opt := buildPartitionOptions(opts)
+func (s *Scheduler) Plan(opts ...PlanOption) (lp LogicalPlans, pp PhysicalPlans) {
+	opt := BuildPlanOptions(opts)
 	lp.IsElastic = opt.isElastic
 
 	// select top N freest nodes

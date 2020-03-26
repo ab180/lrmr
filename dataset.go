@@ -12,7 +12,7 @@ type Dataset struct {
 	Session
 	NumStages int
 
-	defaultPartitionOpts []partitions.PlanOptions
+	defaultPartitionOpts []partitions.PlanOption
 }
 
 func FromInput(provider InputProvider, m *Master) *Dataset {
@@ -28,7 +28,11 @@ func FromURI(uri string, m *Master) *Dataset {
 func (d *Dataset) addStage(runner interface{}) {
 	d.Session.AddStage(stage.LookupByRunner(runner), runner)
 	d.Session.SetPartitionOption(d.defaultPartitionOpts...)
-	return
+}
+
+func (d *Dataset) Do(runner stage.Runner) *Dataset {
+	d.addStage(runner)
+	return d
 }
 
 func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {

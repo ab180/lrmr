@@ -29,7 +29,7 @@ type Session interface {
 	Broadcast(key string, val interface{})
 	SetInput(ip InputProvider) Session
 	AddStage(stage.Stage, interface{}) Session
-	SetPartitionOption(...partitions.PlanOptions) Session
+	SetPartitionOption(...partitions.PlanOption) Session
 	SetPartitionType(lrmrpb.Output_PartitionerType) Session
 
 	Run(ctx context.Context, name string) (*RunningJob, error)
@@ -41,7 +41,7 @@ type session struct {
 	stages []*job.Stage
 
 	partitioners []lrmrpb.Output_PartitionerType
-	planOpts     [][]partitions.PlanOptions
+	planOpts     [][]partitions.PlanOption
 
 	broadcasts           map[string]interface{}
 	serializedBroadcasts map[string][]byte
@@ -84,7 +84,7 @@ func (s *session) AddStage(st stage.Stage, box interface{}) Session {
 	return s
 }
 
-func (s *session) SetPartitionOption(opts ...partitions.PlanOptions) Session {
+func (s *session) SetPartitionOption(opts ...partitions.PlanOption) Session {
 	if len(s.stages) == 0 {
 		panic("you need to add stage first.")
 	}

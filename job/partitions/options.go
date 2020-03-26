@@ -4,7 +4,7 @@ import "math"
 
 const auto = -1
 
-type partitionOptions struct {
+type PlanOptions struct {
 	isElastic        bool
 	maxNodes         int
 	executorsPerNode int
@@ -13,41 +13,41 @@ type partitionOptions struct {
 	fixedKeys   []string
 }
 
-type PlanOptions func(*partitionOptions)
+type PlanOption func(*PlanOptions)
 
-func WithFixedKeys(keys []string) PlanOptions {
-	return func(o *partitionOptions) {
+func WithFixedKeys(keys []string) PlanOption {
+	return func(o *PlanOptions) {
 		o.isElastic = false
 		o.fixedKeys = keys
 	}
 }
 
-func WithFixedCount(n int) PlanOptions {
-	return func(o *partitionOptions) {
+func WithFixedCount(n int) PlanOption {
+	return func(o *PlanOptions) {
 		o.fixedCounts = n
 	}
 }
 
-func WithNoElastic() PlanOptions {
-	return func(o *partitionOptions) {
+func WithNoElastic() PlanOption {
+	return func(o *PlanOptions) {
 		o.isElastic = false
 	}
 }
 
-func WithLimitNodes(n int) PlanOptions {
-	return func(o *partitionOptions) {
+func WithLimitNodes(n int) PlanOption {
+	return func(o *PlanOptions) {
 		o.maxNodes = n
 	}
 }
 
-func WithExecutorsPerNode(n int) PlanOptions {
-	return func(o *partitionOptions) {
+func WithExecutorsPerNode(n int) PlanOption {
+	return func(o *PlanOptions) {
 		o.executorsPerNode = n
 	}
 }
 
-func buildPartitionOptions(opts []PlanOptions) *partitionOptions {
-	o := &partitionOptions{
+func BuildPlanOptions(opts []PlanOption) *PlanOptions {
+	o := &PlanOptions{
 		isElastic:        true,
 		maxNodes:         math.MaxInt64,
 		executorsPerNode: auto,
