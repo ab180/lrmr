@@ -37,7 +37,12 @@ func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {
 }
 
 func (d *Dataset) Reduce(reducer stage.Reducer) *Dataset {
-	d.Session.AddStage(stage.LookupByRunner(reducer), reducer)
+	d.addStage(reducer)
+	return d
+}
+
+func (d *Dataset) Sort(sorter stage.Sorter) *Dataset {
+	d.addStage(sorter)
 	return d
 }
 
