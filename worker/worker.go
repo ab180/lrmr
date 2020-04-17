@@ -38,16 +38,16 @@ type Worker struct {
 	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
 
-	opt *Options
+	opt Options
 }
 
-func New(crd coordinator.Coordinator, opt *Options) (*Worker, error) {
+func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	nm, err := node.NewManager(crd, node.DefaultManagerOptions())
 	if err != nil {
 		return nil, err
 	}
 	srv := grpc.NewServer(
-		grpc.MaxRecvMsgSize(opt.MaxRecvSize),
+		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
 			loggergrpc.UnaryServerLogger(log),
 			loggergrpc.UnaryServerRecover(),
@@ -91,14 +91,14 @@ func (w *Worker) Start() error {
 
 	w.jobReporter.Start()
 
-	n := node.New(w.opt.Host)
+	n := node.New(w.opt.AdvertisedHost)
 	n.Type = node.Worker
 	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}
 
 	lrmrpb.RegisterWorkerServer(w.server, w)
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", w.opt.Bind, w.opt.Port))
+	lis, err := net.Listen("tcp", w.opt.ListenHost)
 	if err != nil {
 		return err
 	}
@@ -106,15 +106,15 @@ func (w *Worker) Start() error {
 }
 
 func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*empty.Empty, error) {
-	j, err := w.jobManager.GetJob(ctx, req.Stage.JobID)
+	j, err := w.jobManager.GetJob(ctx, req.JobID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get job info: %v", err)
 	}
-	s := j.GetStage(req.Stage.Name)
+	s := j.GetStage(req.StageName)
 	if s == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.Stage.Name, req.Stage.JobID)
+		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.StageName, j.ID)
 	}
-	st := stage.Lookup(req.Stage.RunnerName)
+	st := stage.Lookup(s.RunnerName)
 
 	broadcasts := make(map[string]interface{})
 	for key, broadcast := range req.Broadcasts {
@@ -124,13 +124,13 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 		broadcasts[key] = val
 	}
-	in := input.NewReader(w.opt.QueueLength)
+	in := input.NewReader(w.opt.Input.QueueLength)
 	out, err := w.newOutputWriter(ctx, j, s, req.Output)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	task := job.NewTask(req.PartitionKey, w.nodeManager.Self(), j, s)
+	task := job.NewTask(req.Input.PartitionKey, w.nodeManager.Self(), j, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create task failed: %v", err)
@@ -159,7 +159,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, 
 	var p output.Partitioner
 	switch o.Partitioner {
 	case lrmrpb.Output_FINITE_KEY:
-		p = output.NewFiniteKeyPartitioner(s.Partitions.Keys)
+		p = output.NewFiniteKeyPartitioner(s.Partitions.Keys())
 	case lrmrpb.Output_HASH_KEY:
 		p = output.NewHashKeyPartitioner(len(o.PartitionToHost))
 	default:
@@ -168,7 +168,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, 
 
 	outputs := make(map[string]output.Output)
 	for key, host := range o.PartitionToHost {
-		taskID := path.Join(j.ID, o.StageName, key)
+		taskID := path.Join(j.ID, o.NextStageName, key)
 		if host == w.nodeManager.Self().Host {
 			t, ok := w.runningTasks.Load(taskID)
 			if ok {

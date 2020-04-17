@@ -12,17 +12,12 @@ service Worker {
 }
 
 message CreateTaskRequest {
-    Stage stage = 1;
-    string partitionKey = 2;
-    Input input = 3;
-    Output output = 4;
-    map<string, bytes> broadcasts = 5;
-}
-
-message Stage {
     string jobID = 1;
-    string name = 2;
-    string runnerName = 3;
+    string stageName = 2;
+
+    Input input = 4;
+    Output output = 5;
+    map<string, bytes> broadcasts = 6;
 }
 
 message Input {
@@ -31,10 +26,13 @@ message Input {
         POLL = 1;
     }
     Type type = 1;
-    string stageName = 2;
+    string prevStageName = 2;
 
-    // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
-    map<string, string> partitionToHost = 3;
+    // partitionKey is key of this partition.
+    string partitionKey = 3;
+
+    // hosts contains an list of hosts providing the partition. Used when type == POLL.
+    repeated string hosts = 4;
 }
 
 message Output {
@@ -43,18 +41,22 @@ message Output {
         POLL = 1;
     }
     Type type = 1;
-    string stageName = 2;
+    string nextStageName = 2;
 
     enum PartitionerType {
-        SHUFFLE = 0;
+        // Do not shuffle through the network. Output data will be directly fed to next stage using in-memory pipe.
+        // Used when input partition is same with output partition.
+        PRESERVE = 0;
 
-        // HashPartitioner will determine output shard of the partition
-        // by calculating `hash(row.Key) modulo shardCount.`
-        HASH_KEY = 1;
+        // Randomly distribute outputs to next stage.
+        SHUFFLE = 1;
 
-        // FiniteKeyPartitioner assigns partition keys to each shard and
-        // will send an output partition to its designated shard.
-        FINITE_KEY = 2;
+        // Distribute output by calculating `hash(row.Key) modulo shardCount.`
+        HASH_KEY = 2;
+
+        // Distribute output evenly by predefined partition keys.
+        // Can be more effective than HASH_KEY if the keys of output partition are known.
+        FINITE_KEY = 3;
     }
     PartitionerType partitioner = 3;
 

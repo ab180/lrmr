@@ -51,7 +51,7 @@ func (x Input_Type) String() string {
 }
 
 func (Input_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{2, 0}
+	return fileDescriptor_f4e130d388338f6d, []int{1, 0}
 }
 
 type Output_Type int32
@@ -76,31 +76,36 @@ func (x Output_Type) String() string {
 }
 
 func (Output_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3, 0}
+	return fileDescriptor_f4e130d388338f6d, []int{2, 0}
 }
 
 type Output_PartitionerType int32
 
 const (
-	Output_SHUFFLE Output_PartitionerType = 0
-	// HashPartitioner will determine output shard of the partition
-	// by calculating `hash(row.Key) modulo shardCount.`
-	Output_HASH_KEY Output_PartitionerType = 1
-	// FiniteKeyPartitioner assigns partition keys to each shard and
-	// will send an output partition to its designated shard.
-	Output_FINITE_KEY Output_PartitionerType = 2
+	// Do not shuffle through the network. Output data will be directly fed to next stage using in-memory pipe.
+	// Used when input partition is same with output partition.
+	Output_PRESERVE Output_PartitionerType = 0
+	// Randomly distribute outputs to next stage.
+	Output_SHUFFLE Output_PartitionerType = 1
+	// Distribute output by calculating `hash(row.Key) modulo shardCount.`
+	Output_HASH_KEY Output_PartitionerType = 2
+	// Distribute output evenly by predefined partition keys.
+	// Can be more effective than HASH_KEY if the keys of output partition are known.
+	Output_FINITE_KEY Output_PartitionerType = 3
 )
 
 var Output_PartitionerType_name = map[int32]string{
-	0: "SHUFFLE",
-	1: "HASH_KEY",
-	2: "FINITE_KEY",
+	0: "PRESERVE",
+	1: "SHUFFLE",
+	2: "HASH_KEY",
+	3: "FINITE_KEY",
 }
 
 var Output_PartitionerType_value = map[string]int32{
-	"SHUFFLE":    0,
-	"HASH_KEY":   1,
-	"FINITE_KEY": 2,
+	"PRESERVE":   0,
+	"SHUFFLE":    1,
+	"HASH_KEY":   2,
+	"FINITE_KEY": 3,
 }
 
 func (x Output_PartitionerType) String() string {
@@ -108,15 +113,15 @@ func (x Output_PartitionerType) String() string {
 }
 
 func (Output_PartitionerType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3, 1}
+	return fileDescriptor_f4e130d388338f6d, []int{2, 1}
 }
 
 type CreateTaskRequest struct {
-	Stage        *Stage            `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
-	PartitionKey string            `protobuf:"bytes,2,opt,name=partitionKey,proto3" json:"partitionKey,omitempty"`
-	Input        *Input            `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty"`
-	Output       *Output           `protobuf:"bytes,4,opt,name=output,proto3" json:"output,omitempty"`
-	Broadcasts   map[string][]byte `protobuf:"bytes,5,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	JobID      string            `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
+	StageName  string            `protobuf:"bytes,2,opt,name=stageName,proto3" json:"stageName,omitempty"`
+	Input      *Input            `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty"`
+	Output     *Output           `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
+	Broadcasts map[string][]byte `protobuf:"bytes,6,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *CreateTaskRequest) Reset()         { *m = CreateTaskRequest{} }
@@ -152,16 +157,16 @@ func (m *CreateTaskRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CreateTaskRequest proto.InternalMessageInfo
 
-func (m *CreateTaskRequest) GetStage() *Stage {
+func (m *CreateTaskRequest) GetJobID() string {
 	if m != nil {
-		return m.Stage
+		return m.JobID
 	}
-	return nil
+	return ""
 }
 
-func (m *CreateTaskRequest) GetPartitionKey() string {
+func (m *CreateTaskRequest) GetStageName() string {
 	if m != nil {
-		return m.PartitionKey
+		return m.StageName
 	}
 	return ""
 }
@@ -187,78 +192,20 @@ func (m *CreateTaskRequest) GetBroadcasts() map[string][]byte {
 	return nil
 }
 
-type Stage struct {
-	JobID      string `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
-	Name       string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	RunnerName string `protobuf:"bytes,3,opt,name=runnerName,proto3" json:"runnerName,omitempty"`
-}
-
-func (m *Stage) Reset()         { *m = Stage{} }
-func (m *Stage) String() string { return proto.CompactTextString(m) }
-func (*Stage) ProtoMessage()    {}
-func (*Stage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{1}
-}
-func (m *Stage) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *Stage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Stage.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *Stage) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Stage.Merge(m, src)
-}
-func (m *Stage) XXX_Size() int {
-	return m.Size()
-}
-func (m *Stage) XXX_DiscardUnknown() {
-	xxx_messageInfo_Stage.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Stage proto.InternalMessageInfo
-
-func (m *Stage) GetJobID() string {
-	if m != nil {
-		return m.JobID
-	}
-	return ""
-}
-
-func (m *Stage) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *Stage) GetRunnerName() string {
-	if m != nil {
-		return m.RunnerName
-	}
-	return ""
-}
-
 type Input struct {
-	Type      Input_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Input_Type" json:"type,omitempty"`
-	StageName string     `protobuf:"bytes,2,opt,name=stageName,proto3" json:"stageName,omitempty"`
-	// partitionKeyToHost contains an ordered mapping of partition key to output hostname.
-	PartitionToHost map[string]string `protobuf:"bytes,3,rep,name=partitionToHost,proto3" json:"partitionToHost,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Type          Input_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Input_Type" json:"type,omitempty"`
+	PrevStageName string     `protobuf:"bytes,2,opt,name=prevStageName,proto3" json:"prevStageName,omitempty"`
+	// partitionKey is key of this partition.
+	PartitionKey string `protobuf:"bytes,3,opt,name=partitionKey,proto3" json:"partitionKey,omitempty"`
+	// hosts contains an list of hosts providing the partition. Used when type == POLL.
+	Hosts []string `protobuf:"bytes,4,rep,name=hosts,proto3" json:"hosts,omitempty"`
 }
 
 func (m *Input) Reset()         { *m = Input{} }
 func (m *Input) String() string { return proto.CompactTextString(m) }
 func (*Input) ProtoMessage()    {}
 func (*Input) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{2}
+	return fileDescriptor_f4e130d388338f6d, []int{1}
 }
 func (m *Input) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -294,24 +241,31 @@ func (m *Input) GetType() Input_Type {
 	return Input_PUSH
 }
 
-func (m *Input) GetStageName() string {
+func (m *Input) GetPrevStageName() string {
 	if m != nil {
-		return m.StageName
+		return m.PrevStageName
 	}
 	return ""
 }
 
-func (m *Input) GetPartitionToHost() map[string]string {
+func (m *Input) GetPartitionKey() string {
 	if m != nil {
-		return m.PartitionToHost
+		return m.PartitionKey
+	}
+	return ""
+}
+
+func (m *Input) GetHosts() []string {
+	if m != nil {
+		return m.Hosts
 	}
 	return nil
 }
 
 type Output struct {
-	Type        Output_Type            `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Output_Type" json:"type,omitempty"`
-	StageName   string                 `protobuf:"bytes,2,opt,name=stageName,proto3" json:"stageName,omitempty"`
-	Partitioner Output_PartitionerType `protobuf:"varint,3,opt,name=partitioner,proto3,enum=lrmrpb.Output_PartitionerType" json:"partitioner,omitempty"`
+	Type          Output_Type            `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Output_Type" json:"type,omitempty"`
+	NextStageName string                 `protobuf:"bytes,2,opt,name=nextStageName,proto3" json:"nextStageName,omitempty"`
+	Partitioner   Output_PartitionerType `protobuf:"varint,3,opt,name=partitioner,proto3,enum=lrmrpb.Output_PartitionerType" json:"partitioner,omitempty"`
 	// partitionKeyToHost contains an ordered mapping of partition key to output hostname.
 	PartitionToHost map[string]string `protobuf:"bytes,4,rep,name=partitionToHost,proto3" json:"partitionToHost,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
@@ -320,7 +274,7 @@ func (m *Output) Reset()         { *m = Output{} }
 func (m *Output) String() string { return proto.CompactTextString(m) }
 func (*Output) ProtoMessage()    {}
 func (*Output) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3}
+	return fileDescriptor_f4e130d388338f6d, []int{2}
 }
 func (m *Output) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -356,9 +310,9 @@ func (m *Output) GetType() Output_Type {
 	return Output_PUSH
 }
 
-func (m *Output) GetStageName() string {
+func (m *Output) GetNextStageName() string {
 	if m != nil {
-		return m.StageName
+		return m.NextStageName
 	}
 	return ""
 }
@@ -367,7 +321,7 @@ func (m *Output) GetPartitioner() Output_PartitionerType {
 	if m != nil {
 		return m.Partitioner
 	}
-	return Output_SHUFFLE
+	return Output_PRESERVE
 }
 
 func (m *Output) GetPartitionToHost() map[string]string {
@@ -386,7 +340,7 @@ func (m *HostMapping) Reset()         { *m = HostMapping{} }
 func (m *HostMapping) String() string { return proto.CompactTextString(m) }
 func (*HostMapping) ProtoMessage()    {}
 func (*HostMapping) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{4}
+	return fileDescriptor_f4e130d388338f6d, []int{3}
 }
 func (m *HostMapping) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -437,7 +391,7 @@ func (m *CreateTaskResponse) Reset()         { *m = CreateTaskResponse{} }
 func (m *CreateTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateTaskResponse) ProtoMessage()    {}
 func (*CreateTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{5}
+	return fileDescriptor_f4e130d388338f6d, []int{4}
 }
 func (m *CreateTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -483,7 +437,7 @@ func (m *PushDataRequest) Reset()         { *m = PushDataRequest{} }
 func (m *PushDataRequest) String() string { return proto.CompactTextString(m) }
 func (*PushDataRequest) ProtoMessage()    {}
 func (*PushDataRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{6}
+	return fileDescriptor_f4e130d388338f6d, []int{5}
 }
 func (m *PushDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -530,7 +484,7 @@ func (m *PollDataRequest) Reset()         { *m = PollDataRequest{} }
 func (m *PollDataRequest) String() string { return proto.CompactTextString(m) }
 func (*PollDataRequest) ProtoMessage()    {}
 func (*PollDataRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{7}
+	return fileDescriptor_f4e130d388338f6d, []int{6}
 }
 func (m *PollDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -574,7 +528,7 @@ func (m *PollDataResponse) Reset()         { *m = PollDataResponse{} }
 func (m *PollDataResponse) String() string { return proto.CompactTextString(m) }
 func (*PollDataResponse) ProtoMessage()    {}
 func (*PollDataResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{8}
+	return fileDescriptor_f4e130d388338f6d, []int{7}
 }
 func (m *PollDataResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -620,7 +574,7 @@ func (m *DataHeader) Reset()         { *m = DataHeader{} }
 func (m *DataHeader) String() string { return proto.CompactTextString(m) }
 func (*DataHeader) ProtoMessage()    {}
 func (*DataHeader) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{9}
+	return fileDescriptor_f4e130d388338f6d, []int{8}
 }
 func (m *DataHeader) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -676,9 +630,7 @@ func init() {
 	proto.RegisterEnum("lrmrpb.Output_PartitionerType", Output_PartitionerType_name, Output_PartitionerType_value)
 	proto.RegisterType((*CreateTaskRequest)(nil), "lrmrpb.CreateTaskRequest")
 	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.CreateTaskRequest.BroadcastsEntry")
-	proto.RegisterType((*Stage)(nil), "lrmrpb.Stage")
 	proto.RegisterType((*Input)(nil), "lrmrpb.Input")
-	proto.RegisterMapType((map[string]string)(nil), "lrmrpb.Input.PartitionToHostEntry")
 	proto.RegisterType((*Output)(nil), "lrmrpb.Output")
 	proto.RegisterMapType((map[string]string)(nil), "lrmrpb.Output.PartitionToHostEntry")
 	proto.RegisterType((*HostMapping)(nil), "lrmrpb.HostMapping")
@@ -692,54 +644,53 @@ func init() {
 func init() { proto.RegisterFile("lrmrpb/rpc.proto", fileDescriptor_f4e130d388338f6d) }
 
 var fileDescriptor_f4e130d388338f6d = []byte{
-	// 742 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x94, 0xdd, 0x6e, 0xda, 0x48,
-	0x14, 0xc7, 0x19, 0xbe, 0x16, 0x0e, 0x2c, 0xb0, 0xb3, 0x51, 0x96, 0xf5, 0xee, 0x7a, 0x23, 0x47,
-	0xda, 0x65, 0xa5, 0x95, 0x49, 0xe9, 0x4d, 0x5b, 0x35, 0x6a, 0x93, 0x42, 0x84, 0x15, 0x42, 0xa8,
-	0x21, 0xaa, 0x7a, 0xd5, 0x9a, 0x30, 0x21, 0x14, 0xf0, 0xb8, 0x63, 0xd3, 0x88, 0xb7, 0xe8, 0xbb,
-	0xf4, 0x25, 0x2a, 0xf5, 0x26, 0x97, 0xbd, 0xac, 0x92, 0xc7, 0xa8, 0x54, 0x55, 0x33, 0x63, 0x83,
-	0x4d, 0x8a, 0xd2, 0xbb, 0xde, 0x9d, 0x8f, 0xff, 0x39, 0x33, 0xe7, 0x37, 0xf6, 0x81, 0xd2, 0x84,
-	0x4d, 0x99, 0xd3, 0xaf, 0x32, 0xe7, 0x54, 0x77, 0x18, 0xf5, 0x28, 0x4e, 0xcb, 0x88, 0xb2, 0x31,
-	0xa4, 0x43, 0x2a, 0x42, 0x55, 0x6e, 0xc9, 0xac, 0xf2, 0xc7, 0x90, 0xd2, 0xe1, 0x84, 0x54, 0x85,
-	0xd7, 0x9f, 0x9d, 0x55, 0xc9, 0xd4, 0xf1, 0xe6, 0x7e, 0xb2, 0x30, 0x61, 0x83, 0x41, 0x95, 0xd1,
-	0x0b, 0xe9, 0x6b, 0xef, 0xe2, 0xf0, 0xcb, 0x13, 0x46, 0x2c, 0x8f, 0xf4, 0x2c, 0x77, 0x6c, 0x92,
-	0xd7, 0x33, 0xe2, 0x7a, 0x78, 0x1b, 0x52, 0xae, 0x67, 0x0d, 0x49, 0x19, 0x6d, 0xa1, 0x4a, 0xae,
-	0xf6, 0xb3, 0x2e, 0x0f, 0xd4, 0xbb, 0x3c, 0x68, 0xca, 0x1c, 0xd6, 0x20, 0xef, 0x58, 0xcc, 0x1b,
-	0x79, 0x23, 0x6a, 0x1f, 0x92, 0x79, 0x39, 0xbe, 0x85, 0x2a, 0x59, 0x33, 0x12, 0xe3, 0x8d, 0x46,
-	0xb6, 0x33, 0xf3, 0xca, 0x89, 0x68, 0x23, 0x83, 0x07, 0x4d, 0x99, 0xc3, 0xff, 0x40, 0x9a, 0xce,
-	0x3c, 0xae, 0x4a, 0x0a, 0x55, 0x21, 0x50, 0x1d, 0x8b, 0xa8, 0xe9, 0x67, 0xb1, 0x01, 0xd0, 0x67,
-	0xd4, 0x1a, 0x9c, 0x5a, 0xae, 0xe7, 0x96, 0x53, 0x5b, 0x89, 0x4a, 0xae, 0xf6, 0x5f, 0xa0, 0xbd,
-	0x31, 0x84, 0xbe, 0xbf, 0xd0, 0x36, 0x6c, 0x8f, 0xcd, 0xcd, 0x50, 0xb1, 0xb2, 0x0b, 0xc5, 0x95,
-	0x34, 0x2e, 0x41, 0x62, 0x4c, 0xe6, 0x62, 0xe2, 0xac, 0xc9, 0x4d, 0xbc, 0x01, 0xa9, 0x37, 0xd6,
-	0x64, 0x46, 0xc4, 0x64, 0x79, 0x53, 0x3a, 0x0f, 0xe2, 0xf7, 0x90, 0xf6, 0x14, 0x52, 0x02, 0x05,
-	0x97, 0xbc, 0xa2, 0x7d, 0xa3, 0xee, 0x97, 0x49, 0x07, 0x63, 0x48, 0xda, 0xd6, 0x94, 0xf8, 0x44,
-	0x84, 0x8d, 0x55, 0x00, 0x36, 0xb3, 0x6d, 0xc2, 0xda, 0x3c, 0x93, 0x10, 0x99, 0x50, 0x44, 0xfb,
-	0x8c, 0x20, 0x65, 0xf8, 0x38, 0x92, 0xde, 0xdc, 0x91, 0xec, 0x0b, 0x35, 0x1c, 0x41, 0xa6, 0xf7,
-	0xe6, 0x0e, 0x31, 0x45, 0x1e, 0xff, 0x09, 0x59, 0xf1, 0x10, 0xed, 0xe5, 0x51, 0xcb, 0x00, 0x6e,
-	0x41, 0x71, 0xf1, 0x12, 0x3d, 0xda, 0xa4, 0x2e, 0x7f, 0x03, 0x4e, 0x4c, 0x8b, 0x36, 0xec, 0x44,
-	0x45, 0x12, 0xd5, 0x6a, 0xa9, 0xb2, 0x0f, 0x1b, 0xdf, 0x12, 0xde, 0x06, 0x2d, 0x1b, 0x86, 0xa6,
-	0x40, 0x92, 0xdf, 0x1e, 0x67, 0x20, 0xd9, 0x39, 0xe9, 0x36, 0x4b, 0x31, 0x61, 0x1d, 0xb7, 0x5a,
-	0x25, 0xa4, 0x7d, 0x89, 0x43, 0x5a, 0xbe, 0x36, 0xfe, 0x37, 0x32, 0xfe, 0xaf, 0xd1, 0x6f, 0xe1,
-	0xfb, 0xe7, 0x7f, 0x0c, 0xb9, 0xc5, 0x10, 0x84, 0x09, 0xe0, 0x85, 0x9a, 0xba, 0xd2, 0xad, 0xb3,
-	0x54, 0x88, 0xc6, 0xe1, 0x12, 0x7c, 0x74, 0x93, 0x60, 0x52, 0x10, 0xdc, 0x5e, 0xd7, 0xe5, 0x87,
-	0x22, 0x7c, 0x08, 0xc5, 0x95, 0x71, 0x70, 0x0e, 0x7e, 0xea, 0x36, 0x4f, 0x0e, 0x0e, 0x5a, 0x8d,
-	0x52, 0x0c, 0xe7, 0x21, 0xd3, 0xdc, 0xeb, 0x36, 0x5f, 0x1c, 0x36, 0x9e, 0x97, 0x10, 0x2e, 0x00,
-	0x1c, 0x18, 0x6d, 0xa3, 0xd7, 0x10, 0x7e, 0x5c, 0xbb, 0x0f, 0x39, 0x7e, 0xa5, 0x23, 0xcb, 0x71,
-	0x46, 0xf6, 0x90, 0x7f, 0xc1, 0xe7, 0x7c, 0x60, 0x79, 0x2b, 0x61, 0xe3, 0x4d, 0x48, 0x7b, 0x96,
-	0x3b, 0x36, 0xea, 0xfe, 0xbd, 0x7c, 0x4f, 0xfb, 0x1f, 0x70, 0xf8, 0xe7, 0x73, 0x1d, 0x6a, 0xbb,
-	0x24, 0xa4, 0x46, 0x11, 0xf5, 0x0e, 0x14, 0x3b, 0x33, 0xf7, 0xbc, 0x6e, 0x79, 0x56, 0xb0, 0x6d,
-	0xfe, 0x82, 0xe4, 0xc0, 0xf2, 0xac, 0x32, 0x12, 0x74, 0xb3, 0x3a, 0x5f, 0x51, 0xba, 0x49, 0x2f,
-	0x4c, 0x11, 0xd6, 0xfe, 0x86, 0x62, 0x87, 0x4e, 0x26, 0xe1, 0x8a, 0x3c, 0x20, 0x5b, 0xf4, 0x4d,
-	0x98, 0xc8, 0xd6, 0xee, 0x40, 0x69, 0x29, 0xf0, 0x8f, 0xbf, 0xa5, 0xe7, 0x4b, 0x00, 0x2e, 0x6f,
-	0x12, 0x6b, 0x40, 0xd8, 0xba, 0xbb, 0x62, 0x05, 0x32, 0x67, 0x8c, 0x4e, 0xc5, 0xd3, 0xcb, 0x99,
-	0x17, 0x3e, 0xff, 0x9f, 0xb9, 0xdd, 0xa6, 0x03, 0x62, 0xd4, 0x83, 0xff, 0x79, 0x19, 0xa9, 0x7d,
-	0x40, 0x90, 0x7e, 0x46, 0xd9, 0x98, 0x30, 0xfc, 0x08, 0x60, 0x09, 0x08, 0xff, 0xbe, 0x76, 0x63,
-	0x29, 0x9b, 0xba, 0x5c, 0xdd, 0x7a, 0xb0, 0xba, 0xf5, 0x06, 0x5f, 0xdd, 0x78, 0x17, 0x32, 0x01,
-	0x33, 0xfc, 0x5b, 0x50, 0xbe, 0x42, 0x71, 0x5d, 0x71, 0x05, 0xe1, 0x3d, 0xc8, 0x04, 0x7c, 0x42,
-	0xe5, 0x51, 0xa4, 0x4a, 0xf9, 0x66, 0x42, 0xa2, 0xac, 0xa0, 0x1d, 0xb4, 0x5f, 0x7e, 0x7f, 0xa5,
-	0xa2, 0xcb, 0x2b, 0x15, 0x7d, 0xba, 0x52, 0xd1, 0xdb, 0x6b, 0x35, 0x76, 0x79, 0xad, 0xc6, 0x3e,
-	0x5e, 0xab, 0xb1, 0x7e, 0x5a, 0x1c, 0x77, 0xf7, 0x6b, 0x00, 0x00, 0x00, 0xff, 0xff, 0x61, 0x15,
-	0x1b, 0x25, 0xa6, 0x06, 0x00, 0x00,
+	// 734 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xdd, 0x6e, 0xe3, 0x44,
+	0x14, 0xce, 0xe4, 0x8f, 0xe4, 0x24, 0x4d, 0xcc, 0x50, 0x15, 0x63, 0xc0, 0x44, 0x2e, 0x82, 0x20,
+	0x21, 0xa7, 0x84, 0x1b, 0x40, 0xaa, 0xa0, 0x25, 0xae, 0x62, 0xfa, 0x17, 0x39, 0x29, 0x88, 0x2b,
+	0x70, 0x9a, 0x69, 0x1a, 0x92, 0x78, 0xcc, 0x78, 0xd2, 0x92, 0xb7, 0xe0, 0x62, 0xaf, 0xf7, 0x05,
+	0xf6, 0x45, 0x56, 0xda, 0x9b, 0x5e, 0xee, 0xe5, 0xaa, 0x7d, 0x91, 0xd5, 0x8c, 0x9d, 0xc4, 0x4e,
+	0x37, 0xdb, 0xbb, 0x39, 0xdf, 0xf9, 0xce, 0xcc, 0x77, 0xbe, 0x63, 0x1f, 0x50, 0x26, 0x6c, 0xca,
+	0xfc, 0x7e, 0x83, 0xf9, 0x97, 0xa6, 0xcf, 0x28, 0xa7, 0x38, 0x1f, 0x22, 0xda, 0xf6, 0x90, 0x0e,
+	0xa9, 0x84, 0x1a, 0xe2, 0x14, 0x66, 0xb5, 0x4f, 0x87, 0x94, 0x0e, 0x27, 0xa4, 0x21, 0xa3, 0xfe,
+	0xec, 0xaa, 0x41, 0xa6, 0x3e, 0x9f, 0x47, 0xc9, 0xca, 0x84, 0x0d, 0x06, 0x0d, 0x46, 0x6f, 0xc3,
+	0xd8, 0x78, 0x9e, 0x86, 0x0f, 0x7f, 0x65, 0xc4, 0xe5, 0xa4, 0xe7, 0x06, 0x63, 0x87, 0xfc, 0x3b,
+	0x23, 0x01, 0xc7, 0xdb, 0x90, 0xfb, 0x87, 0xf6, 0xed, 0x96, 0x8a, 0x6a, 0xa8, 0x5e, 0x74, 0xc2,
+	0x00, 0x7f, 0x06, 0xc5, 0x80, 0xbb, 0x43, 0x72, 0xe6, 0x4e, 0x89, 0x9a, 0x96, 0x99, 0x15, 0x80,
+	0x77, 0x21, 0x37, 0xf2, 0xfc, 0x19, 0x57, 0xb3, 0x35, 0x54, 0x2f, 0x35, 0xb7, 0xcc, 0x50, 0xa4,
+	0x69, 0x0b, 0xd0, 0x09, 0x73, 0xf8, 0x2b, 0xc8, 0xd3, 0x19, 0x17, 0xac, 0x9c, 0x64, 0x55, 0x16,
+	0xac, 0x73, 0x89, 0x3a, 0x51, 0x16, 0xdb, 0x00, 0x7d, 0x46, 0xdd, 0xc1, 0xa5, 0x1b, 0xf0, 0x40,
+	0xcd, 0xd7, 0x32, 0xf5, 0x52, 0xf3, 0x9b, 0x05, 0xf7, 0x91, 0x5e, 0xf3, 0x70, 0xc9, 0xb5, 0x3c,
+	0xce, 0xe6, 0x4e, 0xac, 0x58, 0xdb, 0x87, 0xea, 0x5a, 0x1a, 0x2b, 0x90, 0x19, 0x93, 0x79, 0xd4,
+	0x9c, 0x38, 0x8a, 0x86, 0x6f, 0xdc, 0xc9, 0x2c, 0x6c, 0xab, 0xec, 0x84, 0xc1, 0x4f, 0xe9, 0x1f,
+	0x90, 0xf1, 0x02, 0x41, 0xce, 0x8e, 0xb4, 0x67, 0xf9, 0xdc, 0x27, 0xb2, 0xac, 0xd2, 0xc4, 0x89,
+	0xfe, 0xcc, 0xde, 0xdc, 0x27, 0x8e, 0xcc, 0xe3, 0x2f, 0x61, 0xcb, 0x67, 0xe4, 0xa6, 0xbb, 0x66,
+	0x55, 0x12, 0xc4, 0x06, 0x94, 0x7d, 0x97, 0xf1, 0x11, 0x1f, 0x51, 0xef, 0x98, 0xcc, 0xd5, 0x8c,
+	0x24, 0x25, 0x30, 0xa1, 0xea, 0x9a, 0x0a, 0x03, 0xb2, 0xb5, 0x8c, 0x18, 0x83, 0x0c, 0x0c, 0x0d,
+	0xb2, 0xe2, 0x35, 0x5c, 0x80, 0x6c, 0xe7, 0xa2, 0xdb, 0x56, 0x52, 0xf2, 0x74, 0x7e, 0x72, 0xa2,
+	0x20, 0xe3, 0x59, 0x06, 0xf2, 0xa1, 0x95, 0xf8, 0xeb, 0x84, 0xdc, 0x8f, 0x92, 0x46, 0xaf, 0xe9,
+	0xf5, 0xc8, 0x7f, 0xfc, 0x91, 0xde, 0x04, 0x88, 0x7f, 0x81, 0xd2, 0x52, 0x1b, 0x61, 0x52, 0x6e,
+	0xa5, 0xa9, 0xaf, 0xdd, 0xda, 0x59, 0x31, 0xe4, 0x03, 0xf1, 0x12, 0x7c, 0x0a, 0xd5, 0x65, 0xd8,
+	0xa3, 0x6d, 0x1a, 0x70, 0xd9, 0x57, 0xa9, 0xb9, 0xbb, 0xe9, 0x96, 0x90, 0x15, 0x8e, 0x74, 0xbd,
+	0x56, 0x3b, 0x84, 0xed, 0x77, 0x11, 0x9f, 0x1a, 0x6e, 0x31, 0x3e, 0xdc, 0xf7, 0x59, 0xf9, 0x1b,
+	0x54, 0xd7, 0xda, 0xc1, 0x65, 0x28, 0x74, 0x1c, 0xab, 0x6b, 0x39, 0xbf, 0x5b, 0x4a, 0x0a, 0x97,
+	0xe0, 0x83, 0x6e, 0xfb, 0xe2, 0xe8, 0xe8, 0xc4, 0x52, 0x90, 0x48, 0xb5, 0x0f, 0xba, 0xed, 0xbf,
+	0x8e, 0xad, 0x3f, 0x95, 0x34, 0xae, 0x00, 0x1c, 0xd9, 0x67, 0x76, 0xcf, 0x92, 0x71, 0xc6, 0xf8,
+	0x11, 0x4a, 0x42, 0xe0, 0xa9, 0xeb, 0xfb, 0x23, 0x6f, 0x88, 0x31, 0x64, 0xc5, 0x28, 0x23, 0x8d,
+	0xf2, 0x8c, 0x77, 0x20, 0xcf, 0xdd, 0x60, 0x6c, 0xb7, 0x22, 0x95, 0x51, 0x64, 0x7c, 0x0b, 0x38,
+	0xfe, 0xbd, 0x07, 0x3e, 0xf5, 0x02, 0x12, 0x63, 0xa3, 0x04, 0x7b, 0x0f, 0xaa, 0x9d, 0x59, 0x70,
+	0xdd, 0x72, 0xb9, 0xbb, 0xf8, 0x97, 0x3f, 0x87, 0xec, 0xc0, 0xe5, 0xae, 0x8a, 0xa4, 0xd7, 0x45,
+	0x53, 0x2c, 0x00, 0xd3, 0xa1, 0xb7, 0x8e, 0x84, 0x8d, 0x2f, 0xa0, 0xda, 0xa1, 0x93, 0x49, 0xbc,
+	0xa2, 0x0c, 0xc8, 0x93, 0xf7, 0x66, 0x1c, 0xe4, 0x19, 0xdf, 0x81, 0xb2, 0x22, 0x44, 0xcf, 0x3f,
+	0x71, 0xe7, 0xdf, 0x00, 0x82, 0xde, 0x26, 0xee, 0x80, 0xb0, 0x4d, 0x5a, 0xb1, 0x06, 0x85, 0x2b,
+	0x46, 0xa7, 0xf2, 0x43, 0x08, 0x7b, 0x5e, 0xc6, 0x58, 0x07, 0x10, 0xe7, 0x33, 0x3a, 0x20, 0x76,
+	0x2b, 0xfa, 0x37, 0x62, 0x48, 0xf3, 0x15, 0x82, 0xfc, 0x1f, 0x94, 0x8d, 0x09, 0xc3, 0x3f, 0x03,
+	0xac, 0x0c, 0xc2, 0x9f, 0x6c, 0x5c, 0x12, 0xda, 0x8e, 0x19, 0x2e, 0x46, 0x73, 0xb1, 0x18, 0x4d,
+	0x4b, 0x2c, 0x46, 0xbc, 0x0f, 0x85, 0x85, 0x67, 0xf8, 0xe3, 0x45, 0xf9, 0x9a, 0x8b, 0x9b, 0x8a,
+	0xeb, 0x08, 0x1f, 0x40, 0x61, 0xe1, 0x4f, 0xac, 0x3c, 0x69, 0xa9, 0xa6, 0x3e, 0x4e, 0x84, 0x56,
+	0xd6, 0xd1, 0x1e, 0x3a, 0x54, 0x5f, 0xde, 0xeb, 0xe8, 0xee, 0x5e, 0x47, 0x6f, 0xee, 0x75, 0xf4,
+	0xff, 0x83, 0x9e, 0xba, 0x7b, 0xd0, 0x53, 0xaf, 0x1f, 0xf4, 0x54, 0x3f, 0x2f, 0x9f, 0xfb, 0xfe,
+	0x6d, 0x00, 0x00, 0x00, 0xff, 0xff, 0xd3, 0x42, 0xc6, 0x40, 0x04, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -999,7 +950,7 @@ func (m *CreateTaskRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0xa
 			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
 			i--
-			dAtA[i] = 0x2a
+			dAtA[i] = 0x32
 		}
 	}
 	if m.Output != nil {
@@ -1012,7 +963,7 @@ func (m *CreateTaskRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintRpc(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x2a
 	}
 	if m.Input != nil {
 		{
@@ -1024,61 +975,12 @@ func (m *CreateTaskRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintRpc(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x22
 	}
-	if len(m.PartitionKey) > 0 {
-		i -= len(m.PartitionKey)
-		copy(dAtA[i:], m.PartitionKey)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.PartitionKey)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Stage != nil {
-		{
-			size, err := m.Stage.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *Stage) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Stage) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Stage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.RunnerName) > 0 {
-		i -= len(m.RunnerName)
-		copy(dAtA[i:], m.RunnerName)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.RunnerName)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Name)))
+	if len(m.StageName) > 0 {
+		i -= len(m.StageName)
+		copy(dAtA[i:], m.StageName)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.StageName)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1112,29 +1014,26 @@ func (m *Input) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.PartitionToHost) > 0 {
-		for k := range m.PartitionToHost {
-			v := m.PartitionToHost[k]
-			baseI := i
-			i -= len(v)
-			copy(dAtA[i:], v)
-			i = encodeVarintRpc(dAtA, i, uint64(len(v)))
+	if len(m.Hosts) > 0 {
+		for iNdEx := len(m.Hosts) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Hosts[iNdEx])
+			copy(dAtA[i:], m.Hosts[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(m.Hosts[iNdEx])))
 			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintRpc(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x1a
+			dAtA[i] = 0x22
 		}
 	}
-	if len(m.StageName) > 0 {
-		i -= len(m.StageName)
-		copy(dAtA[i:], m.StageName)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.StageName)))
+	if len(m.PartitionKey) > 0 {
+		i -= len(m.PartitionKey)
+		copy(dAtA[i:], m.PartitionKey)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.PartitionKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.PrevStageName) > 0 {
+		i -= len(m.PrevStageName)
+		copy(dAtA[i:], m.PrevStageName)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.PrevStageName)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1190,10 +1089,10 @@ func (m *Output) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x18
 	}
-	if len(m.StageName) > 0 {
-		i -= len(m.StageName)
-		copy(dAtA[i:], m.StageName)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.StageName)))
+	if len(m.NextStageName) > 0 {
+		i -= len(m.NextStageName)
+		copy(dAtA[i:], m.NextStageName)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.NextStageName)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1435,11 +1334,11 @@ func (m *CreateTaskRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Stage != nil {
-		l = m.Stage.Size()
+	l = len(m.JobID)
+	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
-	l = len(m.PartitionKey)
+	l = len(m.StageName)
 	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
@@ -1466,27 +1365,6 @@ func (m *CreateTaskRequest) Size() (n int) {
 	return n
 }
 
-func (m *Stage) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.JobID)
-	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	l = len(m.Name)
-	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	l = len(m.RunnerName)
-	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	return n
-}
-
 func (m *Input) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1496,16 +1374,18 @@ func (m *Input) Size() (n int) {
 	if m.Type != 0 {
 		n += 1 + sovRpc(uint64(m.Type))
 	}
-	l = len(m.StageName)
+	l = len(m.PrevStageName)
 	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
-	if len(m.PartitionToHost) > 0 {
-		for k, v := range m.PartitionToHost {
-			_ = k
-			_ = v
-			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + 1 + len(v) + sovRpc(uint64(len(v)))
-			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
+	l = len(m.PartitionKey)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Hosts) > 0 {
+		for _, s := range m.Hosts {
+			l = len(s)
+			n += 1 + l + sovRpc(uint64(l))
 		}
 	}
 	return n
@@ -1520,7 +1400,7 @@ func (m *Output) Size() (n int) {
 	if m.Type != 0 {
 		n += 1 + sovRpc(uint64(m.Type))
 	}
-	l = len(m.StageName)
+	l = len(m.NextStageName)
 	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
 	}
@@ -1668,43 +1548,7 @@ func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Stage", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Stage == nil {
-				m.Stage = &Stage{}
-			}
-			if err := m.Stage.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PartitionKey", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobID", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -1732,9 +1576,41 @@ func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.PartitionKey = string(dAtA[iNdEx:postIndex])
+			m.JobID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 3:
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StageName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StageName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Input", wireType)
 			}
@@ -1770,7 +1646,7 @@ func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 4:
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Output", wireType)
 			}
@@ -1806,7 +1682,7 @@ func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Broadcasts", wireType)
 			}
@@ -1958,155 +1834,6 @@ func (m *CreateTaskRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Stage) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Stage: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Stage: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobID", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.JobID = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Name = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RunnerName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.RunnerName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *Input) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2157,7 +1884,7 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 			}
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field StageName", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field PrevStageName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2185,13 +1912,13 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.StageName = string(dAtA[iNdEx:postIndex])
+			m.PrevStageName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PartitionToHost", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionKey", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowRpc
@@ -2201,118 +1928,55 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthRpc
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.PartitionToHost == nil {
-				m.PartitionToHost = make(map[string]string)
+			m.PartitionKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hosts", wireType)
 			}
-			var mapkey string
-			var mapvalue string
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowRpc
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
 				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowRpc
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthRpc
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var stringLenmapvalue uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowRpc
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapvalue |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapvalue := int(stringLenmapvalue)
-					if intStringLenmapvalue < 0 {
-						return ErrInvalidLengthRpc
-					}
-					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
-					if postStringIndexmapvalue < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if postStringIndexmapvalue > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
-					iNdEx = postStringIndexmapvalue
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipRpc(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if skippy < 0 {
-						return ErrInvalidLengthRpc
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
 				}
 			}
-			m.PartitionToHost[mapkey] = mapvalue
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hosts = append(m.Hosts, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -2388,7 +2052,7 @@ func (m *Output) Unmarshal(dAtA []byte) error {
 			}
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field StageName", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field NextStageName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2416,7 +2080,7 @@ func (m *Output) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.StageName = string(dAtA[iNdEx:postIndex])
+			m.NextStageName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
