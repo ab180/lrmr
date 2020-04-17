@@ -14,6 +14,7 @@ import (
 	"github.com/therne/lrmr/stage"
 	"golang.org/x/sync/errgroup"
 	"path"
+	"strconv"
 	"sync"
 )
 
@@ -28,7 +29,7 @@ type Result struct {
 type Session interface {
 	Broadcast(key string, val interface{})
 	SetInput(ip InputProvider) Session
-	AddStage(stage.Stage, interface{}) Session
+	AddStage(interface{}) Session
 	SetPartitionOption(...partitions.PlanOption) Session
 	SetPartitionType(lrmrpb.Output_PartitionerType) Session
 
@@ -40,13 +41,18 @@ type session struct {
 	input  InputProvider
 	stages []*job.Stage
 
-	partitioners []lrmrpb.Output_PartitionerType
-	planOpts     [][]partitions.PlanOption
+	// len(plans) == len(stages)+1
+	partitions []partitionDef
 
 	broadcasts           map[string]interface{}
 	serializedBroadcasts map[string][]byte
 
 	log logger.Logger
+}
+
+type partitionDef struct {
+	partitioner lrmrpb.Output_PartitionerType
+	planOpts    []partitions.PlanOption
 }
 
 func NewSession(master *Master) Session {
@@ -68,35 +74,39 @@ func (s *session) Broadcast(key string, val interface{}) {
 }
 
 func (s *session) SetInput(ip InputProvider) Session {
+	p := partitionDef{partitioner: lrmrpb.Output_PRESERVE}
+	if planner, ok := ip.(partitions.LogicalPlanner); ok {
+		p.planOpts = append(p.planOpts, partitions.WithLogicalPlanner(planner))
+	}
 	s.input = ip
+	s.partitions = append(s.partitions, p)
 	return s
 }
 
-func (s *session) AddStage(st stage.Stage, box interface{}) Session {
-	name := fmt.Sprintf("%s%d", st.Name, len(s.stages))
-	s.stages = append(s.stages, job.NewStage(name, st.Name))
-	s.planOpts = append(s.planOpts, nil)
-	s.partitioners = append(s.partitioners, lrmrpb.Output_SHUFFLE)
+func (s *session) AddStage(runner interface{}) Session {
+	st := stage.LookupByRunner(runner)
+	s.stages = append(s.stages, job.NewStage(st.Name+strconv.Itoa(len(s.stages)), st.Name))
+	s.partitions = append(s.partitions, partitionDef{partitioner: lrmrpb.Output_SHUFFLE})
 
-	data := st.Serialize(box)
-	s.broadcasts["__stage/"+name] = data
-	s.serializedBroadcasts["__stage/"+name] = data
+	data := st.Serialize(runner)
+	s.broadcasts["__stage/"+st.Name] = data
+	s.serializedBroadcasts["__stage/"+st.Name] = data
 	return s
 }
 
 func (s *session) SetPartitionOption(opts ...partitions.PlanOption) Session {
-	if len(s.stages) == 0 {
+	if len(s.partitions) == 0 {
 		panic("you need to add stage first.")
 	}
-	s.planOpts[len(s.stages)-1] = opts
+	s.partitions[len(s.partitions)-1].planOpts = opts
 	return s
 }
 
 func (s *session) SetPartitionType(partitioner lrmrpb.Output_PartitionerType) Session {
-	if len(s.stages) == 0 {
+	if len(s.partitions) == 0 {
 		panic("you need to add stage first.")
 	}
-	s.partitioners[len(s.stages)-1] = partitioner
+	s.partitions[len(s.partitions)-1].partitioner = partitioner
 	return s
 }
 
@@ -120,14 +130,25 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 		return nil, errors.WithMessage(err, "start scheduling")
 	}
 
-	physicalPlans := make([]partitions.PhysicalPlans, len(s.stages))
-	for i, planOpts := range s.planOpts {
-		logical, physical := sched.Plan(planOpts...)
+	physicalPlans := make([]partitions.PhysicalPlans, len(s.partitions))
+	for i, p := range s.partitions {
+		if i == len(s.stages) {
+			p.planOpts = []partitions.PlanOption{partitions.WithEmpty()}
+		}
+		log.Verbose("Options: {}", p.planOpts)
+		logical, physical := sched.Plan(p.planOpts...)
 
-		s.stages[i].Partitions = logical
 		physicalPlans[i] = physical
-
-		log.Verbose("Planned {} partitions on {}/{}:\n{}", len(physical), name, s.stages[i].Name, physical.Pretty())
+		if i > 0 {
+			s.stages[i-1].Partitions = logical
+		}
+		var stageName string
+		if i < len(s.stages) {
+			stageName = s.stages[i].Name
+		} else {
+			stageName = "__final"
+		}
+		log.Verbose("Planned {} partitions on {}/{}:\n{}", len(physical), name, stageName, physical.Pretty())
 	}
 
 	j, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
@@ -138,40 +159,26 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	jobLog := s.log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
-	nextOutput := new(lrmrpb.Output)
 	for i := len(j.Stages) - 1; i >= 0; i-- {
-		curStage := j.Stages[i]
-		curPartitions := physicalPlans[i]
-
 		wg, reqCtx := errgroup.WithContext(ctx)
-		for _, p := range curPartitions {
-			w := &node.Node{Host: p.Node.Host}
+		for _, curPartition := range physicalPlans[i] {
+			w := &node.Node{Host: curPartition.Node.Host}
 			req := &lrmrpb.CreateTaskRequest{
-				PartitionKey: p.Key,
-				Stage: &lrmrpb.Stage{
-					JobID:      j.ID,
-					Name:       curStage.Name,
-					RunnerName: curStage.RunnerName,
-				},
-				Output:     nextOutput,
+				JobID:      j.ID,
+				StageName:  j.Stages[i].Name,
+				Input:      s.buildInputAt(i, curPartition),
+				Output:     s.buildOutputTo(i+1, physicalPlans[i+1]),
 				Broadcasts: s.serializedBroadcasts,
 			}
 			wg.Go(func() error {
 				if err := s.createTask(reqCtx, w, req); err != nil {
-					taskID := path.Join(req.Stage.JobID, req.Stage.Name, req.PartitionKey)
-					return errors.Wrapf(err, "create task for %s on %s", taskID, w.Host)
+					return errors.Wrapf(err, "create task for %s/%s/%s on %s", req.JobID, req.StageName, req.Input.PartitionKey, w.Host)
 				}
 				return nil
 			})
 		}
 		if err := wg.Wait(); err != nil {
 			return nil, err
-		}
-		nextOutput = &lrmrpb.Output{
-			Type:            lrmrpb.Output_PUSH,
-			Partitioner:     s.partitioners[i],
-			PartitionToHost: curPartitions.ToMap(),
-			StageName:       curStage.Name,
 		}
 	}
 
@@ -184,6 +191,35 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 		master: s.master,
 		Job:    j,
 	}, nil
+}
+
+func (s *session) buildInputAt(stageIdx int, curPartition partitions.PhysicalPlan) *lrmrpb.Input {
+	var prevStageName string
+	if stageIdx == 0 {
+		prevStageName = "__input"
+	} else {
+		prevStageName = s.stages[stageIdx-1].Name
+	}
+	return &lrmrpb.Input{
+		Type:          lrmrpb.Input_PUSH,
+		PartitionKey:  curPartition.Key,
+		PrevStageName: prevStageName,
+	}
+}
+
+func (s *session) buildOutputTo(nextStageIdx int, nextPartitions partitions.PhysicalPlans) *lrmrpb.Output {
+	var nextStageName string
+	if nextStageIdx < len(s.stages) {
+		nextStageName = s.stages[nextStageIdx].Name
+	} else {
+		nextStageName = "__final"
+	}
+	return &lrmrpb.Output{
+		Type:            lrmrpb.Output_PUSH,
+		Partitioner:     s.partitions[nextStageIdx].partitioner,
+		PartitionToHost: nextPartitions.ToMap(),
+		NextStageName:   nextStageName,
+	}
 }
 
 func (s *session) createTask(ctx context.Context, worker *node.Node, req *lrmrpb.CreateTaskRequest) error {

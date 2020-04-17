@@ -26,7 +26,7 @@ func FromURI(uri string, m *Master) *Dataset {
 }
 
 func (d *Dataset) addStage(runner interface{}) {
-	d.Session.AddStage(stage.LookupByRunner(runner), runner)
+	d.Session.AddStage(runner)
 	d.Session.SetPartitionOption(d.defaultPartitionOpts...)
 }
 
@@ -56,13 +56,21 @@ func (d *Dataset) GroupByKey() *Dataset {
 }
 
 func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
+	opts := append(d.defaultPartitionOpts, partitions.WithFixedKeys(knownKeys))
 	d.Session.SetPartitionType(lrmrpb.Output_FINITE_KEY)
-	d.Session.SetPartitionOption(partitions.WithFixedKeys(knownKeys))
+	d.Session.SetPartitionOption(opts...)
 	return d
 }
 
 func (d *Dataset) Repartition(n int) *Dataset {
-	d.Session.SetPartitionOption(partitions.WithFixedCount(n))
+	opts := append(d.defaultPartitionOpts, partitions.WithFixedCount(n))
+	d.Session.SetPartitionOption(opts...)
+	return d
+}
+
+func (d *Dataset) PartitionedBy(planner partitions.LogicalPlanner) *Dataset {
+	opts := append(d.defaultPartitionOpts, partitions.WithLogicalPlanner(planner))
+	d.Session.SetPartitionOption(opts...)
 	return d
 }
 
@@ -73,11 +81,13 @@ func (d *Dataset) Broadcast(key string, value interface{}) *Dataset {
 
 func (d *Dataset) WithWorkerCount(n int) *Dataset {
 	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithLimitNodes(n))
+	d.SetPartitionOption(d.defaultPartitionOpts...)
 	return d
 }
 
 func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithExecutorsPerNode(n))
+	d.SetPartitionOption(d.defaultPartitionOpts...)
 	return d
 }
 

@@ -13,12 +13,27 @@ type nodeWithStats struct {
 	currentTasks int
 }
 
-type LogicalPlans struct {
+type LogicalPlans []LogicalPlan
+
+// AutoPlan indicates that scheduler needs to automatically create
+// partitions with available nodes and executors.
+var AutoPlan LogicalPlans = nil
+
+type LogicalPlan struct {
+	Key       string
 	IsElastic bool
-	Keys      []string
+
+	NodeAffinityRules map[string]string
 }
 
-// PhysicalPlan is an actual placement information of the partition.
+func (lp LogicalPlans) Keys() (kk []string) {
+	for _, l := range lp {
+		kk = append(kk, l.Key)
+	}
+	return
+}
+
+// PhysicalPlan is an actual assignment of the partition to an node.
 // The reason why we separated plans with physical and logical (they can be looked like
 // they could be merged at a glance) is because of the fault tolerance.
 type PhysicalPlan struct {
@@ -35,6 +50,14 @@ func (pp PhysicalPlans) ToMap() map[string]string {
 		m[p.Key] = p.Node.Host
 	}
 	return m
+}
+
+// Hostnames returns an unordered list of nodes' hostnames in the partition.
+func (pp PhysicalPlans) Hostnames() (nn []string) {
+	for _, p := range pp {
+		nn = append(nn, p.Key)
+	}
+	return
 }
 
 func (pp PhysicalPlans) Pretty() (s string) {
