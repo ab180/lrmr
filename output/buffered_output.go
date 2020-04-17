@@ -15,6 +15,9 @@ type BufferedOutput struct {
 }
 
 func NewBufferedOutput(output Output, size int) *BufferedOutput {
+	if size == 0 {
+		panic("buffer size cannot be 0.")
+	}
 	return &BufferedOutput{
 		output: output,
 		buf:    make([]*lrdd.Row, size),
@@ -25,12 +28,10 @@ func (b *BufferedOutput) Write(d []*lrdd.Row) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	//log.Verbose("Start write (Offset: {}/{})", b.offset, len(b.buf))
+	//log.Verbose("Start write {} rows (Offset: {}/{})", len(d), b.offset, len(b.buf))
 	for len(d) > 0 {
 		writeLen := min(len(d), len(b.buf)-b.offset)
-		copy(b.buf[b.offset:b.offset+writeLen], d[:writeLen])
-
-		b.offset += writeLen
+		b.offset += copy(b.buf[b.offset:], d[:writeLen])
 		if b.offset == len(b.buf) {
 			err := b.flush()
 			if err != nil {
