@@ -16,8 +16,9 @@ func main() {
 			fmt.Printf("error parsing args: %v", err)
 			os.Exit(1)
 		}
-		opt.Worker.Port = port
-		opt.Worker.Host = fmt.Sprintf("localhost:%d", port)
+		url := fmt.Sprintf("127.0.0.1:%d", port)
+		opt.Worker.ListenHost = url
+		opt.Worker.AdvertisedHost = url
 	}
 	if err := lrmr.RunWorker(opt); err != nil {
 		fmt.Println(err.Error())

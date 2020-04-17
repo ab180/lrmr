@@ -25,12 +25,13 @@ func main() {
     m.Start()
     defer m.Stop()
 
-    job := lrmr.TextFile("./test-jsons/", m).
-        Then(DecodeNDJSON()).
-        GroupByKey("appID").
-        Then(CountByApp())
+    dataset := lrmr.TextFile("./test-jsons/", m).
+        FlatMap(DecodeJSON()).
+        GroupByKey().
+        Reduce(Count())
 
-    if err := job.Run(context.Background(), "GroupByApp"); err != nil {
+    job, err := dataset.Run(context.Background(), "GroupByApp")
+    if err != nil {
         panic(err)
     }
     println("Done!")

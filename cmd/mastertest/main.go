@@ -19,9 +19,10 @@ func main() {
 	defer m.Stop()
 
 	sess := lrmr.FromURI("/Users/vista/testdata/", m).
+		WithWorkerCount(8).
 		FlatMap(DecodeJSON()).
-		Reduce(Count()).
-		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"})
+		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
+		Reduce(Count())
 
 	j, err := sess.Run(context.TODO(), "GroupByApp")
 	if err != nil {
