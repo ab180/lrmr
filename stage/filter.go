@@ -33,12 +33,18 @@ func (fs *filterStage) Setup(c Context) error {
 }
 
 func (fs *filterStage) Apply(c Context, rows []*lrdd.Row, out output.Output) error {
-	var results []*lrdd.Row
+	// filtering without additional memory allocation :P
+	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	results := rows[:0]
 	for _, row := range rows {
 		if !fs.f.Predicate(row) {
 			continue
 		}
 		results = append(results, row)
+	}
+	for i := len(results); i < len(rows); i++ {
+		// garbage collect filtered elements
+		rows[i] = nil
 	}
 	return out.Write(results)
 }
