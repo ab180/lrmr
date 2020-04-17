@@ -1,17 +1,17 @@
 package output
 
 import (
-	"math"
+	"github.com/creasty/defaults"
 )
 
 type Options struct {
-	BufferLength   int
-	MaxSendMsgSize int
+	BufferLength   int `default:"1000"`
+	MaxSendMsgSize int `default:"2147483647"`
 }
 
-func DefaultOptions() Options {
-	return Options{
-		BufferLength:   1000,
-		MaxSendMsgSize: math.MaxInt32,
+func DefaultOptions() (o Options) {
+	if err := defaults.Set(&o); err != nil {
+		panic(err)
 	}
+	return
 }

@@ -13,10 +13,10 @@ type Master struct {
 	jobManager  job.Manager
 	nodeManager node.Manager
 
-	opt *Options
+	opt Options
 }
 
-func NewMaster(crd coordinator.Coordinator, opt *Options) (*Master, error) {
+func NewMaster(crd coordinator.Coordinator, opt Options) (*Master, error) {
 	nm, err := node.NewManager(crd, opt.NodeManager)
 	if err != nil {
 		return nil, err

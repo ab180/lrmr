@@ -41,11 +41,11 @@ type manager struct {
 	grpcOpts []grpc.DialOption
 	conns    sync.Map
 
-	opt *ManagerOptions
+	opt ManagerOptions
 	log logger.Logger
 }
 
-func NewManager(crd coordinator.Coordinator, opt *ManagerOptions) (Manager, error) {
+func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error) {
 	log := logger.New("nodemanager")
 
 	var grpcOpts []grpc.DialOption

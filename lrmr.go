@@ -14,7 +14,7 @@ var (
 	log = logger.New("lrmr")
 )
 
-func RunMaster(optionalOpt ...*Options) (*Master, error) {
+func RunMaster(optionalOpt ...Options) (*Master, error) {
 	opt := DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
@@ -27,7 +27,7 @@ func RunMaster(optionalOpt ...*Options) (*Master, error) {
 	return NewMaster(etcd, opt)
 }
 
-func RunWorker(optionalOpt ...*Options) error {
+func RunWorker(optionalOpt ...Options) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	opt := DefaultOptions()

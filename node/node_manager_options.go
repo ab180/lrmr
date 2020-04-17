@@ -1,16 +1,20 @@
 package node
 
-import "time"
+import (
+	"github.com/creasty/defaults"
+	"time"
+)
 
 type ManagerOptions struct {
-	ConnectTimeout time.Duration
+	ConnectTimeout time.Duration `default:"3s"`
 
 	TLSCertPath       string
 	TLSCertServerName string
 }
 
-func DefaultManagerOptions() *ManagerOptions {
-	return &ManagerOptions{
-		ConnectTimeout: 3 * time.Second,
+func DefaultManagerOptions() (o ManagerOptions) {
+	if err := defaults.Set(&o); err != nil {
+		panic(err)
 	}
+	return
 }
