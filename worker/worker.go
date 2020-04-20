@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 	"net"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
@@ -91,16 +92,22 @@ func (w *Worker) Start() error {
 
 	w.jobReporter.Start()
 
-	n := node.New(w.opt.AdvertisedHost)
-	n.Type = node.Worker
-	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
-		return fmt.Errorf("register worker: %w", err)
-	}
-
 	lrmrpb.RegisterWorkerServer(w.server, w)
 	lis, err := net.Listen("tcp", w.opt.ListenHost)
 	if err != nil {
 		return err
+	}
+
+	advHost := w.opt.AdvertisedHost
+	if strings.HasSuffix(advHost, ":") {
+		// port is assigned automatically
+		addrFrags := strings.Split(lis.Addr().String(), ":")
+		advHost += addrFrags[len(addrFrags)-1]
+	}
+	n := node.New(advHost)
+	n.Type = node.Worker
+	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
+		return fmt.Errorf("register worker: %w", err)
 	}
 	return w.server.Serve(lis)
 }
@@ -172,11 +179,11 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, 
 		if host == w.nodeManager.Self().Host {
 			t, ok := w.runningTasks.Load(taskID)
 			if ok {
+				log.Warn("{}/{} opened local connection to {}", j.ID, s.Name, taskID)
 				outputs[key] = NewLocalPipe(t.(*TaskExecutor).Input)
 				continue
 			}
 		}
-		log.Warn("{}/{} opened remote connection to {}", j.ID, s.Name, taskID)
 		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
 		if err != nil {
 			return nil, err

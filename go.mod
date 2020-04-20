@@ -1,6 +1,6 @@
 module github.com/therne/lrmr
 
-go 1.13
+go 1.14
 
 require (
 	github.com/airbloc/logger v1.4.2
@@ -9,6 +9,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/creasty/defaults v1.3.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
@@ -42,7 +43,4 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace (
-	github.com/airbloc/logger => /Users/vista/Dropbox/Projects/Airbloc/logger
-	github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
-)
+replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
