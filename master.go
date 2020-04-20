@@ -9,9 +9,10 @@ import (
 type Master struct {
 	node *node.Node
 
-	jobTracker  *job.Tracker
-	jobManager  job.Manager
-	nodeManager node.Manager
+	jobManager   job.Manager
+	jobTracker   *job.Tracker
+	jobScheduler *job.Scheduler
+	nodeManager  node.Manager
 
 	opt Options
 }
@@ -26,10 +27,11 @@ func NewMaster(crd coordinator.Coordinator, opt Options) (*Master, error) {
 			ID:   "master",
 			Host: opt.Master.AdvertisedHost,
 		},
-		jobTracker:  job.NewJobTracker(crd),
-		jobManager:  job.NewManager(nm, crd),
-		nodeManager: nm,
-		opt:         opt,
+		jobManager:   job.NewManager(nm, crd),
+		jobTracker:   job.NewJobTracker(crd),
+		jobScheduler: job.NewScheduler(nm),
+		nodeManager:  nm,
+		opt:          opt,
 	}, nil
 }
 
