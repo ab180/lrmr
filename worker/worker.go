@@ -159,6 +159,13 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	taskID := path.Join(j.ID, s.Name, task.PartitionKey)
 	w.runningTasks.Store(taskID, exec)
 	go exec.Run()
+	go func() {
+		for reason := range w.jobManager.WatchJobErrors(exec.context, exec.task.JobID) {
+			log.Warn("Task {} canceled because job is aborted. Reason: {}", exec.task.Reference(), reason)
+			exec.Cancel()
+			break
+		}
+	}()
 	return &empty.Empty{}, nil
 }
 
@@ -203,6 +210,7 @@ func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
 	exec := e.(*TaskExecutor)
+	defer w.runningTasks.Delete(h.TaskID)
 
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(exec.context); err != nil {

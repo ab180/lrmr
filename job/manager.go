@@ -19,11 +19,14 @@ const (
 	stageStatusNs = "status/stages/"
 	taskStatusNs  = "status/tasks/"
 	jobStatusNs   = "status/jobs"
+	jobErrorNs    = "errors/jobs"
 )
 
 type Manager interface {
 	CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error)
 	GetJob(ctx context.Context, jobID string) (*Job, error)
+	GetJobErrors(ctx context.Context, jobID string) (stacktraces []string, err error)
+	WatchJobErrors(ctx context.Context, jobID string) chan string
 
 	ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error)
 	ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error)
@@ -77,6 +80,35 @@ func (m *jobManager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 		return nil, err
 	}
 	return job, nil
+}
+
+func (m *jobManager) GetJobErrors(ctx context.Context, jobID string) (stacktraces []string, err error) {
+	items, err := m.crd.Scan(ctx, path.Join(jobErrorNs, jobID))
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		var s string
+		if err := item.Unmarshal(&s); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
+		}
+		stacktraces = append(stacktraces, s)
+	}
+	return stacktraces, nil
+}
+
+func (m *jobManager) WatchJobErrors(ctx context.Context, jobID string) chan string {
+	stacktraceChan := make(chan string)
+	go func() {
+		for event := range m.crd.Watch(ctx, path.Join(jobErrorNs, jobID)) {
+			var s string
+			if err := event.Item.Unmarshal(&s); err != nil {
+				m.log.Error("Failed to unmarshal stacktrace {}: {}", err, string(event.Item.Value))
+			}
+			stacktraceChan <- s
+		}
+	}()
+	return stacktraceChan
 }
 
 func (m *jobManager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {

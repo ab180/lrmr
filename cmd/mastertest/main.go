@@ -28,7 +28,7 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to run session", err)
 	}
-	if _, err := j.WaitForResult(); err != nil {
+	if err := j.Wait(); err != nil {
 		log.Fatal(err.Error())
 	}
 

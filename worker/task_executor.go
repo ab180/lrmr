@@ -51,7 +51,11 @@ InputLoop:
 	for {
 		select {
 		case rows, ok := <-e.Input.C:
+			if e.context.Err() != nil {
+				return
+			}
 			if !ok {
+				// input is closed
 				break InputLoop
 			}
 			rowCnt += len(rows)
@@ -98,11 +102,11 @@ func (e *TaskExecutor) AbortOnPanic() {
 
 func (e *TaskExecutor) Cancel() {
 	e.context.cancel()
-	if err := e.reporter.ReportFailure(e.task.Reference(), errors.New("cancelled by user")); err != nil {
+	if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
 		log.Error("While reporting the cancellation, another error occurred", err)
 	}
+	_ = e.Input.Close()
 	_ = e.Output.Close()
-	log.Info("Task {} cancelled.", e.task.Reference())
 }
 
 func (e *TaskExecutor) WaitForFinish() {

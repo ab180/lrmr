@@ -42,22 +42,20 @@ func (t *Tracker) WaitForCompletion(jobID string) chan *Status {
 	return notifyCh
 }
 
-func (t *Tracker) Start() {
-	wctx, cancel := context.WithCancel(context.Background())
-	t.stopTrack = cancel
-
-	wc := t.crd.Watch(wctx, statusNs)
-	go t.doTrack(wc)
-}
-
 func (t *Tracker) AddJob(job *Job) {
 	t.lock.Lock()
 	t.activeJobs[job.ID] = job
 	t.lock.Unlock()
 }
 
-func (t *Tracker) doTrack(wc chan coordinator.WatchEvent) {
+// HandleJobCompletion watches various job events such as task finish,
+// and changes stage or job status.
+func (t *Tracker) HandleJobCompletion() {
+	wctx, cancel := context.WithCancel(context.Background())
+	t.stopTrack = cancel
+
 	t.log.Info("Start tracking...")
+	wc := t.crd.Watch(wctx, statusNs)
 	for event := range wc {
 		if strings.HasPrefix(event.Item.Key, stageStatusNs) {
 			t.trackStage(event)
@@ -152,8 +150,12 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 		return fmt.Errorf("update job status: %w", err)
 	}
 	t.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
-	for _, notifyCh := range t.subscriptions[job.ID] {
-		notifyCh <- &js
+	for i, notifyCh := range t.subscriptions[job.ID] {
+		select {
+		case notifyCh <- &js:
+		default:
+			t.log.Verbose("Warning: subscription #{} seems too busy to receive result of job {}", i, job.ID)
+		}
 	}
 	delete(t.activeJobs, job.ID)
 	return nil

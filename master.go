@@ -11,6 +11,7 @@ type Master struct {
 
 	jobManager   job.Manager
 	jobTracker   *job.Tracker
+	jobReporter  *job.Reporter
 	jobScheduler *job.Scheduler
 	nodeManager  node.Manager
 
@@ -29,6 +30,7 @@ func NewMaster(crd coordinator.Coordinator, opt Options) (*Master, error) {
 		},
 		jobManager:   job.NewManager(nm, crd),
 		jobTracker:   job.NewJobTracker(crd),
+		jobReporter:  job.NewJobReporter(crd),
 		jobScheduler: job.NewScheduler(nm),
 		nodeManager:  nm,
 		opt:          opt,
@@ -36,7 +38,7 @@ func NewMaster(crd coordinator.Coordinator, opt Options) (*Master, error) {
 }
 
 func (m *Master) Start() {
-	m.jobTracker.Start()
+	go m.jobTracker.HandleJobCompletion()
 }
 
 func (m *Master) Stop() {

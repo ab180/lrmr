@@ -98,6 +98,25 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 		return fmt.Errorf("update task status: %w", err)
 	}
 
+	// report full stacktrace
+	errorKey := path.Join(jobErrorNs, ref.String())
+	stacktrace := fmt.Sprintf("%+v", err)
+
+	return r.crd.Batch(
+		context.TODO(),
+		coordinator.IncrementCounter(stageStatusKey(ref, "doneTasks")),
+		coordinator.IncrementCounter(stageStatusKey(ref, "failedTasks")),
+		coordinator.Put(errorKey, stacktrace),
+	)
+}
+
+func (r *Reporter) ReportCancel(ref TaskReference) error {
+	r.UpdateStatus(ref, func(ts *TaskStatus) {
+		ts.Complete(Failed)
+	})
+	if err := r.flushTaskStatus(); err != nil {
+		return fmt.Errorf("update task status: %w", err)
+	}
 	return r.crd.Batch(
 		context.TODO(),
 		coordinator.IncrementCounter(stageStatusKey(ref, "doneTasks")),
