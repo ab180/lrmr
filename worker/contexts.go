@@ -1,21 +1,27 @@
 package worker
 
 import (
+	"context"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/stage"
 )
 
 type taskContext struct {
+	context.Context
 	worker    *Worker
 	task      *job.Task
 	broadcast map[string]interface{}
+	cancel    context.CancelFunc
 }
 
 func NewTaskContext(w *Worker, t *job.Task, broadcast map[string]interface{}) *taskContext {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &taskContext{
+		Context:   ctx,
 		worker:    w,
 		task:      t,
 		broadcast: broadcast,
+		cancel:    cancel,
 	}
 }
 

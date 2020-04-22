@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
@@ -19,20 +20,31 @@ func NewPushStream(r *Reader, stream lrmrpb.Worker_PushDataServer) *PushStream {
 	}
 }
 
-func (p *PushStream) Dispatch() error {
+func (p *PushStream) Dispatch(ctx context.Context) error {
 	p.reader.Add(p)
-	for {
-		req, err := p.stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
+	defer p.reader.Done()
+
+	errChan := make(chan error)
+	go func() {
+		for {
+			req, err := p.stream.Recv()
+			if err != nil {
+				errChan <- err
+				return
 			}
-			return errors.Wrap(err, "stream dispatch")
+			p.reader.C <- req.GetData()
 		}
-		p.reader.C <- req.GetData()
+	}()
+
+	select {
+	case err := <-errChan:
+		if err == io.EOF || err == context.Canceled {
+			return nil
+		}
+		return errors.Wrap(err, "stream dispatch")
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	p.reader.Done()
-	return nil
 }
 
 func (p *PushStream) CloseWithStatus(st job.Status) error {

@@ -47,10 +47,19 @@ func NewTaskExecutor(c *taskContext, task *job.Task, st stage.Stage, in *input.R
 func (e *TaskExecutor) Run() {
 	defer e.AbortOnPanic()
 	rowCnt := 0
-	for rows := range e.Input.C {
-		rowCnt += len(rows)
-		if err := e.runner.Apply(e.context, rows, e.Output); err != nil {
-			e.Abort(err)
+InputLoop:
+	for {
+		select {
+		case rows, ok := <-e.Input.C:
+			if !ok {
+				break InputLoop
+			}
+			rowCnt += len(rows)
+			if err := e.runner.Apply(e.context, rows, e.Output); err != nil {
+				e.Abort(err)
+				return
+			}
+		case <-e.context.Done():
 			return
 		}
 	}
@@ -85,6 +94,15 @@ func (e *TaskExecutor) AbortOnPanic() {
 	if err := logger.WrapRecover(recover()); err != nil {
 		e.Abort(err)
 	}
+}
+
+func (e *TaskExecutor) Cancel() {
+	e.context.cancel()
+	if err := e.reporter.ReportFailure(e.task.Reference(), errors.New("cancelled by user")); err != nil {
+		log.Error("While reporting the cancellation, another error occurred", err)
+	}
+	_ = e.Output.Close()
+	log.Info("Task {} cancelled.", e.task.Reference())
 }
 
 func (e *TaskExecutor) WaitForFinish() {

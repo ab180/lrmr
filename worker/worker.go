@@ -205,12 +205,10 @@ func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
 	exec := e.(*TaskExecutor)
 
 	in := input.NewPushStream(exec.Input, stream)
-	if err := in.Dispatch(); err != nil {
+	if err := in.Dispatch(exec.context); err != nil {
 		return err
 	}
 	exec.WaitForFinish()
-
-	w.runningTasks.Delete(h.TaskID)
 	return stream.SendAndClose(&empty.Empty{})
 }
 
