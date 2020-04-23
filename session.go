@@ -8,6 +8,7 @@ import (
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrmrpb"
+	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
 	"golang.org/x/sync/errgroup"
@@ -113,6 +114,39 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}()
 	timer := log.Timer()
 
+	workers, err := s.master.nodeManager.List(ctx, node.Worker)
+	if err != nil {
+		return nil, errors.WithMessage(err, "list available workers")
+	}
+	if len(workers) == 0 {
+		return nil, ErrNoAvailableWorkers
+	}
+	sched, err := partitions.NewSchedulerWithNodes(ctx, nil, workers)
+	if err != nil {
+		return nil, errors.WithMessage(err, "start scheduling")
+	}
+
+	physicalPlans := make([]partitions.PhysicalPlans, len(s.plans))
+	for i, p := range s.plans {
+		if i == len(s.stages) {
+			p.PlanOptions = []partitions.PlanOption{partitions.WithEmpty()}
+		}
+		logical, physical := sched.Plan(p.PlanOptions...)
+
+		physicalPlans[i] = physical
+		if i > 0 {
+			s.stages[i-1].Partitions = logical
+		}
+		var stageName string
+		if i < len(s.stages) {
+			stageName = s.stages[i].Name
+		} else {
+			stageName = "__final"
+		}
+		s.log.Verbose("Planned {} partitions on {}/{}:\n{}",
+			len(physical), name, stageName, physical.Pretty())
+	}
+
 	j, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, errors.WithMessage(err, "create job")
@@ -120,13 +154,12 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	s.master.jobTracker.AddJob(j)
 	jobLog := s.log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
-	j, pps, err := s.master.jobScheduler.Schedule(ctx, j, s.plans, s.serializedBroadcasts)
-	if err != nil {
-		return nil, errors.WithMessage(err, "schedule")
+	if err := s.master.jobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.serializedBroadcasts); err != nil {
+		return nil, errors.WithMessage(err, "assign task")
 	}
 
 	jobLog.Info("Running input stage")
-	if err := s.startInput(ctx, j, pps[0]); err != nil {
+	if err := s.startInput(ctx, j, physicalPlans[0]); err != nil {
 		return nil, errors.WithMessage(err, "input")
 	}
 	timer.End("Job creation completed. Now running...")

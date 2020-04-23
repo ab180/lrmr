@@ -10,10 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	ErrNoAvailableWorkers = errors.New("no available workers")
-	ErrInsufficientPlans  = errors.New("insufficient plans")
-)
+var ErrInsufficientPlans = errors.New("insufficient plans")
 
 type PartitionPlan struct {
 	Partitioner lrmrpb.Output_PartitionerType
@@ -32,44 +29,10 @@ func NewScheduler(nm node.Manager) *Scheduler {
 	}
 }
 
-// Schedule plans partition according to given PartitionPlans and stages,
-// and then create tasks to the nodes with the plan.
-func (sch *Scheduler) Schedule(ctx context.Context, j *Job, plans []PartitionPlan, broadcasts map[string][]byte) (*Job, []partitions.PhysicalPlans, error) {
+// AssignTasks create tasks to the nodes with the plan.
+func (sch *Scheduler) AssignTasks(ctx context.Context, j *Job, plans []PartitionPlan, physicalPlans []partitions.PhysicalPlans, broadcasts map[string][]byte) error {
 	if len(plans) != len(j.Stages)+1 {
-		return nil, nil, ErrInsufficientPlans
-	}
-
-	workers, err := sch.nodeManager.List(ctx, node.Worker)
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "list available workers")
-	}
-	if len(workers) == 0 {
-		return nil, nil, ErrNoAvailableWorkers
-	}
-	sched, err := partitions.NewSchedulerWithNodes(ctx, nil, workers)
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "start scheduling")
-	}
-
-	physicalPlans := make([]partitions.PhysicalPlans, len(plans))
-	for i, p := range plans {
-		if i == len(j.Stages) {
-			p.PlanOptions = []partitions.PlanOption{partitions.WithEmpty()}
-		}
-		logical, physical := sched.Plan(p.PlanOptions...)
-
-		physicalPlans[i] = physical
-		if i > 0 {
-			j.Stages[i-1].Partitions = logical
-		}
-		var stageName string
-		if i < len(j.Stages) {
-			stageName = j.Stages[i].Name
-		} else {
-			stageName = "__final"
-		}
-		sch.log.Verbose("Planned {} partitions on {}/{}:\n{}",
-			len(physical), j.Name, stageName, physical.Pretty())
+		return ErrInsufficientPlans
 	}
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
@@ -96,10 +59,10 @@ func (sch *Scheduler) Schedule(ctx context.Context, j *Job, plans []PartitionPla
 			})
 		}
 		if err := wg.Wait(); err != nil {
-			return nil, nil, err
+			return err
 		}
 	}
-	return j, physicalPlans, nil
+	return nil
 }
 
 func buildInputAt(stages []*Stage, stageIdx int, curPartition partitions.PhysicalPlan) *lrmrpb.Input {
