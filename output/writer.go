@@ -25,6 +25,7 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 		pk, err := w.partitioner.DeterminePartitionKey(row)
 		if err != nil {
 			if err == ErrNoOutput {
+				// TODO: add alert if too many outputs are skipped
 				continue
 			}
 			return err
