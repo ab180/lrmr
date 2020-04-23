@@ -3,6 +3,7 @@ package lrmr
 import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/master"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,7 +15,7 @@ var (
 
 type RunningJob struct {
 	*job.Job
-	master *Master
+	master *master.Master
 
 	finalStatus *job.Status
 }
@@ -27,7 +28,7 @@ func (r *RunningJob) Status() job.RunningState {
 }
 
 func (r *RunningJob) Metrics() (job.Metrics, error) {
-	return r.master.jobTracker.CollectMetric(r.Job)
+	return r.master.JobTracker.CollectMetric(r.Job)
 }
 
 func (r *RunningJob) Wait() error {
@@ -35,7 +36,7 @@ func (r *RunningJob) Wait() error {
 	signal.Notify(sigTerm, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	select {
-	case r.finalStatus = <-r.master.jobTracker.WaitForCompletion(r.Job.ID):
+	case r.finalStatus = <-r.master.JobTracker.WaitForCompletion(r.Job.ID):
 		if r.finalStatus.Status == job.Failed {
 			return errors.Errorf("job %s failed", r.Job.ID)
 		}
@@ -52,7 +53,7 @@ func (r *RunningJob) Abort() error {
 		StageName: "__input",
 		TaskID:    "__master",
 	}
-	if err := r.master.jobReporter.ReportFailure(ref, Aborted); err != nil {
+	if err := r.master.JobReporter.ReportFailure(ref, Aborted); err != nil {
 		return errors.Wrap(err, "abort")
 	}
 
@@ -60,7 +61,7 @@ func (r *RunningJob) Abort() error {
 	signal.Notify(sigTerm, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	select {
-	case <-r.master.jobTracker.WaitForCompletion(r.Job.ID):
+	case <-r.master.JobTracker.WaitForCompletion(r.Job.ID):
 		log.Info("Cancelled!")
 		break
 	case <-sigTerm:

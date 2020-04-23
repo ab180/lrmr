@@ -8,6 +8,7 @@ import (
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrmrpb"
+	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
@@ -36,7 +37,7 @@ type Session interface {
 }
 
 type session struct {
-	master *Master
+	master *master.Master
 	input  InputProvider
 	stages []*job.Stage
 
@@ -49,7 +50,7 @@ type session struct {
 	log logger.Logger
 }
 
-func NewSession(master *Master) Session {
+func NewSession(master *master.Master) Session {
 	return &session{
 		broadcasts:           make(map[string]interface{}),
 		serializedBroadcasts: make(map[string][]byte),
@@ -114,7 +115,7 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}()
 	timer := log.Timer()
 
-	workers, err := s.master.nodeManager.List(ctx, node.Worker)
+	workers, err := s.master.NodeManager.List(ctx, node.Worker)
 	if err != nil {
 		return nil, errors.WithMessage(err, "list available workers")
 	}
@@ -147,14 +148,14 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 			len(physical), name, stageName, physical.Pretty())
 	}
 
-	j, err := s.master.jobManager.CreateJob(ctx, name, s.stages)
+	j, err := s.master.JobManager.CreateJob(ctx, name, s.stages)
 	if err != nil {
 		return nil, errors.WithMessage(err, "create job")
 	}
-	s.master.jobTracker.AddJob(j)
+	s.master.JobTracker.AddJob(j)
 	jobLog := s.log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
-	if err := s.master.jobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.serializedBroadcasts); err != nil {
+	if err := s.master.JobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.serializedBroadcasts); err != nil {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
@@ -178,7 +179,7 @@ func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitio
 		p := t
 		wg.Go(func() error {
 			taskID := path.Join(j.ID, j.Stages[0].Name, p.Key)
-			out, err := output.NewPushStream(reqCtx, s.master.nodeManager, p.Node.Host, taskID)
+			out, err := output.NewPushStream(reqCtx, s.master.NodeManager, p.Node.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", p.Node.Host)
 			}

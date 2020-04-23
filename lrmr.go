@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
 	"os"
 	"os/signal"
@@ -14,7 +15,7 @@ var (
 	log = logger.New("lrmr")
 )
 
-func RunMaster(optionalOpt ...Options) (*Master, error) {
+func RunMaster(optionalOpt ...Options) (*master.Master, error) {
 	opt := DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
@@ -24,7 +25,7 @@ func RunMaster(optionalOpt ...Options) (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect etcd: %w", err)
 	}
-	return NewMaster(etcd, opt)
+	return master.New(etcd, opt.Master)
 }
 
 func RunWorker(optionalOpt ...Options) error {

@@ -4,11 +4,12 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
 	"time"
 )
 
-func StartLocalCluster(c C, numWorkers int) (m *lrmr.Master, stopper func()) {
+func StartLocalCluster(c C, numWorkers int) (m *master.Master, stopper func()) {
 	crd := coordinator.NewLocalMemory()
 
 	workers := make([]*worker.Worker, numWorkers)
@@ -32,7 +33,7 @@ func StartLocalCluster(c C, numWorkers int) (m *lrmr.Master, stopper func()) {
 	opt.Master.ListenHost = "127.0.0.1:"
 	opt.Master.AdvertisedHost = "127.0.0.1:"
 
-	m, err := lrmr.NewMaster(crd, opt)
+	m, err := master.New(crd, opt.Master)
 	So(err, ShouldBeNil)
 	m.Start()
 

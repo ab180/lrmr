@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrmrpb"
+	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/stage"
 )
 
@@ -15,12 +16,12 @@ type Dataset struct {
 	defaultPartitionOpts []partitions.PlanOption
 }
 
-func FromInput(provider InputProvider, m *Master) *Dataset {
+func FromInput(provider InputProvider, m *master.Master) *Dataset {
 	sess := NewSession(m).SetInput(provider)
 	return &Dataset{Session: sess}
 }
 
-func FromURI(uri string, m *Master) *Dataset {
+func FromURI(uri string, m *master.Master) *Dataset {
 	sess := NewSession(m).SetInput(&localInput{Path: uri})
 	return &Dataset{Session: sess}
 }
