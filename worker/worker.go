@@ -186,7 +186,6 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, 
 		if host == w.nodeManager.Self().Host {
 			t, ok := w.runningTasks.Load(taskID)
 			if ok {
-				log.Warn("{}/{} opened local connection to {}", j.ID, s.Name, taskID)
 				outputs[key] = NewLocalPipe(t.(*TaskExecutor).Input)
 				continue
 			}
