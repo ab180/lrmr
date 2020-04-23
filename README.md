@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+    "fmt"
 	"github.com/therne/lrmr"
 	. "github.com/therne/lrmr/playground"
 )
@@ -34,7 +35,8 @@ func main() {
     if err != nil {
         panic(err)
     }
-    println("Done!")
+    _ = job.Wait()
+    fmt.Println("Done!", job.Metrics())
 }
 ```
 
@@ -42,11 +44,7 @@ func main() {
 
 #### Requirements
 
- * [flatbuffers](https://github.com/google/flatbuffers)
-    * on macOS: `brew install flatbuffers`
-    * on Windows: [Download EXE releases](https://github.com/google/flatbuffers/releases)
-    * on Linux: [Manually building with CMake](https://google.github.io/flatbuffers/flatbuffers_guide_building.html)
-
+ * Go 1.14 or above
 
 
 ## LICENSE: MIT
