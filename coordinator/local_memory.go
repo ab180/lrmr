@@ -10,7 +10,7 @@ import (
 )
 
 type localMemoryCoordinator struct {
-	opt  *localMemoryOptions
+	opt  localMemoryOptions
 	data sync.Map
 
 	counter     map[string]int64
@@ -27,7 +27,9 @@ type subscription struct {
 // NewLocalMemory creates local variable based coordinator.
 // Only used for test purpose.
 func NewLocalMemory(opts ...LocalMemoryOption) Coordinator {
-	return &localMemoryCoordinator{}
+	return &localMemoryCoordinator{
+		counter: map[string]int64{},
+	}
 }
 
 func (lmc *localMemoryCoordinator) simulate(ctx context.Context) error {
@@ -74,10 +76,14 @@ func (lmc *localMemoryCoordinator) put(k string, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	lmc.data.Store(k, raw)
-	lmc.notifySubscribers(WatchEvent{
+	item := RawItem{
+		Key:   k,
+		Value: raw,
+	}
+	lmc.data.Store(k, item)
+	go lmc.notifySubscribers(WatchEvent{
 		Type: PutEvent,
-		Item: RawItem{Key: k, Value: raw},
+		Item: item,
 	})
 	return nil
 }
@@ -97,7 +103,7 @@ func (lmc *localMemoryCoordinator) incrementCounter(key string) (count int64, er
 	count = lmc.counter[key]
 	lmc.counterLock.Unlock()
 
-	lmc.notifySubscribers(WatchEvent{
+	go lmc.notifySubscribers(WatchEvent{
 		Type:    CounterEvent,
 		Item:    RawItem{Key: key},
 		Counter: count,
