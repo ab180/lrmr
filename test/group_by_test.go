@@ -46,12 +46,8 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 				So(err, ShouldBeNil)
 
 				Convey("Its result should be collected", func() {
-					Printf("Results: %v\n", res)
 					So(res, ShouldHaveLength, 4)
-
-					actualCount := 0
-					So(func() { res["1737"][0].UnmarshalValue(&actualCount) }, ShouldNotPanic)
-					So(actualCount, ShouldEqual, 179513)
+					So(testutils.IntValue(res["1737"][0]), ShouldEqual, 179513)
 				})
 			})
 		})
@@ -97,9 +93,8 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 				So(res["foo"], ShouldHaveLength, 1)
 				So(res["bar"], ShouldHaveLength, 1)
 
-				fooCount := 0
-				So(func() { res["foo"][0].UnmarshalValue(&fooCount) }, ShouldNotPanic)
-				So(fooCount, ShouldEqual, 2)
+				So(testutils.IntValue(res["foo"][0]), ShouldEqual, 2)
+				So(testutils.IntValue(res["bar"][0]), ShouldEqual, 1)
 			})
 		})
 	})
