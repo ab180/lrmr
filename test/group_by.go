@@ -19,3 +19,13 @@ func BasicGroupByKnownKeys(m *master.Master) *lrmr.Dataset {
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
 		Reduce(Count())
 }
+
+func SimpleCount(m *master.Master) *lrmr.Dataset {
+	d := map[string][]string{
+		"foo": {"goo", "hoo"},
+		"bar": {"baz"},
+	}
+	return lrmr.Parallelize(d, m).
+		GroupByKey().
+		Reduce(Count())
+}

@@ -2,7 +2,6 @@ package testutils
 
 import (
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
@@ -29,11 +28,11 @@ func StartLocalCluster(c C, numWorkers int) (m *master.Master, stopper func()) {
 	// wait for workers to register themselves
 	time.Sleep(200 * time.Millisecond)
 
-	opt := lrmr.DefaultOptions()
-	opt.Master.ListenHost = "127.0.0.1:"
-	opt.Master.AdvertisedHost = "127.0.0.1:"
+	opt := master.DefaultOptions()
+	opt.ListenHost = "127.0.0.1:"
+	opt.AdvertisedHost = "127.0.0.1:"
 
-	m, err := master.New(crd, opt.Master)
+	m, err := master.New(crd, opt)
 	So(err, ShouldBeNil)
 	m.Start()
 
