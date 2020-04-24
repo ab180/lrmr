@@ -52,7 +52,7 @@ func (sch *Scheduler) AssignTasks(ctx context.Context, j *Job, plans []Partition
 				if err != nil {
 					return errors.Wrap(err, "grpc dial")
 				}
-				if _, err := lrmrpb.NewWorkerClient(conn).CreateTask(reqCtx, req); err != nil {
+				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(reqCtx, req); err != nil {
 					return errors.Wrap(err, "call CreateTask")
 				}
 				return nil
@@ -84,7 +84,7 @@ func buildOutputTo(plans []PartitionPlan, stages []*Stage, nextStageIdx int, nex
 	if nextStageIdx < len(stages) {
 		nextStageName = stages[nextStageIdx].Name
 	} else {
-		nextStageName = "__final"
+		nextStageName = "__collect"
 	}
 	return &lrmrpb.Output{
 		Type:            lrmrpb.Output_PUSH,

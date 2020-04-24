@@ -1,11 +1,15 @@
 package lrmr
 
 import (
+	"context"
 	"fmt"
+	"github.com/goombaio/namegenerator"
 	"github.com/therne/lrmr/job/partitions"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/stage"
+	"time"
 )
 
 // Dataset is less-resilient distributed dataset
@@ -92,8 +96,23 @@ func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 	return d
 }
 
+func (d *Dataset) Collect(ctx context.Context, jobName ...string) (map[string][]*lrdd.Row, error) {
+	if len(jobName) == 0 {
+		jobName = append(jobName, randomJobName())
+	}
+	job, err := d.Session.Run(ctx, jobName[0])
+	if err != nil {
+		return nil, err
+	}
+	return job.Collect()
+}
+
 func (d *Dataset) stageName(s stage.Stage) string {
 	name := fmt.Sprintf("%s%d", s.Name, d.NumStages)
 	d.NumStages += 1
 	return name
+}
+
+func randomJobName() string {
+	return namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
 }

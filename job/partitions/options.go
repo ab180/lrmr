@@ -1,6 +1,9 @@
 package partitions
 
-import "math"
+import (
+	"github.com/therne/lrmr/node"
+	"math"
+)
 
 const auto = -1
 
@@ -13,6 +16,7 @@ type PlanOptions struct {
 
 	fixedCounts int
 	fixedKeys   []string
+	fixedNodes  []*node.Node
 	noPartition bool
 }
 
@@ -44,6 +48,12 @@ func WithFixedKeys(keys []string) PlanOption {
 func WithFixedCount(n int) PlanOption {
 	return func(o *PlanOptions) {
 		o.fixedCounts = n
+	}
+}
+
+func WithFixedNodeGroups(nodes ...*node.Node) PlanOption {
+	return func(o *PlanOptions) {
+		o.fixedNodes = nodes
 	}
 }
 

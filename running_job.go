@@ -3,6 +3,7 @@ package lrmr
 import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/master"
 	"os"
 	"os/signal"
@@ -45,6 +46,14 @@ func (r *RunningJob) Wait() error {
 		return r.Abort()
 	}
 	return nil
+}
+
+func (r *RunningJob) Collect() (map[string][]*lrdd.Row, error) {
+	resultsChan, err := r.master.CollectedResults(r.Job.ID)
+	if err != nil {
+		return nil, err
+	}
+	return <-resultsChan, nil
 }
 
 func (r *RunningJob) Abort() error {

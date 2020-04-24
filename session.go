@@ -9,7 +9,6 @@ import (
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
 	"golang.org/x/sync/errgroup"
@@ -17,14 +16,6 @@ import (
 	"strconv"
 	"sync"
 )
-
-var ErrNoAvailableWorkers = errors.New("no available workers")
-
-type Result struct {
-	Ok     bool
-	Errors []error
-	Output interface{}
-}
 
 type Session interface {
 	Broadcast(key string, val interface{})
@@ -115,44 +106,10 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}()
 	timer := log.Timer()
 
-	workers, err := s.master.NodeManager.List(ctx, node.Worker)
+	physicalPlans, j, err := s.master.CreateJob(ctx, name, s.plans, s.stages)
 	if err != nil {
-		return nil, errors.WithMessage(err, "list available workers")
+		return nil, err
 	}
-	if len(workers) == 0 {
-		return nil, ErrNoAvailableWorkers
-	}
-	sched, err := partitions.NewSchedulerWithNodes(ctx, nil, workers)
-	if err != nil {
-		return nil, errors.WithMessage(err, "start scheduling")
-	}
-
-	physicalPlans := make([]partitions.PhysicalPlans, len(s.plans))
-	for i, p := range s.plans {
-		if i == len(s.stages) {
-			p.PlanOptions = []partitions.PlanOption{partitions.WithEmpty()}
-		}
-		logical, physical := sched.Plan(p.PlanOptions...)
-
-		physicalPlans[i] = physical
-		if i > 0 {
-			s.stages[i-1].Partitions = logical
-		}
-		var stageName string
-		if i < len(s.stages) {
-			stageName = s.stages[i].Name
-		} else {
-			stageName = "__final"
-		}
-		s.log.Verbose("Planned {} partitions on {}/{}:\n{}",
-			len(physical), name, stageName, physical.Pretty())
-	}
-
-	j, err := s.master.JobManager.CreateJob(ctx, name, s.stages)
-	if err != nil {
-		return nil, errors.WithMessage(err, "create job")
-	}
-	s.master.JobTracker.AddJob(j)
 	jobLog := s.log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
 	if err := s.master.JobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.serializedBroadcasts); err != nil {

@@ -5,6 +5,7 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/node"
+	"github.com/thoas/go-funk"
 	"math"
 	"sort"
 	"strconv"
@@ -38,13 +39,20 @@ func (s *Scheduler) Plan(opts ...PlanOption) (lp LogicalPlans, pp PhysicalPlans)
 		return
 	}
 
+	nodes := s.stats
+	if len(opt.fixedNodes) > 0 {
+		nodes = funk.Map(opt.fixedNodes, func(n *node.Node) nodeWithStats {
+			return nodeWithStats{Node: n, currentTasks: 0}
+		}).([]nodeWithStats)
+	}
+
 	// select top N freest nodes
-	sort.Slice(s.stats, func(i, j int) bool {
-		return s.stats[i].currentTasks < s.stats[j].currentTasks
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].currentTasks < nodes[j].currentTasks
 	})
-	lenCandidates := min(opt.maxNodes, len(s.stats))
+	lenCandidates := min(opt.maxNodes, len(nodes))
 	candidates := make([]nodeWithStats, lenCandidates)
-	copy(candidates[:], s.stats[:lenCandidates])
+	copy(candidates[:], nodes[:lenCandidates])
 
 	if opt.planner != nil {
 		lp = opt.planner.Plan()
