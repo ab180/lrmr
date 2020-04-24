@@ -29,20 +29,3 @@ func (l *LocalPipe) Close() error {
 	l.reader.Done()
 	return nil
 }
-
-type LocalArrayOutput struct {
-	Rows []*lrdd.Row
-}
-
-func NewLocalArrayOutput(initialRows []*lrdd.Row) *LocalArrayOutput {
-	return &LocalArrayOutput{Rows: initialRows}
-}
-
-func (l *LocalArrayOutput) Write(rows []*lrdd.Row) error {
-	l.Rows = append(l.Rows, rows...)
-	return nil
-}
-
-func (l *LocalArrayOutput) Close() error {
-	return nil
-}

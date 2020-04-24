@@ -73,7 +73,7 @@ func (s *session) AddStage(runner interface{}) Session {
 	st := stage.LookupByRunner(runner)
 	s.stages = append(s.stages, job.NewStage(st.Name+strconv.Itoa(len(s.stages)), st.Name))
 	s.plans = append(s.plans, job.PartitionPlan{
-		Partitioner: lrmrpb.Output_SHUFFLE,
+		Partitioner: lrmrpb.Output_PRESERVE,
 	})
 
 	data := st.Serialize(runner)
@@ -105,6 +105,8 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 		}
 	}()
 	timer := log.Timer()
+
+	s.plans[len(s.plans)-1].Partitioner = lrmrpb.Output_SHUFFLE
 
 	physicalPlans, j, err := s.master.CreateJob(ctx, name, s.plans, s.stages)
 	if err != nil {
@@ -157,8 +159,7 @@ func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitio
 	case lrmrpb.Output_HASH_KEY:
 		p = output.NewHashKeyPartitioner(len(targets))
 	default:
-		name := lrmrpb.Output_PartitionerType_name[int32(partitioner)]
-		return errors.Errorf("partitioner %s is unsupported on input stage", name)
+		return errors.Errorf("partitioner %s is unsupported on input stage", partitioner.String())
 	}
 	out := output.NewWriter(p, outs)
 	err := s.input.ProvideInput(out)

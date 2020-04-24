@@ -65,3 +65,15 @@ func (f *shuffledPartitioner) DeterminePartitionKey(*lrdd.Row) (string, error) {
 	f.sentEvents++
 	return strconv.Itoa(slot), nil
 }
+
+type preservePartitioner struct {
+	partitionKey string
+}
+
+func NewPreservePartitioner(partitionKey string) Partitioner {
+	return &preservePartitioner{partitionKey}
+}
+
+func (p *preservePartitioner) DeterminePartitionKey(row *lrdd.Row) (key string, err error) {
+	return p.partitionKey, nil
+}

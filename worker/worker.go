@@ -128,7 +128,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		broadcasts[key] = val
 	}
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(ctx, j, s, req.Output)
+	out, err := w.newOutputWriter(ctx, j, s, req.Output, req.Input.PartitionKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
@@ -141,7 +141,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	w.jobReporter.Add(task.Reference(), ts)
 
 	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
-	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), len(req.Output.PartitionToHost))
+	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), out.NumOutputs())
 
 	c := NewTaskContext(w, task, broadcasts)
 	exec, err := NewTaskExecutor(c, task, st, in, out)
@@ -165,15 +165,28 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, o *lrmrpb.Output) (*output.Writer, error) {
+func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, o *lrmrpb.Output, partitionKey string) (*output.Writer, error) {
 	var p output.Partitioner
 	switch o.Partitioner {
 	case lrmrpb.Output_FINITE_KEY:
 		p = output.NewFiniteKeyPartitioner(s.Partitions.Keys())
 	case lrmrpb.Output_HASH_KEY:
 		p = output.NewHashKeyPartitioner(len(o.PartitionToHost))
-	default:
+	case lrmrpb.Output_SHUFFLE:
 		p = output.NewShuffledPartitioner(len(o.PartitionToHost))
+
+	case lrmrpb.Output_PRESERVE:
+		// PRESERVE mode does not use network since input and output partitions are same
+		nextTaskID := path.Join(j.ID, o.NextStageName, partitionKey)
+		t, ok := w.runningTasks.Load(nextTaskID)
+		if !ok {
+			return nil, errors.Errorf("output mode was PRESERVE, but corresponding task %s is not found", nextTaskID)
+		}
+		outputs := map[string]output.Output{
+			partitionKey: NewLocalPipe(t.(*TaskExecutor).Input),
+		}
+		p = output.NewPreservePartitioner(partitionKey)
+		return output.NewWriter(p, outputs), nil
 	}
 
 	outputs := make(map[string]output.Output)

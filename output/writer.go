@@ -44,6 +44,10 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 	return nil
 }
 
+func (w Writer) NumOutputs() int {
+	return len(w.outputs)
+}
+
 func (w *Writer) Close() error {
 	for _, out := range w.outputs {
 		if err := out.Close(); err != nil {
