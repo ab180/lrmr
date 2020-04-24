@@ -9,11 +9,11 @@ import (
 )
 
 type PushStream struct {
-	stream lrmrpb.Worker_PushDataServer
+	stream lrmrpb.Node_PushDataServer
 	reader *Reader
 }
 
-func NewPushStream(r *Reader, stream lrmrpb.Worker_PushDataServer) *PushStream {
+func NewPushStream(r *Reader, stream lrmrpb.Node_PushDataServer) *PushStream {
 	return &PushStream{
 		stream: stream,
 		reader: r,

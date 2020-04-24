@@ -12,7 +12,7 @@ import (
 )
 
 type PushStream struct {
-	stream lrmrpb.Worker_PushDataClient
+	stream lrmrpb.Node_PushDataClient
 	conn   io.Closer
 }
 
@@ -33,7 +33,7 @@ func NewPushStream(ctx context.Context, nm node.Manager, host, taskID string) (*
 	rawHead, _ := jsoniter.MarshalToString(header)
 	runCtx := metadata.AppendToOutgoingContext(context.Background(), "dataHeader", rawHead)
 
-	worker := lrmrpb.NewWorkerClient(conn)
+	worker := lrmrpb.NewNodeClient(conn)
 	stream, err := worker.PushData(runCtx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "open stream to %s", host)

@@ -5,7 +5,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "lrdd/row.proto";
 
-service Worker {
+service Node {
     rpc CreateTask (CreateTaskRequest) returns (google.protobuf.Empty);
     rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);

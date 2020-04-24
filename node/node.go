@@ -26,10 +26,11 @@ type Node struct {
 	ResourceUtilization uint64 `json:"-"`
 }
 
-func New(host string) *Node {
+func New(host string, typ Type) *Node {
 	return &Node{
 		ID:        utils.GenerateID("N"),
 		Host:      host,
+		Type:      typ,
 		Executors: runtime.NumCPU() / 2,
 	}
 }

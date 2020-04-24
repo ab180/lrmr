@@ -7,7 +7,6 @@ import (
 	"github.com/airbloc/logger/module/loggergrpc"
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
@@ -19,7 +18,6 @@ import (
 	"github.com/therne/lrmr/stage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"net"
 	"path"
@@ -57,7 +55,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 				// dump header on stream failure
 				if err := handler(srv, ss); err != nil {
-					if h, err := parseHeaderFromMetadata(ss); err == nil {
+					if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
 						log.Error(" By {} (From {})", h.TaskID, h.FromHost)
 					}
 					return err
@@ -90,25 +88,23 @@ func (w *Worker) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	w.jobReporter.Start()
-
-	lrmrpb.RegisterWorkerServer(w.server, w)
+	lrmrpb.RegisterNodeServer(w.server, w)
 	lis, err := net.Listen("tcp", w.opt.ListenHost)
 	if err != nil {
 		return err
 	}
-
 	advHost := w.opt.AdvertisedHost
 	if strings.HasSuffix(advHost, ":") {
 		// port is assigned automatically
 		addrFrags := strings.Split(lis.Addr().String(), ":")
 		advHost += addrFrags[len(addrFrags)-1]
 	}
-	n := node.New(advHost)
-	n.Type = node.Worker
+
+	n := node.New(advHost, node.Worker)
 	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}
+	w.jobReporter.Start()
 	return w.server.Serve(lis)
 }
 
@@ -199,8 +195,8 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, 
 	return output.NewWriter(p, outputs), nil
 }
 
-func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
-	h, err := parseHeaderFromMetadata(stream)
+func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
+	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -219,8 +215,8 @@ func (w *Worker) PushData(stream lrmrpb.Worker_PushDataServer) error {
 	return stream.SendAndClose(&empty.Empty{})
 }
 
-func (w *Worker) PollData(stream lrmrpb.Worker_PollDataServer) error {
-	h, err := parseHeaderFromMetadata(stream)
+func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
+	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -230,22 +226,6 @@ func (w *Worker) PollData(stream lrmrpb.Worker_PollDataServer) error {
 	}
 	_ = e.(*TaskExecutor)
 	panic("implement me")
-}
-
-func parseHeaderFromMetadata(stream grpc.ServerStream) (*lrmrpb.DataHeader, error) {
-	md, ok := metadata.FromIncomingContext(stream.Context())
-	if !ok {
-		return nil, errors.New("no metadata")
-	}
-	entries := md.Get("dataHeader")
-	if len(entries) < 1 {
-		return nil, errors.New("error parsing metadata: dataHeader is required")
-	}
-	header := new(lrmrpb.DataHeader)
-	if err := jsoniter.UnmarshalFromString(entries[0], header); err != nil {
-		return nil, errors.Wrap(err, "parse dataHeader")
-	}
-	return header, nil
 }
 
 func (w *Worker) Stop() error {
