@@ -30,6 +30,11 @@ func FromURI(uri string, m *master.Master) *Dataset {
 	return &Dataset{Session: sess}
 }
 
+func Parallelize(input interface{}, m *master.Master) *Dataset {
+	data := lrdd.From(input)
+	return FromInput(&parallelizedInput{Data: data}, m)
+}
+
 func (d *Dataset) addStage(runner interface{}) {
 	d.Session.AddStage(runner)
 	d.Session.SetPartitionOption(d.defaultPartitionOpts...)

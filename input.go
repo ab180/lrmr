@@ -23,3 +23,11 @@ func (l localInput) ProvideInput(out output.Output) error {
 		return out.Write([]*lrdd.Row{lrdd.Value(path)})
 	})
 }
+
+type parallelizedInput struct {
+	Data []*lrdd.Row
+}
+
+func (p parallelizedInput) ProvideInput(out output.Output) error {
+	return out.Write(p.Data)
+}
