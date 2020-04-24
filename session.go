@@ -60,7 +60,7 @@ func (s *session) Broadcast(key string, val interface{}) {
 }
 
 func (s *session) SetInput(ip InputProvider) Session {
-	p := job.PartitionPlan{Partitioner: lrmrpb.Output_PRESERVE}
+	p := job.PartitionPlan{Partitioner: lrmrpb.Output_SHUFFLE}
 	if planner, ok := ip.(partitions.LogicalPlanner); ok {
 		p.PlanOptions = append(p.PlanOptions, partitions.WithLogicalPlanner(planner))
 	}
@@ -117,7 +117,7 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}
 
 	jobLog.Info("Running input stage")
-	if err := s.startInput(ctx, j, physicalPlans[0]); err != nil {
+	if err := s.startInput(ctx, j, physicalPlans[0], s.plans[0].Partitioner); err != nil {
 		return nil, errors.WithMessage(err, "input")
 	}
 	timer.End("Job creation completed. Now running...")
@@ -127,7 +127,7 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}, nil
 }
 
-func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitions.PhysicalPlan) error {
+func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitions.PhysicalPlan, partitioner lrmrpb.Output_PartitionerType) error {
 	outs := make(map[string]output.Output)
 	var lock sync.Mutex
 
@@ -149,7 +149,18 @@ func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitio
 	if err := wg.Wait(); err != nil {
 		return err
 	}
-	out := output.NewWriter(output.NewShuffledPartitioner(len(targets)), outs)
+
+	var p output.Partitioner
+	switch partitioner {
+	case lrmrpb.Output_SHUFFLE:
+		p = output.NewShuffledPartitioner(len(targets))
+	case lrmrpb.Output_HASH_KEY:
+		p = output.NewHashKeyPartitioner(len(targets))
+	default:
+		name := lrmrpb.Output_PartitionerType_name[int32(partitioner)]
+		return errors.Errorf("partitioner %s is unsupported on input stage", name)
+	}
+	out := output.NewWriter(p, outs)
 	err := s.input.ProvideInput(out)
 	if closeErr := out.Close(); err == nil {
 		return closeErr
