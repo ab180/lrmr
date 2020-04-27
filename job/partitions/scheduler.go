@@ -105,7 +105,7 @@ func (s *Scheduler) Plan(opts ...PlanOption) (lp LogicalPlans, pp PhysicalPlans)
 
 func selectNextNode(nn []nodeWithStats, l LogicalPlan, curSlot int, useAffinity bool, opt *PlanOptions) (*nodeWithStats, int) {
 	for slot := curSlot; slot < curSlot+len(nn); slot++ {
-		n := &nn[curSlot%len(nn)]
+		n := &nn[slot%len(nn)]
 		maxCount := n.Executors
 		if opt.executorsPerNode != auto {
 			maxCount = opt.executorsPerNode
