@@ -45,6 +45,11 @@ func (d *Dataset) Do(runner stage.Runner) *Dataset {
 	return d
 }
 
+func (d *Dataset) Map(mapper stage.Mapper) *Dataset {
+	d.addStage(mapper)
+	return d
+}
+
 func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {
 	d.addStage(mapper)
 	return d

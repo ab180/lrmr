@@ -8,14 +8,15 @@ import (
 	"github.com/therne/lrmr/test/testutils"
 )
 
+// Multiply multiplies input.
 type Multiply struct{}
 
-func (m *Multiply) FlatMap(ctx stage.Context, row *lrdd.Row) ([]*lrdd.Row, error) {
+func (m *Multiply) Map(ctx stage.Context, row *lrdd.Row) (*lrdd.Row, error) {
 	n := testutils.IntValue(row)
-	return lrdd.From(n * 2), nil
+	return lrdd.Value(n * 2), nil
 }
 
-var _ = stage.RegisterFlatMap("Multiply", &Multiply{})
+var _ = stage.RegisterMap("Multiply", &Multiply{})
 
 func Map(m *master.Master) *lrmr.Dataset {
 	data := make([]int, 1000)
@@ -23,7 +24,7 @@ func Map(m *master.Master) *lrmr.Dataset {
 		data[i] = i + 1
 	}
 	return lrmr.Parallelize(data, m).
-		FlatMap(&Multiply{}).
-		FlatMap(&Multiply{}).
-		FlatMap(&Multiply{})
+		Map(&Multiply{}).
+		Map(&Multiply{}).
+		Map(&Multiply{})
 }
