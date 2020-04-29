@@ -8,6 +8,7 @@ import (
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrdd"
+	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 )
 
@@ -74,11 +75,17 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []job.Partiti
 				partitions.WithExecutorsPerNode(1),
 			}
 		}
-		logical, physical := sched.Plan(p.PlanOptions...)
-
-		physicalPlans[i] = physical
-		if i > 0 {
-			stages[i-1].Partitions = logical
+		if p.Partitioner == lrmrpb.Output_PRESERVE {
+			physicalPlans[i] = physicalPlans[i-1]
+			if i > 1 {
+				stages[i-1].Partitions = stages[i-2].Partitions
+			}
+		} else {
+			logical, physical := sched.Plan(p.PlanOptions...)
+			physicalPlans[i] = physical
+			if i > 0 {
+				stages[i-1].Partitions = logical
+			}
 		}
 		var stageName string
 		if i < len(stages) {
@@ -86,7 +93,7 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []job.Partiti
 		} else {
 			stageName = CollectStageName
 		}
-		log.Verbose("Planned {} partitions on {}/{}:\n{}", len(physical), name, stageName, physical.Pretty())
+		log.Verbose("Planned {} partitions on {}/{} (input by {}):\n{}", len(physicalPlans[i]), name, stageName, p.Partitioner, physicalPlans[i].Pretty())
 	}
 
 	j, err := m.JobManager.CreateJob(ctx, name, stages)
