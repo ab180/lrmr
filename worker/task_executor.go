@@ -22,13 +22,9 @@ type TaskExecutor struct {
 }
 
 func NewTaskExecutor(c *taskContext, task *job.Task, st stage.Stage, in *input.Reader, out *output.Writer) (*TaskExecutor, error) {
-	var serialized []byte
-	if b, ok := c.Broadcast("__stage" + st.Name).([]byte); ok {
-		serialized = b
-	}
-	runner, err := st.Deserialize(serialized)
+	runner, err := c.broadcast.DeserializeStage(st)
 	if err != nil {
-		return nil, errors.Wrap(err, "deserialize stage")
+		return nil, errors.Wrapf(err, "deserialize stage %s", st.Name)
 	}
 	if err := runner.Setup(c); err != nil {
 		return nil, errors.Wrap(err, "setup stage")

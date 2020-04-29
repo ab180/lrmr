@@ -10,23 +10,23 @@ type taskContext struct {
 	context.Context
 	worker    *Worker
 	task      *job.Task
-	broadcast map[string]interface{}
+	broadcast stage.Broadcasts
 	cancel    context.CancelFunc
 }
 
-func NewTaskContext(w *Worker, t *job.Task, broadcast map[string]interface{}) *taskContext {
+func newTaskContext(w *Worker, t *job.Task, b stage.Broadcasts) *taskContext {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &taskContext{
 		Context:   ctx,
 		worker:    w,
 		task:      t,
-		broadcast: broadcast,
+		broadcast: b,
 		cancel:    cancel,
 	}
 }
 
 func (c *taskContext) Broadcast(key string) interface{} {
-	return c.broadcast[key]
+	return c.broadcast.Value(key)
 }
 
 func (c *taskContext) WorkerLocalOption(key string) interface{} {

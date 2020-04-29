@@ -119,10 +119,10 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	}
 	st := stage.Lookup(s.RunnerName)
 
-	broadcasts := make(map[string]interface{})
-	for key, broadcast := range req.Broadcasts {
+	broadcasts := make(stage.Broadcasts)
+	for key, data := range req.Broadcasts {
 		var val interface{}
-		if err := msgpack.Decode(broadcast, &val); err != nil {
+		if err := msgpack.Decode(data, &val); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %v", key, err)
 		}
 		broadcasts[key] = val
@@ -143,7 +143,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
 	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), out.NumOutputs())
 
-	c := NewTaskContext(w, task, broadcasts)
+	c := newTaskContext(w, task, broadcasts)
 	exec, err := NewTaskExecutor(c, task, st, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")

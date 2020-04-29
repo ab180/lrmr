@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/job/partitions"
 	"github.com/therne/lrmr/lrmrpb"
@@ -35,28 +34,21 @@ type session struct {
 	// len(plans) == len(stages)+1
 	plans []job.PartitionPlan
 
-	broadcasts           map[string]interface{}
-	serializedBroadcasts map[string][]byte
+	broadcasts stage.BroadcastBuilder
 
 	log logger.Logger
 }
 
 func NewSession(master *master.Master) Session {
 	return &session{
-		broadcasts:           make(map[string]interface{}),
-		serializedBroadcasts: make(map[string][]byte),
-		master:               master,
-		log:                  logger.New("session"),
+		broadcasts: make(map[string][]byte),
+		master:     master,
+		log:        logger.New("session"),
 	}
 }
 
 func (s *session) Broadcast(key string, val interface{}) {
-	sv, err := msgpack.Encode(val)
-	if err != nil {
-		panic("broadcast value must be serializable: " + err.Error())
-	}
-	s.serializedBroadcasts["Broadcast/"+key] = sv
-	s.broadcasts["Broadcast/"+key] = val
+	s.broadcasts.Put(key, val)
 }
 
 func (s *session) SetInput(ip InputProvider) Session {
@@ -75,10 +67,7 @@ func (s *session) AddStage(runner interface{}) Session {
 	s.plans = append(s.plans, job.PartitionPlan{
 		Partitioner: lrmrpb.Output_PRESERVE,
 	})
-
-	data := st.Serialize(runner)
-	s.broadcasts["__stage/"+st.Name] = data
-	s.serializedBroadcasts["__stage/"+st.Name] = data
+	s.broadcasts.SerializeStage(st, runner)
 	return s
 }
 
@@ -114,7 +103,7 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}
 	jobLog := s.log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
-	if err := s.master.JobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.serializedBroadcasts); err != nil {
+	if err := s.master.JobScheduler.AssignTasks(ctx, j, s.plans, physicalPlans, s.broadcasts); err != nil {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
