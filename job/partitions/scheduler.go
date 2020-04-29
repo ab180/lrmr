@@ -20,10 +20,10 @@ func NewSchedulerWithNodes(ctx context.Context, coord coordinator.Coordinator, n
 	stats := make([]nodeWithStats, len(nodes))
 
 	for i, n := range nodes {
-		//cnt, err := coord.ReadCounter(ctx, path.Join(nodeStatusNs, n.ID, "totalTasks"))
-		//if err != nil {
+		// cnt, err := coord.ReadCounter(ctx, path.Join(nodeStatusNs, n.ID, "totalTasks"))
+		// if err != nil {
 		//	return nil, errors.Wrapf(err, "failed to read total task of %s", n.Host)
-		//}
+		// }
 		stats[i] = nodeWithStats{Node: n, currentTasks: 0}
 	}
 	return &Scheduler{
@@ -89,10 +89,14 @@ func (s *Scheduler) Plan(opts ...PlanOption) (lp LogicalPlans, pp PhysicalPlans)
 	curSlot := 0
 	for _, l := range lp {
 		var selected *nodeWithStats
-		selected, curSlot = selectNextNode(candidates, l, curSlot, len(l.NodeAffinityRules) > 0, opt)
-		if selected == nil {
-			s.log.Warn("Unable to find node satisfying affinity rule {} for partition {}.", l.NodeAffinityRules, l.Key)
-			selected, curSlot = selectNextNode(candidates, l, curSlot, false, opt)
+		if len(l.NodeAffinityRules) > 0 {
+			selected, curSlot = selectNextNodeWithAffinity(candidates, l, curSlot)
+			if selected == nil {
+				s.log.Warn("Unable to find node satisfying affinity rule {} for partition {}.", l.NodeAffinityRules, l.Key)
+				selected, curSlot = selectNextNode(candidates, opt, curSlot)
+			}
+		} else {
+			selected, curSlot = selectNextNode(candidates, opt, curSlot)
 		}
 		selected.currentTasks += 1
 		pp = append(pp, PhysicalPlan{
@@ -103,17 +107,28 @@ func (s *Scheduler) Plan(opts ...PlanOption) (lp LogicalPlans, pp PhysicalPlans)
 	return lp, pp
 }
 
-func selectNextNode(nn []nodeWithStats, l LogicalPlan, curSlot int, useAffinity bool, opt *PlanOptions) (*nodeWithStats, int) {
+func selectNextNode(nn []nodeWithStats, opt *PlanOptions, curSlot int) (selected *nodeWithStats, nextSlot int) {
 	for slot := curSlot; slot < curSlot+len(nn); slot++ {
 		n := &nn[slot%len(nn)]
 		maxCount := n.Executors
 		if opt.executorsPerNode != auto {
 			maxCount = opt.executorsPerNode
 		}
-		if n.currentTasks < maxCount && (!useAffinity || satisfiesAffinity(n.Node, l.NodeAffinityRules)) {
+		if n.currentTasks < maxCount {
 			return n, slot + 1
 		}
 		// search another node
+	}
+	// not found. ignore max task rule
+	return &nn[curSlot%len(nn)], curSlot + 1
+}
+
+func selectNextNodeWithAffinity(nn []nodeWithStats, l LogicalPlan, curSlot int) (selected *nodeWithStats, next int) {
+	for slot := curSlot; slot < curSlot+len(nn); slot++ {
+		n := &nn[slot%len(nn)]
+		if satisfiesAffinity(n.Node, l.NodeAffinityRules) {
+			return n, slot + 1
+		}
 	}
 	// not found. probably there's no node satisfying given affinity rules
 	return nil, curSlot
