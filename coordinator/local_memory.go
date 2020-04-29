@@ -4,14 +4,18 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	jsoniter "github.com/json-iterator/go"
+	"math/rand"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 type localMemoryCoordinator struct {
-	opt  localMemoryOptions
-	data sync.Map
+	opt    localMemoryOptions
+	data   sync.Map
+	leases sync.Map
 
 	counter     map[string]int64
 	counterLock sync.RWMutex
@@ -67,6 +71,24 @@ func (lmc *localMemoryCoordinator) Scan(ctx context.Context, prefix string) (res
 func (lmc *localMemoryCoordinator) Put(ctx context.Context, key string, value interface{}, opts ...clientv3.OpOption) error {
 	if err := lmc.simulate(ctx); err != nil {
 		return err
+	}
+	op := &clientv3.Op{}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	// trick for getting internal field
+	leaseField := reflect.ValueOf(op).Elem().FieldByName("leaseID")
+	leaseID := reflect.NewAt(reflect.TypeOf(clientv3.NoLease), unsafe.Pointer(leaseField.UnsafeAddr())).
+		Elem().Interface().(clientv3.LeaseID)
+
+	if v, ok := lmc.leases.Load(leaseID); leaseID != clientv3.NoLease && ok {
+		ttl := v.(time.Duration)
+		go func() {
+			time.Sleep(ttl)
+			_, _ = lmc.Delete(context.Background(), key)
+			lmc.leases.Delete(leaseID)
+		}()
 	}
 	return lmc.put(key, value)
 }
@@ -157,7 +179,9 @@ func (lmc *localMemoryCoordinator) Delete(ctx context.Context, prefix string) (d
 }
 
 func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
-	panic("implement me")
+	lease := clientv3.LeaseID(rand.Uint64())
+	lmc.leases.Store(lease, ttl)
+	return lease, nil
 }
 
 func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) chan WatchEvent {

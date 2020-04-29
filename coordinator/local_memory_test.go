@@ -2,8 +2,10 @@ package coordinator
 
 import (
 	gocontext "context"
+	"github.com/coreos/etcd/clientv3"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
+	"time"
 )
 
 func TestLocalMemoryCoordinator_Get(t *testing.T) {
@@ -38,6 +40,35 @@ func TestLocalMemoryCoordinator_Scan(t *testing.T) {
 			So(items[0].Key, ShouldEqual, "testKey")
 			So(items[1].Key, ShouldEqual, "testKey1")
 			So(items[2].Key, ShouldEqual, "testKey2")
+		})
+	})
+}
+
+func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
+	Convey("Given LocalMemoryCoordinator", t, func() {
+		crd := NewLocalMemory()
+		ctx := gocontext.Background()
+
+		l, err := crd.GrantLease(ctx, 200*time.Millisecond)
+		So(err, ShouldBeNil)
+
+		So(crd.Put(ctx, "testKey1", "testValue1", clientv3.WithLease(l)), ShouldBeNil)
+		So(crd.Put(ctx, "testKey2", "testValue1", clientv3.WithLease(l)), ShouldBeNil)
+
+		Convey("It should be retrieved within TTL", func() {
+			items, err := crd.Scan(ctx, "testKey")
+			So(err, ShouldBeNil)
+
+			So(items, ShouldHaveLength, 2)
+			So(items[0].Key, ShouldEqual, "testKey1")
+			So(items[1].Key, ShouldEqual, "testKey2")
+		})
+
+		Convey("It should be deleted after TTL", func() {
+			time.Sleep(250 * time.Millisecond)
+			items, err := crd.Scan(ctx, "testKey")
+			So(err, ShouldBeNil)
+			So(items, ShouldHaveLength, 0)
 		})
 	})
 }
