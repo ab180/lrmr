@@ -25,9 +25,12 @@ func DefaultOptions() (o Options) {
 	if err := defaults.Set(&o); err != nil {
 		panic(err)
 	}
+	o.SetDefaults()
 	return
 }
 
-func (o Options) SetDefaults() {
-	o.Concurrency = runtime.NumCPU()
+func (o *Options) SetDefaults() {
+	if defaults.CanUpdate(o.Concurrency) {
+		o.Concurrency = runtime.NumCPU()
+	}
 }
