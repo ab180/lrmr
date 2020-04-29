@@ -22,7 +22,7 @@ type Master struct {
 	JobManager   job.Manager
 	JobTracker   *job.Tracker
 	JobReporter  *job.Reporter
-	JobScheduler *job.Scheduler
+	JobScheduler *job.Assigner
 	NodeManager  node.Manager
 
 	opt Options
@@ -37,7 +37,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
 		JobManager:   job.NewManager(nm, crd),
 		JobTracker:   job.NewJobTracker(crd),
 		JobReporter:  job.NewJobReporter(crd),
-		JobScheduler: job.NewScheduler(nm),
+		JobScheduler: job.NewAssigner(nm),
 		NodeManager:  nm,
 		opt:          opt,
 	}

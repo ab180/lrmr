@@ -76,10 +76,6 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	}, nil
 }
 
-func (w *Worker) getWorkerLocalOption(key string) interface{} {
-	return w.workerLocalOpts[key]
-}
-
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }

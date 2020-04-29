@@ -17,27 +17,27 @@ type PartitionPlan struct {
 	PlanOptions []partitions.PlanOption
 }
 
-type Scheduler struct {
+type Assigner struct {
 	nodeManager node.Manager
 	log         logger.Logger
 }
 
-func NewScheduler(nm node.Manager) *Scheduler {
-	return &Scheduler{
+func NewAssigner(nm node.Manager) *Assigner {
+	return &Assigner{
 		nodeManager: nm,
-		log:         logger.New("jobscheduler"),
+		log:         logger.New("job-assigner"),
 	}
 }
 
 // AssignTasks create tasks to the nodes with the plan.
-func (sch *Scheduler) AssignTasks(ctx context.Context, j *Job, plans []PartitionPlan, physicalPlans []partitions.PhysicalPlans, broadcasts map[string][]byte) error {
+func (a *Assigner) AssignTasks(ctx context.Context, j *Job, plans []PartitionPlan, physicalPlans []partitions.PhysicalPlans, broadcasts map[string][]byte) error {
 	if len(plans) != len(j.Stages)+1 {
 		return ErrInsufficientPlans
 	}
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 0; i-- {
-		wg, reqCtx := errgroup.WithContext(ctx)
+		wg, wctx := errgroup.WithContext(ctx)
 		for _, curPartition := range physicalPlans[i] {
 			w := curPartition.Node
 			req := &lrmrpb.CreateTaskRequest{
@@ -48,12 +48,12 @@ func (sch *Scheduler) AssignTasks(ctx context.Context, j *Job, plans []Partition
 				Broadcasts: broadcasts,
 			}
 			wg.Go(func() error {
-				conn, err := sch.nodeManager.Connect(ctx, w.Host)
+				conn, err := a.nodeManager.Connect(wctx, w.Host)
 				if err != nil {
-					return errors.Wrap(err, "grpc dial")
+					return errors.Wrapf(err, "dial %s for stage %s", w.Host, req.StageName)
 				}
-				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(reqCtx, req); err != nil {
-					return errors.Wrap(err, "call CreateTask")
+				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(wctx, req); err != nil {
+					return errors.Wrapf(err, "call CreateTask on %s", w.Host)
 				}
 				return nil
 			})

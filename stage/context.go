@@ -11,19 +11,3 @@ type Context interface {
 	AddMetric(name string, delta int)
 	SetMetric(name string, val int)
 }
-
-type partitionKeyContext struct {
-	Context
-	partitionKey string
-}
-
-func ContextWithPartitionKey(c Context, key string) Context {
-	return &partitionKeyContext{
-		Context:      c,
-		partitionKey: key,
-	}
-}
-
-func (pc partitionKeyContext) PartitionKey() string {
-	return pc.partitionKey
-}

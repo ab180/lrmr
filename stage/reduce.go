@@ -58,7 +58,7 @@ func (rs *reduceStage) instantiateReducer(c Context) error {
 
 func (rs *reduceStage) Apply(c Context, rows []*lrdd.Row, out output.Output) error {
 	for _, row := range rows {
-		ctx := ContextWithPartitionKey(c, row.Key)
+		ctx := replacePartitionKey(c, row.Key)
 		if rs.reducers[row.Key] == nil {
 			if err := rs.instantiateReducer(ctx); err != nil {
 				return errors.Wrapf(err, "setup reducer for %s", row.Key)
@@ -83,11 +83,27 @@ func (rs *reduceStage) Teardown(c Context, out output.Output) error {
 	}
 	for partitionKey, reducer := range rs.reducers {
 		if b, ok := reducer.(Bootstrapper); ok {
-			ctx := ContextWithPartitionKey(c, partitionKey)
+			ctx := replacePartitionKey(c, partitionKey)
 			if err := b.Teardown(ctx, out); err != nil {
 				return errors.Wrapf(err, "teardown reducer for %s", partitionKey)
 			}
 		}
 	}
 	return nil
+}
+
+type partitionKeyContext struct {
+	Context
+	partitionKey string
+}
+
+func replacePartitionKey(old Context, key string) (new Context) {
+	return &partitionKeyContext{
+		Context:      old,
+		partitionKey: key,
+	}
+}
+
+func (pc partitionKeyContext) PartitionKey() string {
+	return pc.partitionKey
 }

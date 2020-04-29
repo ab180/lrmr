@@ -30,7 +30,7 @@ func (c *taskContext) Broadcast(key string) interface{} {
 }
 
 func (c *taskContext) WorkerLocalOption(key string) interface{} {
-	return c.worker.getWorkerLocalOption(key)
+	return c.worker.workerLocalOpts[key]
 }
 
 func (c *taskContext) PartitionKey() string {
