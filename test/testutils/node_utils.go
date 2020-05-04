@@ -5,6 +5,7 @@ import (
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
+	"strconv"
 	"time"
 )
 
@@ -17,9 +18,11 @@ func StartLocalCluster(c C, numWorkers int) (m *master.Master, stopper func()) {
 		opt.ListenHost = "127.0.0.1:"
 		opt.AdvertisedHost = "127.0.0.1:"
 		opt.Concurrency = 2
+		opt.NodeTags["No"] = strconv.Itoa(i + 1)
 
 		w, err := worker.New(crd, opt)
 		So(err, ShouldBeNil)
+		w.SetWorkerLocalOption("No", i+1)
 
 		go w.Start()
 		workers[i] = w
