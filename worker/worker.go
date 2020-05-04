@@ -96,6 +96,7 @@ func (w *Worker) Start() error {
 	}
 
 	n := node.New(advHost, node.Worker)
+	n.Tag = w.opt.NodeTags
 	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}

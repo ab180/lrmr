@@ -14,6 +14,9 @@ type Options struct {
 	// By default, it will be number of CPUs in the machine.
 	Concurrency int `default:"-"`
 
+	// NodeTags is used for partitioner.
+	NodeTags map[string]string `default:"{}"`
+
 	Input struct {
 		QueueLength int `default:"1000"`
 		MaxRecvSize int `default:"67108864"`
