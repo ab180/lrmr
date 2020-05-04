@@ -1,6 +1,8 @@
 package lrdd
 
-import "github.com/shamaton/msgpack"
+import (
+	"github.com/shamaton/msgpack"
+)
 
 func (m Row) UnmarshalValue(ptr interface{}) {
 	err := msgpack.Decode(m.Value, ptr)

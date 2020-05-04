@@ -52,6 +52,14 @@ func (pp PhysicalPlans) ToMap() map[string]string {
 	return m
 }
 
+// Keys returns an unordered list of partition keys.
+func (pp PhysicalPlans) Keys() (kk []string) {
+	for _, p := range pp {
+		kk = append(kk, p.Key)
+	}
+	return
+}
+
 // Hostnames returns an unordered list of nodes' hostnames in the partition.
 func (pp PhysicalPlans) Hostnames() (nn []string) {
 	for _, p := range pp {
@@ -70,7 +78,7 @@ func (pp PhysicalPlans) Pretty() (s string) {
 		for _, p := range plans {
 			keys = append(keys, p.Key)
 		}
-		s += fmt.Sprintf(" - %s: %s\n", host, strings.Join(ellipsis(keys, 40), ", "))
+		s += fmt.Sprintf(" - %s: %s\n", host, strings.Join(ellipsis(keys, 500), ", "))
 	}
 	return
 }

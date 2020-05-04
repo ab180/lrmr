@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"path"
 	"sync"
@@ -91,14 +92,23 @@ func (m *manager) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 
 	conn, ok := m.conns.Load(host)
 	if !ok {
-		c, err := grpc.DialContext(dialCtx, host, m.grpcOpts...)
-		if err != nil {
-			return nil, err
-		}
-		conn = c
-		m.conns.Store(host, conn)
+		return m.establishNewConnection(dialCtx, host)
 	}
-	return conn.(*grpc.ClientConn), nil
+	c := conn.(*grpc.ClientConn)
+	if c.GetState() == connectivity.TransientFailure {
+		// TODO: retry limit
+		return m.establishNewConnection(dialCtx, host)
+	}
+	return c, nil
+}
+
+func (m *manager) establishNewConnection(ctx context.Context, host string) (*grpc.ClientConn, error) {
+	c, err := grpc.DialContext(ctx, host, m.grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+	m.conns.Store(host, c)
+	return c, nil
 }
 
 func (m *manager) List(ctx context.Context, typ Type) (nn []*Node, err error) {
