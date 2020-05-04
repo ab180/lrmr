@@ -2,7 +2,9 @@ package stage
 
 import (
 	"fmt"
-	"github.com/shamaton/msgpack"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
+	"strings"
 )
 
 const (
@@ -21,28 +23,41 @@ func (b Broadcasts) Value(key string) interface{} {
 func (b Broadcasts) DeserializeStage(st Stage) (r Runner, err error) {
 	box := st.NewBox()
 	if serialized, ok := b[serializeKeyPrefix+st.Name]; ok {
-		err = msgpack.Decode(serialized.([]byte), box)
+		err = jsoniter.Unmarshal(serialized.([]byte), box)
 	}
 	r = st.Constructor(box)
 	return
 }
 
-type BroadcastBuilder map[string][]byte
+type SerializedBroadcasts map[string][]byte
 
-func (b *BroadcastBuilder) Put(key string, val interface{}) {
-	data, err := msgpack.Encode(val)
+func (b *SerializedBroadcasts) Put(key string, val interface{}) {
+	data, err := jsoniter.Marshal(val)
 	if err != nil {
 		panic("broadcast value must be serializable: " + key)
 	}
 	(*b)[broadcastKeyPrefix+key] = data
 }
 
-func (b *BroadcastBuilder) SerializeStage(st Stage, runner interface{}) {
-	data, err := msgpack.Encode(runner)
+func (b *SerializedBroadcasts) SerializeStage(st Stage, runner interface{}) {
+	data, err := jsoniter.Marshal(runner)
 	if err != nil {
 		panic(fmt.Sprintf("broadcasting %s: %v", st.Name, err))
 	}
-	// encode again so value can be []byte in stage.Broadcast
-	raw, _ := msgpack.Encode(data)
-	(*b)[serializeKeyPrefix+st.Name] = raw
+	(*b)[serializeKeyPrefix+st.Name] = data
+}
+
+func (b SerializedBroadcasts) Deserialize() (Broadcasts, error) {
+	br := make(Broadcasts)
+	for key, raw := range b {
+		var v interface{}
+		if strings.HasPrefix(key, serializeKeyPrefix) {
+			// should be lazily unmarshalled in DeserializeStage.
+			v = raw
+		} else if err := jsoniter.Unmarshal(raw, &v); err != nil {
+			return nil, errors.Wrapf(err, "deserialize broadcast %s", key)
+		}
+		br[key] = v
+	}
+	return br, nil
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
-	"github.com/shamaton/msgpack"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/input"
 	"github.com/therne/lrmr/job"
@@ -115,13 +114,9 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	}
 	st := stage.Lookup(s.RunnerName)
 
-	broadcasts := make(stage.Broadcasts)
-	for key, data := range req.Broadcasts {
-		var val interface{}
-		if err := msgpack.Decode(data, &val); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal broadcast %s: %v", key, err)
-		}
-		broadcasts[key] = val
+	broadcasts, err := stage.SerializedBroadcasts(req.Broadcasts).Deserialize()
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	in := input.NewReader(w.opt.Input.QueueLength)
 	out, err := w.newOutputWriter(ctx, j, s, req.Output, req.Input.PartitionKey)

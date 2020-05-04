@@ -34,7 +34,7 @@ type session struct {
 	// len(plans) == len(stages)+1
 	plans []job.PartitionPlan
 
-	broadcasts stage.BroadcastBuilder
+	broadcasts stage.SerializedBroadcasts
 
 	log logger.Logger
 }
@@ -118,7 +118,7 @@ func (s *session) Run(ctx context.Context, name string) (_ *RunningJob, err erro
 	}, nil
 }
 
-func (s *session) startInput(ctx context.Context, j *job.Job, targets []partitions.PhysicalPlan, partitioner lrmrpb.Output_PartitionerType) error {
+func (s *session) startInput(ctx context.Context, j *job.Job, targets partitions.PhysicalPlans, partitioner lrmrpb.Output_PartitionerType) error {
 	outs := make(map[string]output.Output)
 	var lock sync.Mutex
 
