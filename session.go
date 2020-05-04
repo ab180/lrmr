@@ -147,6 +147,8 @@ func (s *session) startInput(ctx context.Context, j *job.Job, targets partitions
 		p = output.NewShuffledPartitioner(len(targets))
 	case lrmrpb.Output_HASH_KEY:
 		p = output.NewHashKeyPartitioner(len(targets))
+	case lrmrpb.Output_FINITE_KEY:
+		p = output.NewFiniteKeyPartitioner(targets.Keys())
 	default:
 		return errors.Errorf("partitioner %s is unsupported on input stage", partitioner.String())
 	}

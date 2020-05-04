@@ -86,6 +86,7 @@ func (d *Dataset) Repartition(n int) *Dataset {
 func (d *Dataset) PartitionedBy(planner partitions.LogicalPlanner) *Dataset {
 	opts := append(d.defaultPartitionOpts, partitions.WithLogicalPlanner(planner))
 	d.Session.SetPartitionOption(opts...)
+	d.Session.SetPartitionType(lrmrpb.Output_FINITE_KEY)
 	return d
 }
 
