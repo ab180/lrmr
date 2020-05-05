@@ -116,9 +116,9 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...c
 	return err
 }
 
-func (e *Etcd) Batch(ctx context.Context, ops ...BatchOp) error {
+func (e *Etcd) Commit(ctx context.Context, txn *Txn) error {
 	var txOps []clientv3.Op
-	for _, op := range ops {
+	for _, op := range txn.Ops {
 		switch op.Type {
 		case PutEvent:
 			jsonVal, err := jsoniter.MarshalToString(op.Value)
@@ -129,6 +129,9 @@ func (e *Etcd) Batch(ctx context.Context, ops ...BatchOp) error {
 
 		case CounterEvent:
 			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark))
+
+		case DeleteEvent:
+			txOps = append(txOps, clientv3.OpDelete(op.Key, clientv3.WithPrefix()))
 		}
 	}
 	_, err := e.kv.Txn(ctx).Then(txOps...).Commit()

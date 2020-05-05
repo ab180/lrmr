@@ -102,12 +102,12 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 	errorKey := path.Join(jobErrorNs, ref.String())
 	stacktrace := fmt.Sprintf("%+v", err)
 
-	return r.crd.Batch(
-		context.TODO(),
-		coordinator.IncrementCounter(stageStatusKey(ref, "doneTasks")),
-		coordinator.IncrementCounter(stageStatusKey(ref, "failedTasks")),
-		coordinator.Put(errorKey, stacktrace),
-	)
+	txn := coordinator.NewTxn().
+		IncrementCounter(stageStatusKey(ref, "doneTasks")).
+		IncrementCounter(stageStatusKey(ref, "failedTasks")).
+		Put(errorKey, stacktrace)
+
+	return r.crd.Commit(context.TODO(), txn)
 }
 
 func (r *Reporter) ReportCancel(ref TaskReference) error {
@@ -117,11 +117,11 @@ func (r *Reporter) ReportCancel(ref TaskReference) error {
 	if err := r.flushTaskStatus(); err != nil {
 		return fmt.Errorf("update task status: %w", err)
 	}
-	return r.crd.Batch(
-		context.TODO(),
-		coordinator.IncrementCounter(stageStatusKey(ref, "doneTasks")),
-		coordinator.IncrementCounter(stageStatusKey(ref, "failedTasks")),
-	)
+	txn := coordinator.NewTxn().
+		IncrementCounter(stageStatusKey(ref, "doneTasks")).
+		IncrementCounter(stageStatusKey(ref, "failedTasks"))
+
+	return r.crd.Commit(context.TODO(), txn)
 }
 
 func (r *Reporter) Start() {
@@ -142,7 +142,7 @@ func (r *Reporter) Start() {
 }
 
 func (r *Reporter) flushTaskStatus() error {
-	var updates []coordinator.BatchOp
+	txn := coordinator.NewTxn()
 	r.dirty.Range(func(key, value interface{}) bool {
 		task := key.(TaskReference)
 		isDirty := value.(bool)
@@ -155,13 +155,12 @@ func (r *Reporter) flushTaskStatus() error {
 			status := tsh.status.Clone()
 			defer tsh.lock.RUnlock()
 
-			key := path.Join(taskStatusNs, task.String())
-			updates = append(updates, coordinator.Put(key, status))
+			txn.Put(path.Join(taskStatusNs, task.String()), status)
 		}
 		return true
 	})
-	if len(updates) > 0 {
-		if err := r.crd.Batch(r.ctx, updates...); err != nil {
+	if len(txn.Ops) > 0 {
+		if err := r.crd.Commit(r.ctx, txn); err != nil {
 			return err
 		}
 		// clear all dirties

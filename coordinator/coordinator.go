@@ -16,7 +16,6 @@ type Coordinator interface {
 	Get(ctx context.Context, key string, valuePtr interface{}) error
 	Scan(ctx context.Context, prefix string) (results []RawItem, err error)
 	Put(ctx context.Context, key string, value interface{}, opts ...clientv3.OpOption) error
-	Batch(ctx context.Context, ops ...BatchOp) error
 
 	// GrantLease creates a lease (a time-to-live expiration attachable to other keys)
 	GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error)
@@ -29,26 +28,13 @@ type Coordinator interface {
 	IncrementCounter(ctx context.Context, key string) (count int64, err error)
 	ReadCounter(ctx context.Context, key string) (count int64, err error)
 
+	// Delete remove all keys starting with given prefix.
 	Delete(ctx context.Context, prefix string) (deleted int64, err error)
 
+	// Commit apply changes of the transaction.
+	// The transaction will be failed if one of the operation in the transaction fails.
+	Commit(ctx context.Context, t *Txn) error
+
+	// Close closes coordinator.
 	Close() error
-}
-
-// Put returns a batch operation setting the value of a key.
-func Put(key string, value interface{}, opts ...clientv3.OpOption) BatchOp {
-	return BatchOp{
-		Type:    PutEvent,
-		Key:     key,
-		Value:   value,
-		Options: opts,
-	}
-}
-
-// IncrementCounter returns a batch operation incrementing counter of a key.
-func IncrementCounter(key string, opts ...clientv3.OpOption) BatchOp {
-	return BatchOp{
-		Type:    CounterEvent,
-		Key:     key,
-		Options: opts,
-	}
 }
