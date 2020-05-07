@@ -2,19 +2,20 @@ package worker
 
 import (
 	"context"
+	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/stage"
 )
 
 type taskContext struct {
 	context.Context
 	worker    *Worker
 	task      *job.Task
-	broadcast stage.Broadcasts
+	stage     *job.Stage
+	broadcast serialization.Broadcast
 	cancel    context.CancelFunc
 }
 
-func newTaskContext(w *Worker, t *job.Task, b stage.Broadcasts) *taskContext {
+func newTaskContext(w *Worker, s *job.Stage, t *job.Task, b serialization.Broadcast) *taskContext {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &taskContext{
 		Context:   ctx,
@@ -25,29 +26,41 @@ func newTaskContext(w *Worker, t *job.Task, b stage.Broadcasts) *taskContext {
 	}
 }
 
-func (c *taskContext) Broadcast(key string) interface{} {
-	return c.broadcast.Value(key)
+func (c *taskContext) PartitionID() string {
+	return c.task.PartitionID
 }
 
-func (c *taskContext) WorkerLocalOption(key string) interface{} {
+func (c *taskContext) TotalPartitions() int {
+	return len(c.stage.Partitions.Partitions)
+}
+
+func (c *taskContext) Broadcast(key string) interface{} {
+	return c.broadcast[key]
+}
+
+func (c *taskContext) WorkerLocalValue(key string) interface{} {
 	return c.worker.workerLocalOpts[key]
 }
 
-func (c *taskContext) PartitionKey() string {
-	return c.task.PartitionKey
+func (c *taskContext) Key() string {
+	// TODO: provide key
+	return c.task.PartitionID
 }
 
-func (c *taskContext) AddMetric(name string, delta int) {
+func (c *taskContext) IncrementCounter(name string, delta float64) {
 	c.worker.jobReporter.UpdateMetric(c.task.Reference(), func(metrics job.Metrics) {
-		metrics[name] += delta
+		metrics[name] += int(delta)
 	})
 }
 
-func (c *taskContext) SetMetric(name string, val int) {
-	c.worker.jobReporter.UpdateMetric(c.task.Reference(), func(metrics job.Metrics) {
-		metrics[name] = val
-	})
+func (c *taskContext) SetGauge(name string, val float64) {
+	panic("implement me")
 }
 
-// taskContext implements stage.Context.
-var _ stage.Context = &taskContext{}
+func (c *taskContext) ObserveHistogram(name string, val float64) {
+	panic("implement me")
+}
+
+func (c *taskContext) ObserveSummary(name string, val float64) {
+	panic("implement me")
+}

@@ -14,9 +14,10 @@ service Node {
 message CreateTaskRequest {
     string jobID = 1;
     string stageName = 2;
+    string partitionID = 3;
 
-    Input input = 4;
-    Output output = 5;
+    repeated Input input = 4;
+    repeated Output output = 5;
     map<string, bytes> broadcasts = 6;
 }
 
@@ -27,12 +28,6 @@ message Input {
     }
     Type type = 1;
     string prevStageName = 2;
-
-    // partitionKey is key of this partition.
-    string partitionKey = 3;
-
-    // hosts contains an list of hosts providing the partition. Used when type == POLL.
-    repeated string hosts = 4;
 }
 
 message Output {
@@ -42,23 +37,6 @@ message Output {
     }
     Type type = 1;
     string nextStageName = 2;
-
-    enum PartitionerType {
-        // Do not shuffle through the network. Output data will be directly fed to next stage using in-memory pipe.
-        // Used when input partition is same with output partition.
-        PRESERVE = 0;
-
-        // Randomly distribute outputs to next stage.
-        SHUFFLE = 1;
-
-        // Distribute output by calculating `hash(row.Key) modulo shardCount.`
-        HASH_KEY = 2;
-
-        // Distribute output evenly by predefined partition keys.
-        // Can be more effective than HASH_KEY if the keys of output partition are known.
-        FINITE_KEY = 3;
-    }
-    PartitionerType partitioner = 3;
 
     // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
     map<string, string> partitionToHost = 4;

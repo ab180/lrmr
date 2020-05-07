@@ -2,6 +2,7 @@ package partitions
 
 import (
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/node"
 	"testing"
 )
@@ -15,24 +16,24 @@ func TestScheduler_AffinityRule(t *testing.T) {
 				{Host: "localhost:1003", Executors: 3, Tag: map[string]string{"CustomTag": "foo"}},
 				{Host: "localhost:1004", Executors: 3, Tag: map[string]string{"CustomTag": "bar"}},
 			}
-			s, err := NewSchedulerWithNodes(nil, nil, nn)
-			So(err, ShouldBeNil)
 
-			Convey("When an affinity rule is given with an LogicalPlanner", func() {
-				l := logicalPlannerStub{LogicalPlans{
-					{Key: "familiarWithWorld", NodeAffinityRules: map[string]string{"Host": "localhost:1002"}},
-					{Key: "familiarWithFoo", NodeAffinityRules: map[string]string{"CustomTag": "foo"}},
-					{Key: "familiarWithBar", NodeAffinityRules: map[string]string{"CustomTag": "bar"}},
-					{Key: "familiarWithFreest"},
-					{Key: "familiarWithWorld2", NodeAffinityRules: map[string]string{"Host": "localhost:1002"}},
-					{Key: "familiarWithFoo2", NodeAffinityRules: map[string]string{"CustomTag": "foo"}},
-					{Key: "familiarWithBar2", NodeAffinityRules: map[string]string{"CustomTag": "bar"}},
-					{Key: "familiarWithFreest2"},
-				}}
-				_, pp := s.Plan(WithLogicalPlanner(l))
-				So(pp, ShouldHaveLength, 8)
+			Convey("When an affinity rule is given with an Partitioner", func() {
+				_, pp := Schedule(nn, []Plan{
+					{Partitioner: partitionerStub{[]Partition{
+						{ID: "familiarWithWorld", AssignmentAffinity: map[string]string{"Host": "localhost:1002"}},
+						{ID: "familiarWithFoo", AssignmentAffinity: map[string]string{"CustomTag": "foo"}},
+						{ID: "familiarWithBar", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
+						{ID: "familiarWithFreest"},
+						{ID: "familiarWithWorld2", AssignmentAffinity: map[string]string{"Host": "localhost:1002"}},
+						{ID: "familiarWithFoo2", AssignmentAffinity: map[string]string{"CustomTag": "foo"}},
+						{ID: "familiarWithBar2", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
+						{ID: "familiarWithFreest2"},
+					}}},
+				})
+				So(pp, ShouldHaveLength, 1)
+				So(pp[0], ShouldHaveLength, 8)
 
-				keyToHostMap := pp.ToMap()
+				keyToHostMap := pp[0].ToMap()
 				So(keyToHostMap["familiarWithWorld"], ShouldEqual, "localhost:1002")
 				So(keyToHostMap["familiarWithFoo"], ShouldEqual, "localhost:1003")
 				So(keyToHostMap["familiarWithBar"], ShouldEqual, "localhost:1004")
@@ -51,24 +52,24 @@ func TestScheduler_AffinityRule(t *testing.T) {
 				{Host: "localhost:1003", Executors: 1, Tag: map[string]string{"CustomTag": "foo"}},
 				{Host: "localhost:1004", Executors: 1, Tag: map[string]string{"CustomTag": "bar"}},
 			}
-			s, err := NewSchedulerWithNodes(nil, nil, nn)
-			So(err, ShouldBeNil)
 
 			Convey("When an affinity rule is given with an LogicalPlanner", func() {
-				l := logicalPlannerStub{LogicalPlans{
-					{Key: "familiarWithWorld", NodeAffinityRules: map[string]string{"Host": "localhost:1002"}},
-					{Key: "familiarWithFoo", NodeAffinityRules: map[string]string{"CustomTag": "foo"}},
-					{Key: "familiarWithBar", NodeAffinityRules: map[string]string{"CustomTag": "bar"}},
-					{Key: "familiarWithFreest"},
-					{Key: "familiarWithWorld2", NodeAffinityRules: map[string]string{"Host": "localhost:1002"}},
-					{Key: "familiarWithFoo2", NodeAffinityRules: map[string]string{"CustomTag": "foo"}},
-					{Key: "familiarWithBar2", NodeAffinityRules: map[string]string{"CustomTag": "bar"}},
-					{Key: "familiarWithFreest2"},
-				}}
-				_, pp := s.Plan(WithLogicalPlanner(l))
-				So(pp, ShouldHaveLength, 8)
+				_, pp := Schedule(nn, []Plan{
+					{Partitioner: partitionerStub{[]Partition{
+						{ID: "familiarWithWorld", AssignmentAffinity: map[string]string{"Host": "localhost:1002"}},
+						{ID: "familiarWithFoo", AssignmentAffinity: map[string]string{"CustomTag": "foo"}},
+						{ID: "familiarWithBar", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
+						{ID: "familiarWithFreest"},
+						{ID: "familiarWithWorld2", AssignmentAffinity: map[string]string{"Host": "localhost:1002"}},
+						{ID: "familiarWithFoo2", AssignmentAffinity: map[string]string{"CustomTag": "foo"}},
+						{ID: "familiarWithBar2", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
+						{ID: "familiarWithFreest2"},
+					}}},
+				})
+				So(pp, ShouldHaveLength, 1)
+				So(pp[0], ShouldHaveLength, 8)
 
-				keyToHostMap := pp.ToMap()
+				keyToHostMap := pp[0].ToMap()
 				So(keyToHostMap["familiarWithWorld"], ShouldEqual, "localhost:1002")
 				So(keyToHostMap["familiarWithFoo"], ShouldEqual, "localhost:1003")
 				So(keyToHostMap["familiarWithBar"], ShouldEqual, "localhost:1004")
@@ -82,10 +83,14 @@ func TestScheduler_AffinityRule(t *testing.T) {
 	})
 }
 
-type logicalPlannerStub struct {
-	Data LogicalPlans
+type partitionerStub struct {
+	Partitions []Partition
 }
 
-func (l logicalPlannerStub) Plan() LogicalPlans {
-	return l.Data
+func (p partitionerStub) Plan(int) []Partition {
+	return p.Partitions
+}
+
+func (p partitionerStub) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+	return
 }

@@ -10,11 +10,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/input"
+	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/stage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,7 +29,7 @@ var log = logger.New("worker")
 
 type Worker struct {
 	nodeManager node.Manager
-	jobManager  job.Manager
+	jobManager  *job.Manager
 	jobReporter *job.Reporter
 	server      *grpc.Server
 
@@ -113,30 +113,30 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	if s == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "stage %s not found on job %s", req.StageName, j.ID)
 	}
-	st := stage.Lookup(s.RunnerName)
 
-	broadcasts, err := stage.SerializedBroadcasts(req.Broadcasts).Deserialize()
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(ctx, j, s, req.Output, req.Input.PartitionKey)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
-	}
-
-	task := job.NewTask(req.Input.PartitionKey, w.nodeManager.Self(), j, s)
+	task := job.NewTask(req.PartitionID, w.nodeManager.Self(), j, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
-	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), out.NumOutputs())
+	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	c := newTaskContext(w, s, task, broadcasts)
 
-	c := newTaskContext(w, task, broadcasts)
-	exec, err := NewTaskExecutor(c, task, st, in, out)
+	in := input.NewReader(w.opt.Input.QueueLength)
+	out, err := w.newOutputWriter(c, j, req.Output)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
+	}
+
+	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionID, j.ID)
+	// log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String())
+
+	exec, err := NewTaskExecutor(c, task, s.Transformer, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")
 		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
@@ -144,7 +144,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		}
 		return nil, err
 	}
-	taskID := path.Join(j.ID, s.Name, task.PartitionKey)
+	taskID := path.Join(j.ID, s.Name, task.PartitionID)
 	w.runningTasks.Store(taskID, exec)
 	go exec.Run()
 	go func() {
@@ -157,47 +157,33 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, s *job.Stage, o *lrmrpb.Output, partitionKey string) (*output.Writer, error) {
-	var p output.Partitioner
-	switch o.Partitioner {
-	case lrmrpb.Output_FINITE_KEY:
-		p = output.NewFiniteKeyPartitioner(s.Partitions.Keys())
-	case lrmrpb.Output_HASH_KEY:
-		p = output.NewHashKeyPartitioner(len(o.PartitionToHost))
-	case lrmrpb.Output_SHUFFLE:
-		p = output.NewShuffledPartitioner(len(o.PartitionToHost))
-
-	case lrmrpb.Output_PRESERVE:
-		// PRESERVE mode does not use network since input and output partitions are same
-		nextTaskID := path.Join(j.ID, o.NextStageName, partitionKey)
-		t, ok := w.runningTasks.Load(nextTaskID)
-		if !ok {
-			return nil, errors.Errorf("output mode was PRESERVE, but corresponding task %s is not found", nextTaskID)
+func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, oo []*lrmrpb.Output) (output.Output, error) {
+	outputs := make([]output.Output, len(oo))
+	for i, outDesc := range oo {
+		s := j.GetStage(outDesc.NextStageName)
+		if s == nil {
+			return nil, errors.Errorf("unknown output stage name %s", outDesc.NextStageName)
 		}
-		outputs := map[string]output.Output{
-			partitionKey: NewLocalPipe(t.(*TaskExecutor).Input),
-		}
-		p = output.NewPreservePartitioner(partitionKey)
-		return output.NewWriter(p, outputs), nil
-	}
 
-	outputs := make(map[string]output.Output)
-	for key, host := range o.PartitionToHost {
-		taskID := path.Join(j.ID, o.NextStageName, key)
-		if host == w.nodeManager.Self().Host {
-			t, ok := w.runningTasks.Load(taskID)
-			if ok {
-				outputs[key] = NewLocalPipe(t.(*TaskExecutor).Input)
-				continue
+		idToOutput := make(map[string]output.Output)
+		for id, host := range outDesc.PartitionToHost {
+			taskID := path.Join(j.ID, outDesc.NextStageName, id)
+			if host == w.nodeManager.Self().Host {
+				t, ok := w.runningTasks.Load(taskID)
+				if ok {
+					idToOutput[id] = NewLocalPipe(t.(*TaskExecutor).Input)
+					continue
+				}
 			}
+			out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
+			if err != nil {
+				return nil, err
+			}
+			idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
 		}
-		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
-		if err != nil {
-			return nil, err
-		}
-		outputs[key] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
+		outputs[i] = output.NewWriter(ctx, s.Partitions.Partitioner, idToOutput)
 	}
-	return output.NewWriter(p, outputs), nil
+	return output.NewComposed(outputs), nil
 }
 
 func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {

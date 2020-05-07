@@ -3,17 +3,20 @@ package output
 import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
+	"github.com/therne/lrmr/partitions"
 )
 
 type Writer struct {
-	partitioner Partitioner
+	context     partitions.Context
+	partitioner partitions.Partitioner
 
-	// outputs is a mapping of partition key to an output.
+	// outputs is a mapping of partition ID to an output.
 	outputs map[string]Output
 }
 
-func NewWriter(p Partitioner, outputs map[string]Output) *Writer {
+func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[string]Output) *Writer {
 	return &Writer{
+		context:     c,
 		partitioner: p,
 		outputs:     outputs,
 	}
@@ -22,23 +25,23 @@ func NewWriter(p Partitioner, outputs map[string]Output) *Writer {
 func (w *Writer) Write(data []*lrdd.Row) error {
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {
-		pk, err := w.partitioner.DeterminePartitionKey(row)
+		id, err := w.partitioner.DeterminePartition(w.context, row)
 		if err != nil {
-			if err == ErrNoOutput {
+			if err == partitions.ErrNoOutput {
 				// TODO: add alert if too many outputs are skipped
 				continue
 			}
 			return err
 		}
-		writes[pk] = append(writes[pk], row)
+		writes[id] = append(writes[id], row)
 	}
-	for slot, rows := range writes {
-		out, ok := w.outputs[slot]
+	for id, rows := range writes {
+		out, ok := w.outputs[id]
 		if !ok {
-			return errors.Errorf("unknown partition %s", slot)
+			return errors.Errorf("unknown partition ID %s", id)
 		}
 		if err := out.Write(rows); err != nil {
-			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), slot)
+			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), id)
 		}
 	}
 	return nil

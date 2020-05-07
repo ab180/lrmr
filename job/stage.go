@@ -1,23 +1,34 @@
 package job
 
 import (
-	"github.com/therne/lrmr/job/partitions"
-	"time"
+	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/transformer"
 )
 
+type StageID string
+
 type Stage struct {
-	Name       string                  `json:"name"`
-	RunnerName string                  `json:"runnerName"`
-	Partitions partitions.LogicalPlans `json:"partitions"`
-	StartedAt  *time.Time              `json:"startedAt,omitempty"`
+	Name string `json:"name"`
+	Step int    `json:"step"`
+
+	Inputs  []string `json:"inputs"`
+	Outputs []string `json:"outputs"`
+
+	// Transformer is a function the stage executes.
+	Transformer transformer.Transformer
+
+	// Partitions is a scheduled partition information.
+	Partitions partitions.Partitions `json:"partitions"`
 }
 
 // NewStage creates new stage.
-// JobIDs and workers will be filled by JobManager.
-func NewStage(name, runnerName string) *Stage {
+func NewStage(name string, step int, in, out []string, tf transformer.Transformer) *Stage {
 	return &Stage{
-		Name:       name,
-		RunnerName: runnerName,
+		Name:        name,
+		Step:        step,
+		Inputs:      in,
+		Outputs:     out,
+		Transformer: tf,
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 )
 
 type Task struct {
-	JobID        string `json:"jobId"`
-	StageName    string `json:"stageId"`
-	PartitionKey string `json:"id"`
+	JobID       string `json:"jobId"`
+	StageName   string `json:"stageId"`
+	PartitionID string `json:"id"`
 
 	NodeID   string `json:"nodeId"`
 	NodeHost string `json:"nodeHost"`
@@ -20,17 +20,17 @@ type Task struct {
 
 func NewTask(partitionKey string, node *node.Node, job *Job, stage *Stage) *Task {
 	return &Task{
-		PartitionKey: partitionKey,
-		StageName:    stage.Name,
-		JobID:        job.ID,
-		NodeID:       node.ID,
-		NodeHost:     node.Host,
-		SubmittedAt:  time.Now(),
+		PartitionID: partitionKey,
+		StageName:   string(stage.Name),
+		JobID:       job.ID,
+		NodeID:      node.ID,
+		NodeHost:    node.Host,
+		SubmittedAt: time.Now(),
 	}
 }
 
 func (t *Task) ID() string {
-	return url.QueryEscape(t.PartitionKey)
+	return url.QueryEscape(t.PartitionID)
 }
 
 func (t Task) Reference() TaskReference {
