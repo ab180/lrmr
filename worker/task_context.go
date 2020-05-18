@@ -33,6 +33,10 @@ func (c *taskContext) WorkerLocalOption(key string) interface{} {
 	return c.worker.workerLocalOpts[key]
 }
 
+func (c *taskContext) JobID() string {
+	return c.task.JobID
+}
+
 func (c *taskContext) PartitionKey() string {
 	return c.task.PartitionKey
 }
