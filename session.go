@@ -3,14 +3,15 @@ package lrmr
 import (
 	"context"
 	"fmt"
+	"reflect"
+
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/internal/dynfunc"
 	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/transformer"
+	"github.com/therne/lrmr/transformation"
 )
 
 type Session struct {
@@ -41,19 +42,14 @@ func (s *Session) SetInput(ip InputProvider) *Session {
 		DesiredCount: 1,
 		MaxNodes:     1,
 	})
+	s.stages = append(s.stages, job.NewStage("_input", nil))
 	return s
 }
 
-func (s *Session) AddStage(tf transformer.Transformer, fn interface{}) *Session {
-	stageName := fmt.Sprintf("%s%d", tf.Name(), len(s.stages))
+func (s *Session) AddStage(tf transformation.Transformation) *Session {
+	stageName := fmt.Sprintf("%s%d", reflect.TypeOf(tf).Name(), len(s.stages))
 
-	dynFn := dynfunc.From(stageName, fn)
-	dynfunc.Register(dynFn)
-	if err := tf.SetupAndValidate(dynFn); err != nil {
-		panic(stageName + ": " + err.Error())
-	}
-
-	st := job.NewStage(stageName, len(s.stages), nil, nil, tf)
+	st := job.NewStage(stageName, tf, s.stages[len(s.stages)-1])
 	s.stages = append(s.stages, st)
 	s.plans = append(s.plans, s.defaultPlan)
 	return s

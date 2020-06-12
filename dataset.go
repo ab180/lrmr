@@ -3,90 +3,85 @@ package lrmr
 import (
 	"context"
 	"fmt"
-	"github.com/goombaio/namegenerator"
-	"github.com/therne/lrmr/job/partitions"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/lrmrpb"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/stage"
 	"time"
+
+	"github.com/goombaio/namegenerator"
+	"github.com/therne/lrmr/lrdd"
+	"github.com/therne/lrmr/master"
+	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/stage"
+	"github.com/therne/lrmr/transformation"
 )
 
 // Dataset is less-resilient distributed dataset
 type Dataset struct {
-	Session
+	Session   *Session
 	NumStages int
 
-	defaultPartitionOpts []partitions.PlanOption
+	defaultPlan partitions.Plan
 }
 
-func FromInput(provider InputProvider, m *master.Master) *Dataset {
-	sess := NewSession(m).SetInput(provider)
+func FromInput(provider InputProvider) *Dataset {
+	sess := NewSession().SetInput(provider)
 	return &Dataset{Session: sess}
 }
 
-func FromURI(uri string, m *master.Master) *Dataset {
-	sess := NewSession(m).SetInput(&localInput{Path: uri})
+func FromURI(uri string) *Dataset {
+	sess := NewSession().SetInput(&localInput{Path: uri})
 	return &Dataset{Session: sess}
 }
 
 func Parallelize(input interface{}, m *master.Master) *Dataset {
 	data := lrdd.From(input)
-	return FromInput(&parallelizedInput{Data: data}, m)
+	return FromInput(&parallelizedInput{Data: data})
 }
 
-func (d *Dataset) addStage(runner interface{}) {
-	d.Session.AddStage(runner)
-	d.Session.SetPartitionOption(d.defaultPartitionOpts...)
+func (d *Dataset) addStage(tf transformation.Transformation) {
+	d.Session.AddStage(tf)
 }
 
-func (d *Dataset) Do(runner stage.Runner) *Dataset {
-	d.addStage(runner)
+func (d *Dataset) Do(t Transformer) *Dataset {
+	d.addStage(&transformerTransformation{t})
 	return d
 }
 
-func (d *Dataset) Map(mapper stage.Mapper) *Dataset {
-	d.addStage(mapper)
+func (d *Dataset) Map(m Mapper) *Dataset {
+	d.addStage(&mapTransformation{m})
 	return d
 }
 
-func (d *Dataset) FlatMap(mapper stage.FlatMapper) *Dataset {
-	d.addStage(mapper)
+func (d *Dataset) FlatMap(fm FlatMapper) *Dataset {
+	d.addStage(&flatMapTransformation{fm})
 	return d
 }
 
-func (d *Dataset) Reduce(reducer stage.Reducer) *Dataset {
-	d.addStage(reducer)
+func (d *Dataset) Reduce(r Reducer) *Dataset {
+	d.addStage(&reduceTransformation{r})
 	return d
 }
 
-func (d *Dataset) Sort(sorter stage.Sorter) *Dataset {
-	d.addStage(sorter)
+func (d *Dataset) Sort(s Sorter) *Dataset {
+	d.addStage(&sortTransformation{r})
 	return d
 }
 
 func (d *Dataset) GroupByKey() *Dataset {
-	d.Session.SetPartitionType(lrmrpb.Output_HASH_KEY)
+	d.Session.SetPartitioner(partitions.NewHashKeyPartitioner())
 	return d
 }
 
 func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
-	opts := append(d.defaultPartitionOpts, partitions.WithFixedKeys(knownKeys))
-	d.Session.SetPartitionType(lrmrpb.Output_FINITE_KEY)
-	d.Session.SetPartitionOption(opts...)
+	d.Session.SetPartitioner(partitions.NewFiniteKeyPartitioner(knownKeys))
 	return d
 }
 
 func (d *Dataset) Repartition(n int) *Dataset {
-	opts := append(d.defaultPartitionOpts, partitions.WithFixedCount(n))
-	d.Session.SetPartitionOption(opts...)
+	d.Session.SetDesiredPartitionCount(n)
 	return d
 }
 
-func (d *Dataset) PartitionedBy(planner partitions.LogicalPlanner) *Dataset {
-	opts := append(d.defaultPartitionOpts, partitions.WithLogicalPlanner(planner))
-	d.Session.SetPartitionOption(opts...)
-	d.Session.SetPartitionType(lrmrpb.Output_FINITE_KEY)
+func (d *Dataset) PartitionedBy(p partitions.Partitioner) *Dataset {
+	d.Session.SetPartitioner(p)
 	return d
 }
 
@@ -96,22 +91,20 @@ func (d *Dataset) Broadcast(key string, value interface{}) *Dataset {
 }
 
 func (d *Dataset) WithWorkerCount(n int) *Dataset {
-	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithLimitNodes(n))
-	d.SetPartitionOption(d.defaultPartitionOpts...)
+	d.Session.DefaultPlan().MaxNodes = n
 	return d
 }
 
 func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
-	d.defaultPartitionOpts = append(d.defaultPartitionOpts, partitions.WithExecutorsPerNode(n))
-	d.SetPartitionOption(d.defaultPartitionOpts...)
+	d.Session.DefaultPlan().ExecutorsPerNode = n
 	return d
 }
 
-func (d *Dataset) Collect(ctx context.Context, jobName ...string) (map[string][]*lrdd.Row, error) {
+func (d *Dataset) Collect(ctx context.Context, m *master.Master, jobName ...string) (map[string][]*lrdd.Row, error) {
 	if len(jobName) == 0 {
 		jobName = append(jobName, randomJobName())
 	}
-	job, err := d.Session.Run(ctx, jobName[0])
+	job, err := d.Session.Run(ctx, jobName[0], m)
 	if err != nil {
 		return nil, err
 	}
