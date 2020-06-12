@@ -1,64 +1,30 @@
 package stage
 
-import (
-	"fmt"
-	"github.com/modern-go/reflect2"
-	"reflect"
-)
-
-var nameToStage = map[string]Stage{}
-var typeToStage = map[string]Stage{}
+import "github.com/therne/lrmr/transformation"
 
 type Stage struct {
-	Name   string
-	Input  reflect.Type
-	Output reflect.Type
+	Name string
+	Step int
 
-	// BoxType is the original (before boxed with Runner) type of the stage.
-	BoxType reflect.Type
+	// Dependencies are list of stages need to be executed before this stage.
+	Dependencies []*Stage
 
-	Constructor func(boxed interface{}) Runner
+	// Transformer is a function the stage executes.
+	Transformation transformation.Transformation
 }
 
-func (st Stage) NewBox() interface{} {
-	return reflect2.Type2(st.BoxType).New()
-}
-
-func typeOf(v interface{}) reflect.Type {
-	t := reflect.TypeOf(v)
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
+// New creates a new stage.
+func New(name string, tf transformation.Transformation, deps ...*Stage) *Stage {
+	maxStep := -1
+	for _, dep := range deps {
+		if maxStep < dep.Step {
+			maxStep = dep.Step
+		}
 	}
-	return t
-}
-
-func typeName(t reflect.Type) string {
-	return t.PkgPath() + "." + t.Name()
-}
-
-func Lookup(name string) Stage {
-	s, ok := nameToStage[name]
-	if !ok {
-		msg := fmt.Sprintf("stage %s does not exist. does it registered on both master and worker?", name)
-		panic(msg)
+	return &Stage{
+		Name:           name,
+		Step:           maxStep + 1,
+		Dependencies:   deps,
+		Transformation: tf,
 	}
-	return s
-}
-
-func LookupByRunner(v interface{}) Stage {
-	typ := typeOf(v)
-	s, ok := typeToStage[typeName(typ)]
-	if !ok {
-		msg := fmt.Sprintf("stage %s does not exist. does it registered on both master and worker?", typeName(typ))
-		panic(msg)
-	}
-	return s
-}
-
-func register(s Stage) {
-	if _, exists := nameToStage[s.Name]; exists {
-		panic(s.Name + " already exists")
-	}
-	nameToStage[s.Name] = s
-	typeToStage[typeName(s.BoxType)] = s
 }
