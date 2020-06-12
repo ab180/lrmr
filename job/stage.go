@@ -2,33 +2,36 @@ package job
 
 import (
 	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/transformer"
+	"github.com/therne/lrmr/transformation"
 )
-
-type StageID string
 
 type Stage struct {
 	Name string `json:"name"`
 	Step int    `json:"step"`
 
-	Inputs  []string `json:"inputs"`
-	Outputs []string `json:"outputs"`
+	// Dependencies are list of stages need to be executed before this stage.
+	Dependencies []*Stage `json:"-"`
 
 	// Transformer is a function the stage executes.
-	Transformer transformer.Transformer
+	Transformation transformation.Transformation
 
-	// Partitions is a scheduled partition information.
+	// Partitions is a scheduled partition informations.
 	Partitions partitions.Partitions `json:"partitions"`
 }
 
 // NewStage creates new stage.
-func NewStage(name string, step int, in, out []string, tf transformer.Transformer) *Stage {
+func NewStage(name string, tf transformation.Transformation, deps ...*Stage) *Stage {
+	maxStep := -1
+	for _, dep := range deps {
+		if maxStep < dep.Step {
+			maxStep = dep.Step
+		}
+	}
 	return &Stage{
-		Name:        name,
-		Step:        step,
-		Inputs:      in,
-		Outputs:     out,
-		Transformer: tf,
+		Name:           name,
+		Step:           maxStep + 1,
+		Dependencies:   deps,
+		Transformation: tf,
 	}
 }
 
