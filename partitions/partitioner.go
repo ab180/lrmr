@@ -18,7 +18,7 @@ type Context interface {
 }
 
 type Partitioner interface {
-	Plan(numExecutors int) []Partition
+	PlanNext(numExecutors int) []Partition
 	DeterminePartition(c Context, r *lrdd.Row) (id string, err error)
 }
 
@@ -52,7 +52,8 @@ func PlanForNumberOf(numExecutors int) []Partition {
 	return pp
 }
 
-type finiteKeyPartitioner struct {
+// FiniteKeyPartitioner evenly distributes a predefined set of keys to the nodes.
+type FiniteKeyPartitioner struct {
 	KeySet map[string]struct{}
 }
 
@@ -61,11 +62,11 @@ func NewFiniteKeyPartitioner(keys []string) Partitioner {
 	for _, k := range keys {
 		keySet[k] = struct{}{}
 	}
-	return &finiteKeyPartitioner{keySet}
+	return &FiniteKeyPartitioner{keySet}
 }
 
-// Plan creates partitions for the number of keys. Uses row key as partition ID.
-func (f *finiteKeyPartitioner) Plan(int) (partitions []Partition) {
+// PlanNext creates partitions for the number of keys. Uses row key as partition ID.
+func (f *FiniteKeyPartitioner) PlanNext(int) (partitions []Partition) {
 	for key := range f.KeySet {
 		partitions = append(partitions, Partition{
 			ID:        key,
@@ -75,7 +76,7 @@ func (f *finiteKeyPartitioner) Plan(int) (partitions []Partition) {
 	return partitions
 }
 
-func (f *finiteKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+func (f *FiniteKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
 	if _, ok := f.KeySet[r.Key]; !ok {
 		err = ErrNoOutput
 		return
@@ -89,7 +90,7 @@ func NewHashKeyPartitioner() Partitioner {
 	return &hashKeyPartitioner{}
 }
 
-func (h *hashKeyPartitioner) Plan(numExecutors int) []Partition {
+func (h *hashKeyPartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 
@@ -107,7 +108,7 @@ func NewShuffledPartitioner() Partitioner {
 	return &ShuffledPartitioner{}
 }
 
-func (f *ShuffledPartitioner) Plan(numExecutors int) []Partition {
+func (f *ShuffledPartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 
@@ -123,7 +124,7 @@ func NewPreservePartitioner() Partitioner {
 	return &PreservePartitioner{}
 }
 
-func (p PreservePartitioner) Plan(numExecutors int) []Partition {
+func (p PreservePartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 

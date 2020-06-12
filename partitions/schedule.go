@@ -1,11 +1,11 @@
 package partitions
 
 import (
+	"sort"
+
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/node"
 	"github.com/thoas/go-funk"
-	"math"
-	"sort"
 )
 
 var log = logger.New("partition")
@@ -15,23 +15,30 @@ type nodeWithStats struct {
 	currentTasks int
 }
 
+func newNodeWithStats(n *node.Node) nodeWithStats {
+	return nodeWithStats{Node: n, currentTasks: 0}
+}
+
 // Schedule creates partition partition to the nodes by given options.
-func Schedule(workers []*node.Node, plans []Plan) (pp []Partitions, aa []Assignments) {
-	nodes := funk.Map(workers, func(n *node.Node) nodeWithStats {
-		return nodeWithStats{Node: n, currentTasks: 0}
-	}).([]nodeWithStats)
+func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []Partitions, aa []Assignments) {
+	opts := buildScheduleOptions(opt)
+
+	nn := funk.Map(workers, newNodeWithStats)
+	if !opts.DisableShufflingNodes {
+		nn = funk.Shuffle(nn)
+	}
+	nodes := nn.([]nodeWithStats)
 
 	for i, plan := range plans {
 		// select top N freest nodes
-		sort.Slice(nodes, func(i, j int) bool {
+		sort.SliceStable(nodes, func(i, j int) bool {
 			return nodes[i].currentTasks < nodes[j].currentTasks
 		})
 		lenCandidates := len(nodes)
 		if plan.MaxNodes != Auto {
 			lenCandidates = plan.MaxNodes
 		}
-		candidates := make([]nodeWithStats, lenCandidates)
-		copy(candidates[:], nodes[:lenCandidates])
+		candidates := nodes[:lenCandidates]
 
 		var numExecutors int
 		if plan.DesiredCount == Auto {
@@ -46,20 +53,25 @@ func Schedule(workers []*node.Node, plans []Plan) (pp []Partitions, aa []Assignm
 			numExecutors = plan.DesiredCount
 		}
 
-		if plan.Partitioner == nil && i >= 1 {
+		if plan.Partitioner == nil {
 			// sets default partitioner: if adjacent partitions are equal,
 			// it can be preserved. otherwise, it needs to be shuffled.
-			prevPlan := plans[i-1]
-			if prevPlan.Equal(plan) {
+			if i < len(plans)-1 && plan.Equal(plans[i+1]) {
 				plan.Partitioner = NewPreservePartitioner()
 			} else {
 				plan.Partitioner = NewShuffledPartitioner()
 			}
 		}
-		partitions := plan.Partitioner.Plan(numExecutors)
+		var partitions []Partition
+		if i == 0 {
+			partitions = []Partition{{ID: InputPartitionID}}
+		} else {
+			partitions = plans[i-1].Partitioner.PlanNext(numExecutors)
+		}
 		pp = append(pp, New(plan.Partitioner, partitions))
 
-		if _, isPreserved := plan.Partitioner.(*PreservePartitioner); isPreserved && aa != nil {
+		if _, isPreserved := plan.Partitioner.(*PreservePartitioner); isPreserved && len(aa) > 0 {
+			// ensure that adjacent preserved partitions have exact same assignments
 			aa = append(aa, aa[i-1])
 			continue
 		}
@@ -123,6 +135,9 @@ func satisfiesAffinity(n *node.Node, rules map[string]string) bool {
 		if k == "ID" && v == n.ID {
 			return true
 		}
+		if k == "Type" && v == string(n.Type) {
+			return true
+		}
 		for nk, nv := range n.Tag {
 			if k == nk && v == nv {
 				return true
@@ -132,12 +147,21 @@ func satisfiesAffinity(n *node.Node, rules map[string]string) bool {
 	return false
 }
 
-func min(nn ...int) int {
-	min := math.MaxInt64
-	for _, n := range nn {
-		if n < min {
-			min = n
-		}
+type ScheduleOptions struct {
+	DisableShufflingNodes bool
+}
+
+type ScheduleOption func(o *ScheduleOptions)
+
+func WithoutShufflingNodes() ScheduleOption {
+	return func(o *ScheduleOptions) {
+		o.DisableShufflingNodes = true
 	}
-	return min
+}
+
+func buildScheduleOptions(opts []ScheduleOption) (options ScheduleOptions) {
+	for _, optFn := range opts {
+		optFn(&options)
+	}
+	return options
 }

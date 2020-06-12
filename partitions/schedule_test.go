@@ -18,7 +18,7 @@ func TestScheduler_AffinityRule(t *testing.T) {
 			}
 
 			Convey("When an affinity rule is given with an Partitioner", func() {
-				_, pp := Schedule(nn, []Plan{
+				_, aa := Schedule(nn, []Plan{
 					{Partitioner: partitionerStub{[]Partition{
 						{ID: "familiarWithWorld", AssignmentAffinity: map[string]string{"Host": "localhost:1002"}},
 						{ID: "familiarWithFoo", AssignmentAffinity: map[string]string{"CustomTag": "foo"}},
@@ -29,11 +29,12 @@ func TestScheduler_AffinityRule(t *testing.T) {
 						{ID: "familiarWithBar2", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
 						{ID: "familiarWithFreest2"},
 					}}},
-				})
-				So(pp, ShouldHaveLength, 1)
-				So(pp[0], ShouldHaveLength, 8)
+					{ /* ignored */ },
+				}, WithoutShufflingNodes())
+				So(aa, ShouldHaveLength, 2)
+				So(aa[1], ShouldHaveLength, 8)
 
-				keyToHostMap := pp[0].ToMap()
+				keyToHostMap := aa[1].ToMap()
 				So(keyToHostMap["familiarWithWorld"], ShouldEqual, "localhost:1002")
 				So(keyToHostMap["familiarWithFoo"], ShouldEqual, "localhost:1003")
 				So(keyToHostMap["familiarWithBar"], ShouldEqual, "localhost:1004")
@@ -65,11 +66,12 @@ func TestScheduler_AffinityRule(t *testing.T) {
 						{ID: "familiarWithBar2", AssignmentAffinity: map[string]string{"CustomTag": "bar"}},
 						{ID: "familiarWithFreest2"},
 					}}},
-				})
-				So(pp, ShouldHaveLength, 1)
-				So(pp[0], ShouldHaveLength, 8)
+					{ /* ignored */ },
+				}, WithoutShufflingNodes())
+				So(pp, ShouldHaveLength, 2)
+				So(pp[1], ShouldHaveLength, 8)
 
-				keyToHostMap := pp[0].ToMap()
+				keyToHostMap := pp[1].ToMap()
 				So(keyToHostMap["familiarWithWorld"], ShouldEqual, "localhost:1002")
 				So(keyToHostMap["familiarWithFoo"], ShouldEqual, "localhost:1003")
 				So(keyToHostMap["familiarWithBar"], ShouldEqual, "localhost:1004")
@@ -87,7 +89,7 @@ type partitionerStub struct {
 	Partitions []Partition
 }
 
-func (p partitionerStub) Plan(int) []Partition {
+func (p partitionerStub) PlanNext(int) []Partition {
 	return p.Partitions
 }
 

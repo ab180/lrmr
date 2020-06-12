@@ -1,5 +1,11 @@
 package partitions
 
+const (
+	InputPartitionID   = "_input"
+	CollectPartitionID = "_collect"
+)
+
+// Partitions represents partitions in a stage.
 type Partitions struct {
 	Partitioner Partitioner `json:"partitioner"`
 	Partitions  []Partition `json:"partitions"`
@@ -15,7 +21,7 @@ func New(p Partitioner, partitions []Partition) Partitions {
 type Partition struct {
 	ID string
 
-	// IsElastic indicates that the partition allows job stealing from other executors.
+	// IsElastic indicates that this partition allows work stealing from other executors.
 	IsElastic bool
 
 	// AssignmentAffinity is a set of equality rules to place partition into physical nodes.
