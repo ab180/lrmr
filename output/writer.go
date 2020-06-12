@@ -22,7 +22,7 @@ func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[strin
 	}
 }
 
-func (w *Writer) Write(data []*lrdd.Row) error {
+func (w *Writer) Write(data ...*lrdd.Row) error {
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {
 		id, err := w.partitioner.DeterminePartition(w.context, row)
@@ -40,7 +40,7 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 		if !ok {
 			return errors.Errorf("unknown partition ID %s", id)
 		}
-		if err := out.Write(rows); err != nil {
+		if err := out.Write(rows...); err != nil {
 			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), id)
 		}
 	}

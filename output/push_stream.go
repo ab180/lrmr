@@ -44,7 +44,7 @@ func NewPushStream(ctx context.Context, nm node.Manager, host, taskID string) (*
 	}, nil
 }
 
-func (p *PushStream) Write(data []*lrdd.Row) (err error) {
+func (p *PushStream) Write(data ...*lrdd.Row) (err error) {
 	return p.stream.Send(&lrmrpb.PushDataRequest{Data: data})
 }
 

@@ -8,7 +8,7 @@ import (
 var log = logger.New("output")
 
 type Output interface {
-	Write([]*lrdd.Row) error
+	Write(...*lrdd.Row) error
 	Close() error
 }
 
