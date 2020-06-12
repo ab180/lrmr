@@ -63,8 +63,6 @@ InputLoop:
 			return
 		}
 	}
-	log.Info("Task {} finished. (Total inputs {}) Closing... ", e.task.Reference(), rowCnt)
-
 	if err := e.runner.Teardown(e.context, e.Output); err != nil {
 		e.Abort(errors.Wrap(err, "teardown stage"))
 		return

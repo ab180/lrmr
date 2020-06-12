@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-var log = logger.New("worker")
+var log = logger.New("lrmr")
 
 type Worker struct {
 	nodeManager node.Manager
@@ -46,22 +46,9 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	}
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			loggergrpc.UnaryServerLogger(log),
-			loggergrpc.UnaryServerRecover(),
-		)),
+		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
-			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-				// dump header on stream failure
-				if err := handler(srv, ss); err != nil {
-					if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
-						log.Error(" By {} (From {})", h.TaskID, h.FromHost)
-					}
-					return err
-				}
-				return nil
-			},
-			loggergrpc.StreamServerLogger(log),
+			errorLogMiddleware,
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
@@ -132,8 +119,8 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
-	log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), out.NumOutputs())
+	log.Verbose("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionKey, j.ID)
+	log.Verbose("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String(), out.NumOutputs())
 
 	c := newTaskContext(w, task, broadcasts)
 	exec, err := NewTaskExecutor(c, task, st, in, out)
@@ -240,4 +227,15 @@ func (w *Worker) Stop() error {
 		return errors.Wrap(err, "unregister node")
 	}
 	return w.nodeManager.Close()
+}
+
+func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// dump header on stream failure
+	if err := handler(srv, ss); err != nil {
+		if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
+			log.Error(" By {} (From {})", h.TaskID, h.FromHost)
+		}
+		return err
+	}
+	return nil
 }

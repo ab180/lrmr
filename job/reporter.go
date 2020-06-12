@@ -66,7 +66,7 @@ func (r *Reporter) ReportSuccess(ref TaskReference) error {
 		ts.Complete(Succeeded)
 
 		elapsed := ts.CompletedAt.Sub(ts.SubmittedAt)
-		r.log.Info("Task {} succeeded after {}", ref.String(), elapsed.String())
+		r.log.Verbose("Task {} succeeded after {}", ref.String(), elapsed.String())
 	})
 	if err := r.flushTaskStatus(); err != nil {
 		return fmt.Errorf("update task status: %w", err)
