@@ -36,7 +36,7 @@ func NewTaskExecutor(c *taskContext, task *job.Task, st stage.Stage, in *input.R
 		runner:     runner,
 		Output:     out,
 		reporter:   c.worker.jobReporter,
-		finishChan: make(chan bool),
+		finishChan: make(chan bool, 1),
 	}, nil
 }
 
