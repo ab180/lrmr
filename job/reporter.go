@@ -40,6 +40,10 @@ func (r *Reporter) Add(task TaskReference, s *TaskStatus) {
 	r.statuses.Store(task, &taskStatusHolder{status: s})
 }
 
+func (r *Reporter) Remove(task TaskReference) {
+	r.statuses.Delete(task)
+}
+
 func (r *Reporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)) {
 	item, ok := r.statuses.Load(ref)
 	if !ok {
@@ -166,7 +170,7 @@ func (r *Reporter) flushTaskStatus() error {
 		}
 		// clear all dirties
 		r.dirty.Range(func(key, value interface{}) bool {
-			r.dirty.Store(key, false)
+			r.dirty.Delete(key)
 			return true
 		})
 	}

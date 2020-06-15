@@ -76,6 +76,7 @@ InputLoop:
 		return
 	}
 	e.finishChan <- true
+	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
@@ -85,7 +86,9 @@ func (e *TaskExecutor) Abort(err error) {
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
 	}
+	_ = e.Input.Close()
 	_ = e.Output.Close()
+	e.close()
 }
 
 func (e *TaskExecutor) AbortOnPanic() {
@@ -95,12 +98,18 @@ func (e *TaskExecutor) AbortOnPanic() {
 }
 
 func (e *TaskExecutor) Cancel() {
-	e.context.cancel()
 	if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
 		log.Error("While reporting the cancellation, another error occurred", err)
 	}
 	_ = e.Input.Close()
 	_ = e.Output.Close()
+	e.close()
+}
+
+func (e *TaskExecutor) close() {
+	e.context.cancel()
+	e.reporter.Remove(e.task.Reference())
+	e.runner = nil
 }
 
 func (e *TaskExecutor) WaitForFinish() {

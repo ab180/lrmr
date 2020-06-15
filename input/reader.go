@@ -33,6 +33,7 @@ func (p *Reader) Done() {
 	activeCnt := atomic.AddInt64(&p.activeCnt, -1)
 	if activeCnt == 0 {
 		close(p.C)
+		p.inputs = nil
 	}
 }
 
