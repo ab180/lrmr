@@ -83,6 +83,11 @@ func (d *Dataset) Repartition(n int) *Dataset {
 	return d
 }
 
+func (d *Dataset) Shuffle() *Dataset {
+	d.Session.SetPartitionType(lrmrpb.Output_SHUFFLE)
+	return d
+}
+
 func (d *Dataset) PartitionedBy(planner partitions.LogicalPlanner) *Dataset {
 	opts := append(d.defaultPartitionOpts, partitions.WithLogicalPlanner(planner))
 	d.Session.SetPartitionOption(opts...)
