@@ -115,7 +115,21 @@ func (d *Dataset) Collect(ctx context.Context, jobName ...string) (map[string][]
 	if err != nil {
 		return nil, err
 	}
-	return job.Collect()
+	res, err := job.Collect()
+	if err != nil {
+		return nil, err
+	}
+	// dump metrics
+	m, err := job.Metrics()
+	if err != nil {
+		log.Warn("Failed to collect metrics: {}", err)
+		return res, nil
+	}
+	log.Verbose("Collected {} metrics", len(m))
+	for name, val := range m {
+		log.Verbose("  {} : {}", name, val)
+	}
+	return res, nil
 }
 
 func (d *Dataset) stageName(s stage.Stage) string {

@@ -14,7 +14,7 @@ import (
 
 var ErrNoAvailableWorkers = errors.New("no available workers")
 
-var log = logger.New("master")
+var log = logger.New("lrmr")
 
 type Master struct {
 	collector *Collector
