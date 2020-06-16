@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"io"
 )
@@ -32,7 +33,11 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 				errChan <- err
 				return
 			}
-			p.reader.C <- req.GetData()
+			rows := make([]*lrdd.Row, len(req.Data))
+			for i, d := range req.Data {
+				rows[i] = lrdd.FromProto(d)
+			}
+			p.reader.C <- rows
 		}
 	}()
 
