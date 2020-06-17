@@ -17,6 +17,26 @@ func TestScheduler_AffinityRule(t *testing.T) {
 				{Host: "localhost:1004", Executors: 3, Tag: map[string]string{"CustomTag": "bar"}},
 			}
 
+			Convey("When partition counts in plans are all automatic", func() {
+				pp, _ := Schedule(nn, []Plan{
+					{DesiredCount: Auto},
+					{DesiredCount: Auto},
+					{DesiredCount: Auto},
+					{DesiredCount: Auto},
+				})
+
+				Convey("First stage should have only one partition", func() {
+					So(pp[0].Partitions, ShouldHaveLength, 1)
+					checkPartitionerType(pp[0].Partitioner, NewShuffledPartitioner())
+				})
+				Convey("Rest of the stages should have number of partitions same as node count", func() {
+					for i := 1; i < 3; i++ {
+						So(pp[i].Partitions, ShouldHaveLength, 12)
+						checkPartitionerType(pp[i].Partitioner, NewPreservePartitioner())
+					}
+				})
+			})
+
 			Convey("When an affinity rule is given with an Partitioner", func() {
 				_, aa := Schedule(nn, []Plan{
 					{Partitioner: partitionerStub{[]Partition{
@@ -95,4 +115,11 @@ func (p partitionerStub) PlanNext(int) []Partition {
 
 func (p partitionerStub) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
 	return
+}
+
+func checkPartitionerType(actual, expected Partitioner) {
+	if sp, ok := actual.(SerializablePartitioner); ok {
+		actual = sp.Partitioner
+	}
+	So(actual, ShouldHaveSameTypeAs, expected)
 }

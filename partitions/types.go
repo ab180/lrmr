@@ -16,14 +16,15 @@ type Plan struct {
 	DesiredCount     int
 	MaxNodes         int
 	ExecutorsPerNode int
+
+	DesiredNodeAffinity map[string]string
 }
 
 // Equal returns true if the partition is equal with given partition.
 // The equality is used to test dependency type of adjacent stage; If two adjacent partitions are equal,
 // they are considered as narrow (local) dependency thus not involving shuffling.
 func (p Plan) Equal(o Plan) bool {
-	return p.Partitioner == o.Partitioner &&
-		p.DesiredCount == o.DesiredCount &&
+	return p.DesiredCount == o.DesiredCount &&
 		p.MaxNodes == o.MaxNodes &&
 		p.ExecutorsPerNode == o.ExecutorsPerNode
 }

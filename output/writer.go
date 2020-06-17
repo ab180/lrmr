@@ -25,7 +25,7 @@ func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[strin
 func (w *Writer) Write(data ...*lrdd.Row) error {
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {
-		id, err := w.partitioner.DeterminePartition(w.context, row)
+		id, err := w.partitioner.DeterminePartition(w.context, row, len(w.outputs))
 		if err != nil {
 			if err == partitions.ErrNoOutput {
 				// TODO: add alert if too many outputs are skipped

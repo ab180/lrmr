@@ -11,6 +11,7 @@ import (
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/partitions"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,7 +21,7 @@ import (
 	"time"
 )
 
-const CollectStageName = "__collect"
+const CollectStageName = "_collect"
 
 type Collector struct {
 	m    *Master
@@ -148,4 +149,25 @@ func (c *Collector) CreateTask(context.Context, *lrmrpb.CreateTaskRequest) (*emp
 func (c *Collector) Stop() {
 	// TODO: shutdown timeout
 	c.srv.GracefulStop()
+}
+
+type CollectPartitioner struct{}
+
+func NewCollectPartitioner() partitions.Partitioner {
+	return &CollectPartitioner{}
+}
+
+// PlanNext assigns partition to master.
+func (c CollectPartitioner) PlanNext(numExecutors int) []partitions.Partition {
+	assignToMaster := map[string]string{
+		"Type": string(node.Master),
+	}
+	return []partitions.Partition{
+		{ID: "_collect", AssignmentAffinity: assignToMaster},
+	}
+}
+
+// DeterminePartition always partitions data to "_collect" partition.
+func (c CollectPartitioner) DeterminePartition(partitions.Context, *lrdd.Row, int) (id string, err error) {
+	return "_collect", nil
 }

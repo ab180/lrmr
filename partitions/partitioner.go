@@ -14,12 +14,11 @@ var ErrNoOutput = errors.New("no output")
 
 type Context interface {
 	PartitionID() string
-	TotalPartitions() int
 }
 
 type Partitioner interface {
 	PlanNext(numExecutors int) []Partition
-	DeterminePartition(c Context, r *lrdd.Row) (id string, err error)
+	DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error)
 }
 
 type SerializablePartitioner struct {
@@ -83,7 +82,7 @@ func (f *FiniteKeyPartitioner) PlanNext(int) (partitions []Partition) {
 	return partitions
 }
 
-func (f *FiniteKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+func (f *FiniteKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
 	if _, ok := f.KeySet[r.Key]; !ok {
 		err = ErrNoOutput
 		return
@@ -101,9 +100,9 @@ func (h *hashKeyPartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 
-func (h *hashKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+func (h *hashKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
 	// uses Fowler–Noll–Vo hash to determine output shard
-	slot := fnv1a.HashString64(r.Key) % uint64(c.TotalPartitions())
+	slot := fnv1a.HashString64(r.Key) % uint64(numOutputs)
 	return strconv.FormatUint(slot, 10), nil
 }
 
@@ -119,8 +118,8 @@ func (f *ShuffledPartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 
-func (f *ShuffledPartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
-	slot := f.sentEvents % c.TotalPartitions()
+func (f *ShuffledPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
+	slot := f.sentEvents % numOutputs
 	f.sentEvents++
 	return strconv.Itoa(slot), nil
 }
@@ -135,6 +134,11 @@ func (p PreservePartitioner) PlanNext(numExecutors int) []Partition {
 	return PlanForNumberOf(numExecutors)
 }
 
-func (p PreservePartitioner) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+func (p PreservePartitioner) DeterminePartition(c Context, _ *lrdd.Row, _ int) (id string, err error) {
 	return c.PartitionID(), nil
+}
+
+func isPreserved(p Partitioner) bool {
+	_, ok := p.(*PreservePartitioner)
+	return ok
 }

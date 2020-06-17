@@ -2,6 +2,10 @@ package master
 
 import (
 	"context"
+	"fmt"
+	"path"
+	"sync"
+
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
@@ -11,9 +15,8 @@ import (
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/transformation"
 	"golang.org/x/sync/errgroup"
-	"path"
-	"sync"
 )
 
 var ErrNoAvailableWorkers = errors.New("no available workers")
@@ -63,24 +66,22 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		return nil, nil, ErrNoAvailableWorkers
 	}
 
-	// collect stage
+	// plans collect stage to the master
+	plans[len(plans)-1].Partitioner = NewCollectPartitioner()
 	plans = append(plans, partitions.Plan{
 		DesiredCount:     1,
 		MaxNodes:         1,
 		ExecutorsPerNode: 1,
 	})
-	// TODO: desired node: partitions.WithFixedNodeGroups(m.collector.Node),
+	stages = append(stages, job.NewStage(CollectStageName, nil))
 
-	pp, assignments := partitions.Schedule(workers, plans)
+	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.collector.Node))
 	for i, p := range pp {
-		var stageName string
-		if i < len(stages) {
-			stages[i].Partitions = p
-			stageName = stages[i].Name
-		} else {
-			stageName = CollectStageName
-		}
-		log.Verbose("Planned {} partitions on {}/{} (input by {}):\n{}", len(p.Partitions), name, stageName, p.Partitioner, assignments[i].Pretty())
+		stages[i].Partitions = p
+
+		partitionerName := fmt.Sprintf("%T", partitions.UnwrapPartitioner(p.Partitioner))
+		log.Verbose("Planned {} partitions on {}/{} (output by {}):\n{}", len(p.Partitions),
+			name, stages[i].Name, partitionerName, assignments[i].Pretty())
 	}
 
 	j, err := m.JobManager.CreateJob(ctx, name, stages)
@@ -96,7 +97,7 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 // StartTasks create tasks to the nodes with the plan.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partitions.Assignments, broadcasts map[string][]byte) error {
 	// initialize tasks reversely, so that outputs can be connected with next stage
-	for i := len(j.Stages) - 1; i >= 0; i-- {
+	for i := len(j.Stages) - 1; i >= 1; i-- {
 		wg, wctx := errgroup.WithContext(ctx)
 		for _, curPartition := range assignments[i] {
 			w := curPartition.Node
@@ -104,8 +105,8 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 				JobID:       j.ID,
 				StageName:   j.Stages[i].Name,
 				PartitionID: curPartition.ID,
-				Input:       buildInputAt(j.Stages, i),
-				Output:      buildOutputTo(j.Stages, i+1, assignments[i+1]),
+				Input:       []*lrmrpb.Input{{Type: lrmrpb.Input_PUSH, PrevStageName: j.Stages[i-1].Name}},
+				Output:      buildOutputTo(j.Stages, assignments, i+1),
 				Broadcasts:  broadcasts,
 			}
 			wg.Go(func() error {
@@ -126,35 +127,25 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 	return nil
 }
 
-func buildInputAt(stages []*job.Stage, stageIdx int) []*lrmrpb.Input {
-	var prevStageName string
-	if stageIdx == 0 {
-		prevStageName = "__input"
-	} else {
-		prevStageName = stages[stageIdx-1].Name
-	}
-	return []*lrmrpb.Input{
-		{Type: lrmrpb.Input_PUSH, PrevStageName: prevStageName},
-	}
-}
-
-func buildOutputTo(stages []*job.Stage, nextStageIdx int, nextPartitions partitions.Assignments) []*lrmrpb.Output {
-	var nextStageName string
-	if nextStageIdx < len(stages) {
-		nextStageName = stages[nextStageIdx].Name
-	} else {
-		nextStageName = "__collect"
+func buildOutputTo(stages []*job.Stage, assignments []partitions.Assignments, nextStageIdx int) []*lrmrpb.Output {
+	if nextStageIdx == len(stages) {
+		return []*lrmrpb.Output{{Type: lrmrpb.Output_PUSH}}
 	}
 	return []*lrmrpb.Output{
 		{
 			Type:            lrmrpb.Output_PUSH,
-			PartitionToHost: nextPartitions.ToMap(),
-			NextStageName:   nextStageName,
+			PartitionToHost: assignments[nextStageIdx].ToMap(),
+			NextStageName:   stages[nextStageIdx].Name,
 		},
 	}
 }
 
-func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, targets partitions.Assignments, partitioner partitions.Partitioner) (output.Output, error) {
+func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, targets partitions.Assignments, partitioner partitions.Partitioner) (output.Output, error) {
+	s := j.GetStage(stageName)
+	if s == nil {
+		return nil, errors.Errorf("stage %s not found", stageName)
+	}
+
 	outs := make(map[string]output.Output)
 	var lock sync.Mutex
 
@@ -162,7 +153,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, targets partit
 	for _, t := range targets {
 		p := t
 		wg.Go(func() error {
-			taskID := path.Join(j.ID, j.Stages[0].Name, p.ID)
+			taskID := path.Join(j.ID, s.Name, p.ID)
 			out, err := output.NewPushStream(reqCtx, m.NodeManager, p.Node.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", p.Node.Host)
@@ -176,7 +167,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, targets partit
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	out := output.NewWriter(nil /* TODO */, partitioner, outs)
+	out := output.NewWriter(newContextForInput(ctx, len(s.Partitions.Partitions)), partitioner, outs)
 	return out, nil
 }
 
@@ -190,3 +181,22 @@ func (m *Master) Stop() {
 		log.Error("failed to close node manager", err)
 	}
 }
+
+type ctxForInput struct {
+	context.Context
+	numOutputs int
+}
+
+func newContextForInput(ctx context.Context, numOutputs int) transformation.Context {
+	return &ctxForInput{
+		Context:    ctx,
+		numOutputs: numOutputs,
+	}
+}
+
+func (i ctxForInput) Broadcast(key string) interface{}         { return nil }
+func (i ctxForInput) WorkerLocalOption(key string) interface{} { return nil }
+func (i ctxForInput) PartitionID() string                      { return "0" }
+func (i ctxForInput) NumOutputs() int                          { return i.numOutputs }
+func (i ctxForInput) AddMetric(name string, delta int)         {}
+func (i ctxForInput) SetMetric(name string, val int)           {}
