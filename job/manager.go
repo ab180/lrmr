@@ -6,7 +6,7 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/internal/utils"
+	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/node"
 	"path"
 )
@@ -39,7 +39,7 @@ func NewManager(nm node.Manager, crd coordinator.Coordinator) *Manager {
 func (m *Manager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
 	js := newStatus()
 	j := &Job{
-		ID:          utils.GenerateID("J"),
+		ID:          util.GenerateID("J"),
 		Name:        name,
 		Stages:      stages,
 		SubmittedAt: js.SubmittedAt,
