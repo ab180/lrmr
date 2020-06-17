@@ -30,13 +30,20 @@ func (s SerializablePartitioner) MarshalJSON() ([]byte, error) {
 	return serialization.SerializeStruct(s.Partitioner)
 }
 
-func (s SerializablePartitioner) UnmarshalJSON(data []byte) error {
+func (s *SerializablePartitioner) UnmarshalJSON(data []byte) error {
 	v, err := serialization.DeserializeStruct(data)
 	if err != nil {
 		return err
 	}
 	s.Partitioner = v.(Partitioner)
 	return nil
+}
+
+func UnwrapPartitioner(p Partitioner) Partitioner {
+	if sp, ok := p.(SerializablePartitioner); ok {
+		return sp.Partitioner
+	}
+	return p
 }
 
 // PlanForNumberOf creates partition for the number of executors.

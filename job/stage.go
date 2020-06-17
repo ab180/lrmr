@@ -13,7 +13,7 @@ type Stage struct {
 	Dependencies []*Stage `json:"-"`
 
 	// Transformer is a function the stage executes.
-	Transformation transformation.Transformation
+	Transformation transformation.Serializable `json:"transformation"`
 
 	// Partitions is a scheduled partition informations.
 	Partitions partitions.Partitions `json:"partitions"`
@@ -31,7 +31,7 @@ func NewStage(name string, tf transformation.Transformation, deps ...*Stage) *St
 		Name:           name,
 		Step:           maxStep + 1,
 		Dependencies:   deps,
-		Transformation: tf,
+		Transformation: transformation.Serializable{Transformation: tf},
 	}
 }
 

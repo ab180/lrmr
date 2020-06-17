@@ -7,8 +7,8 @@ const (
 
 // Partitions represents partitions in a stage.
 type Partitions struct {
-	Partitioner Partitioner `json:"partitioner"`
-	Partitions  []Partition `json:"partitions"`
+	Partitioner SerializablePartitioner `json:"partitioner"`
+	Partitions  []Partition             `json:"partitions"`
 }
 
 func New(p Partitioner, partitions []Partition) Partitions {
