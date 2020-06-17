@@ -12,7 +12,7 @@ import (
 	"github.com/therne/lrmr/transformation"
 )
 
-func RegisterTransformation(tfs ...interface{}) interface{} {
+func RegisterTypes(tfs ...interface{}) interface{} {
 	for _, tf := range tfs {
 		serialization.RegisterType(tf)
 	}
@@ -178,6 +178,19 @@ func (s *sortTransformation) Swap(i, j int) {
 	s.rows[i], s.rows[j] = s.rows[j], s.rows[i]
 }
 
+func (s *sortTransformation) MarshalJSON() ([]byte, error) {
+	return serialization.SerializeStruct(s.sorter)
+}
+
+func (s *sortTransformation) UnmarshalJSON(data []byte) error {
+	sorter, err := serialization.DeserializeStruct(data)
+	if err != nil {
+		return err
+	}
+	s.sorter = sorter.(Sorter)
+	return nil
+}
+
 type Reducer interface {
 	InitialValue() interface{}
 	Reduce(ctx Context, prev interface{}, cur *lrdd.Row) (next interface{}, err error)
@@ -193,19 +206,23 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row
 
 	for row := range in {
 		ctx := replacePartitionKey(c, row.Key)
+		prev := state[row.Key]
 		if reducers[row.Key] == nil {
 			reducers[row.Key] = f.instantiateReducer()
+			prev = reducers[row.Key].InitialValue()
 		}
-		next, err := reducers[row.Key].Reduce(ctx, state[row.Key], row)
+		next, err := reducers[row.Key].Reduce(ctx, prev, row)
 		if err != nil {
 			return err
 		}
 		state[row.Key] = next
 	}
 
+	i := 0
 	rows := make([]*lrdd.Row, len(state))
 	for key, finalVal := range state {
-		rows = append(rows, lrdd.KeyValue(key, finalVal))
+		rows[i] = lrdd.KeyValue(key, finalVal)
+		i++
 	}
 	return out.Write(rows...)
 }
