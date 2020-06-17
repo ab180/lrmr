@@ -2,13 +2,14 @@ package lrmr
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime"
+
 	"github.com/airbloc/logger"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
-	"os"
-	"os/signal"
-	"runtime"
 )
 
 var (

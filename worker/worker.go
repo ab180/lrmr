@@ -15,6 +15,7 @@ import (
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
+	"github.com/therne/lrmr/partitions"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,7 +48,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			loggergrpc.UnaryServerLogger(log),
+			// loggergrpc.UnaryServerLogger(log),
 			loggergrpc.UnaryServerRecover(),
 		)),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
@@ -61,7 +62,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 				}
 				return nil
 			},
-			loggergrpc.StreamServerLogger(log),
+			// loggergrpc.StreamServerLogger(log),
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
@@ -125,10 +126,10 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	c := newTaskContext(w, s, task, broadcasts)
+	c := newTaskContext(w, task, broadcasts)
 
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(c, j, req.Output)
+	out, err := w.newOutputWriter(c, j, s.Partitions, req.Output)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
@@ -136,7 +137,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	log.Info("Create {}/{}/{} (Job ID: {})", j.Name, s.Name, task.PartitionID, j.ID)
 	// log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String())
 
-	exec, err := NewTaskExecutor(c, task, s.Transformer, in, out)
+	exec, err := NewTaskExecutor(c, task, s.Transformation, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")
 		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
@@ -157,7 +158,7 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, oo []*lrmrpb.Output) (output.Output, error) {
+func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, cur partitions.Partitions, oo []*lrmrpb.Output) (output.Output, error) {
 	outputs := make([]output.Output, len(oo))
 	for i, outDesc := range oo {
 		s := j.GetStage(outDesc.NextStageName)
@@ -181,7 +182,7 @@ func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, oo []*lrmrpb.Outp
 			}
 			idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
 		}
-		outputs[i] = output.NewWriter(ctx, s.Partitions.Partitioner, idToOutput)
+		outputs[i] = output.NewWriter(ctx, cur.Partitioner.Partitioner, idToOutput)
 	}
 	return output.NewComposed(outputs), nil
 }

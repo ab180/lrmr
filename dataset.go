@@ -1,122 +1,126 @@
 package lrmr
 
 import (
-	"context"
 	"fmt"
-	"time"
 
-	"github.com/goombaio/namegenerator"
+	"github.com/therne/lrmr/internal/util"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
 )
 
 // Dataset is less-resilient distributed dataset
 type Dataset struct {
-	Session   *Session
-	NumStages int
+	session *Session
 
+	input  InputProvider
+	stages []*job.Stage
+
+	// len(plans) == len(stages)+1 (because of input stage)
+	plans       []partitions.Plan
 	defaultPlan partitions.Plan
+
+	NumStages int
 }
 
-func FromInput(provider InputProvider) *Dataset {
-	sess := NewSession().SetInput(provider)
-	return &Dataset{Session: sess}
+func newDataset(sess *Session, input InputProvider) *Dataset {
+	return &Dataset{
+		session: sess,
+		input:   input,
+		stages: []*job.Stage{
+			job.NewStage("_input", nil),
+		},
+		plans: []partitions.Plan{
+			{Partitioner: input, DesiredCount: 1, MaxNodes: 1, DesiredNodeAffinity: map[string]string{"Type": "master"}},
+		},
+	}
 }
 
-func FromURI(uri string) *Dataset {
-	sess := NewSession().SetInput(&localInput{Path: uri})
-	return &Dataset{Session: sess}
-}
-
-func Parallelize(input interface{}, m *master.Master) *Dataset {
-	data := lrdd.From(input)
-	return FromInput(&parallelizedInput{Data: data})
-}
-
-func (d *Dataset) addStage(tf transformation.Transformation) {
-	d.Session.AddStage(tf)
+func (d *Dataset) addStage(name string, tf transformation.Transformation) {
+	st := job.NewStage(name, tf, d.stages[len(d.stages)-1])
+	d.stages = append(d.stages, st)
+	d.plans = append(d.plans, d.defaultPlan)
 }
 
 func (d *Dataset) Do(t Transformer) *Dataset {
-	d.addStage(&transformerTransformation{t})
+	d.addStage(d.stageName(t), &transformerTransformation{t})
 	return d
 }
 
 func (d *Dataset) Map(m Mapper) *Dataset {
-	d.addStage(&mapTransformation{m})
+	d.addStage(d.stageName(m), &mapTransformation{m})
 	return d
 }
 
 func (d *Dataset) FlatMap(fm FlatMapper) *Dataset {
-	d.addStage(&flatMapTransformation{fm})
+	d.addStage(d.stageName(fm), &flatMapTransformation{fm})
 	return d
 }
 
 func (d *Dataset) Reduce(r Reducer) *Dataset {
-	d.addStage(&reduceTransformation{r})
+	d.addStage(d.stageName(r), &reduceTransformation{r})
 	return d
 }
 
 func (d *Dataset) Sort(s Sorter) *Dataset {
-	d.addStage(&sortTransformation{r})
+	d.addStage(d.stageName(s), &sortTransformation{sorter: s})
 	return d
 }
 
 func (d *Dataset) GroupByKey() *Dataset {
-	d.Session.SetPartitioner(partitions.NewHashKeyPartitioner())
+	d.lastPlan().Partitioner = partitions.NewHashKeyPartitioner()
 	return d
 }
 
 func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
-	d.Session.SetPartitioner(partitions.NewFiniteKeyPartitioner(knownKeys))
+	d.lastPlan().Partitioner = partitions.NewFiniteKeyPartitioner(knownKeys)
 	return d
 }
 
 func (d *Dataset) Repartition(n int) *Dataset {
-	d.Session.SetDesiredPartitionCount(n)
+	d.defaultPlan.DesiredCount = n
 	return d
 }
 
 func (d *Dataset) PartitionedBy(p partitions.Partitioner) *Dataset {
-	d.Session.SetPartitioner(p)
+	d.plans[len(d.plans)-1].Partitioner = p
 	return d
 }
 
 func (d *Dataset) Broadcast(key string, value interface{}) *Dataset {
-	d.Session.Broadcast(key, value)
+	d.session.Broadcast(key, value)
 	return d
 }
 
 func (d *Dataset) WithWorkerCount(n int) *Dataset {
-	d.Session.DefaultPlan().MaxNodes = n
+	d.defaultPlan.MaxNodes = n
 	return d
 }
 
 func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
-	d.Session.DefaultPlan().ExecutorsPerNode = n
+	d.defaultPlan.ExecutorsPerNode = n
 	return d
 }
 
-func (d *Dataset) Collect(ctx context.Context, m *master.Master, jobName ...string) (map[string][]*lrdd.Row, error) {
-	if len(jobName) == 0 {
-		jobName = append(jobName, randomJobName())
-	}
-	job, err := d.Session.Run(ctx, jobName[0], m)
+func (d *Dataset) Collect() (map[string][]*lrdd.Row, error) {
+	j, err := d.session.Run(d)
 	if err != nil {
 		return nil, err
 	}
-	return job.Collect()
+	return j.Collect()
 }
 
-func (d *Dataset) stageName(s stage.Stage) string {
-	name := fmt.Sprintf("%s%d", s.Name, d.NumStages)
+func (d *Dataset) stageName(v interface{}) string {
+	name := fmt.Sprintf("%s%d", util.NameOfType(v), d.NumStages)
 	d.NumStages += 1
 	return name
 }
 
-func randomJobName() string {
-	return namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
+func (d *Dataset) Run() (*RunningJob, error) {
+	return d.session.Run(d)
+}
+
+func (d *Dataset) lastPlan() *partitions.Plan {
+	return &d.plans[len(d.plans)-1]
 }

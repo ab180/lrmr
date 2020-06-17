@@ -1,15 +1,18 @@
 package testutils
 
 import (
+	"context"
+	"strconv"
+	"time"
+
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/worker"
-	"strconv"
-	"time"
 )
 
-func StartLocalCluster(c C, numWorkers int) (m *master.Master, stopper func()) {
+func StartLocalCluster(c C, numWorkers int) (sess *lrmr.Session, stopper func()) {
 	crd := coordinator.NewLocalMemory()
 
 	workers := make([]*worker.Worker, numWorkers)
@@ -39,7 +42,7 @@ func StartLocalCluster(c C, numWorkers int) (m *master.Master, stopper func()) {
 	So(err, ShouldBeNil)
 	m.Start()
 
-	return m, func() {
+	return lrmr.NewSession(context.Background(), m, lrmr.WithTimeout(time.Minute)), func() {
 		for _, w := range workers {
 			c.So(w.Stop(), ShouldBeNil)
 		}

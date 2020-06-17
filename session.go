@@ -2,83 +2,65 @@ package lrmr
 
 import (
 	"context"
-	"fmt"
-	"reflect"
+	"time"
 
 	"github.com/airbloc/logger"
+	"github.com/goombaio/namegenerator"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/internal/serialization"
-	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/transformation"
 )
 
 type Session struct {
-	input  InputProvider
-	stages []*job.Stage
-
-	// len(plans) == len(stages)+1 (because of input stage)
-	plans       []partitions.Plan
-	defaultPlan partitions.Plan
-
+	ctx        context.Context
+	master     *master.Master
 	broadcasts serialization.Broadcast
+	options    SessionOptions
 }
 
-func NewSession() *Session {
+func NewSession(ctx context.Context, m *master.Master, opts ...SessionOption) *Session {
 	return &Session{
+		ctx:        ctx,
+		master:     m,
 		broadcasts: make(serialization.Broadcast),
+		options:    buildSessionOptions(opts),
 	}
 }
 
+// Parallelize creates new Dataset from given value.
+func (s *Session) Parallelize(val interface{}) *Dataset {
+	in := &parallelizedInput{data: lrdd.From(val)}
+	return newDataset(s, in)
+}
+
+// FromFile creates new Dataset by reading files under given path.
+func (s *Session) FromFile(path string) *Dataset {
+	in := &localInput{Path: path}
+	return newDataset(s, in)
+}
+
+// Broadcast shares given value across the cluster. The data broadcasted this way
+// is cached in serialized form and deserialized before running each task.
 func (s *Session) Broadcast(key string, val interface{}) {
 	s.broadcasts[key] = val
 }
 
-func (s *Session) SetInput(ip InputProvider) *Session {
-	s.input = ip
-	s.plans = append(s.plans, partitions.Plan{
-		Partitioner:  ip,
-		DesiredCount: 1,
-		MaxNodes:     1,
-	})
-	s.stages = append(s.stages, job.NewStage("_input", nil))
-	return s
-}
-
-func (s *Session) AddStage(tf transformation.Transformation) *Session {
-	stageName := fmt.Sprintf("%s%d", reflect.TypeOf(tf).Name(), len(s.stages))
-
-	st := job.NewStage(stageName, tf, s.stages[len(s.stages)-1])
-	s.stages = append(s.stages, st)
-	s.plans = append(s.plans, s.defaultPlan)
-	return s
-}
-
-func (s *Session) SetPartitioner(p partitions.Partitioner) *Session {
-	if len(s.plans) == 0 {
-		panic("you need to add stage first.")
-	}
-	s.plans[len(s.plans)-1].Partitioner = p
-	return s
-}
-
-func (s *Session) SetDesiredPartitionCount(numCount int) *Session {
-	if len(s.plans) == 0 {
-		panic("you need to add any stage first.")
-	}
-	s.plans[len(s.plans)-1].DesiredCount = numCount
-	return s
-}
-
-func (s *Session) DefaultPlan() *partitions.Plan {
-	return &s.defaultPlan
-}
-
-func (s *Session) Run(ctx context.Context, name string, m *master.Master) (*RunningJob, error) {
+func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	timer := log.Timer()
 
-	assignments, j, err := m.CreateJob(ctx, name, s.plans, s.stages)
+	jobName := s.options.Name
+	if jobName == "" {
+		jobName = namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
+	}
+	ctx := s.ctx
+	if s.options.Timeout > 0 {
+		tctx, cancel := context.WithTimeout(ctx, s.options.Timeout)
+		ctx = tctx
+		defer cancel()
+	}
+
+	assignments, j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages)
 	if err != nil {
 		return nil, err
 	}
@@ -88,16 +70,16 @@ func (s *Session) Run(ctx context.Context, name string, m *master.Master) (*Runn
 	if err != nil {
 		return nil, errors.Wrap(err, "serialize broadcast")
 	}
-	if err := m.StartJob(ctx, j, assignments, broadcast); err != nil {
+	if err := s.master.StartJob(ctx, j, assignments, broadcast); err != nil {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
-	jobLog.Info("Feeding input")
-	iw, err := m.OpenInputWriter(ctx, j, assignments[1], s.plans[0].Partitioner)
+	jobLog.Verbose("Feeding input")
+	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, assignments[1], ds.plans[0].Partitioner)
 	if err != nil {
 		return nil, errors.WithMessage(err, "open input")
 	}
-	if err := s.input.FeedInput(iw); err != nil {
+	if err := ds.input.FeedInput(iw); err != nil {
 		return nil, errors.Wrap(err, "feed input")
 	}
 	if err := iw.Close(); err != nil {
@@ -106,7 +88,7 @@ func (s *Session) Run(ctx context.Context, name string, m *master.Master) (*Runn
 	timer.End("Job creation completed. Now running...")
 
 	return &RunningJob{
-		master: m,
+		master: s.master,
 		Job:    j,
 	}, nil
 }

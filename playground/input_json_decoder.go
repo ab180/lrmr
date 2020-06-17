@@ -6,23 +6,21 @@ import (
 	"github.com/airbloc/logger"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/stage"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 )
 
-var _ = stage.RegisterFlatMap("DecodeJSON", DecodeJSON())
-
 type jsonDecoder struct{}
 
-func DecodeJSON() stage.FlatMapper {
+func DecodeJSON() lrmr.FlatMapper {
 	return &jsonDecoder{}
 }
 
-func (l *jsonDecoder) FlatMap(c stage.Context, in *lrdd.Row) (result []*lrdd.Row, err error) {
+func (l *jsonDecoder) FlatMap(ctx lrmr.Context, in *lrdd.Row) (result []*lrdd.Row, err error) {
 	var path string
 	in.UnmarshalValue(&path)
 
@@ -32,7 +30,7 @@ func (l *jsonDecoder) FlatMap(c stage.Context, in *lrdd.Row) (result []*lrdd.Row
 	if err != nil {
 		return nil, errors.Wrap(err, "open file")
 	}
-	c.AddMetric("Files", 1)
+	ctx.AddMetric("Files", 1)
 
 	r := bufio.NewReader(file)
 	for {

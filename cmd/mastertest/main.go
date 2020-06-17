@@ -18,13 +18,15 @@ func main() {
 	m.Start()
 	defer m.Stop()
 
-	sess := lrmr.FromURI("/Users/vista/testdata/", m).
+	sess := lrmr.NewSession(context.TODO(), m, lrmr.WithName("GroupByApp"))
+
+	ds := sess.FromFile("/Users/vista/testdata/").
 		WithWorkerCount(8).
 		FlatMap(DecodeJSON()).
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
 		Reduce(Count())
 
-	j, err := sess.Run(context.TODO(), "GroupByApp")
+	j, err := ds.Run()
 	if err != nil {
 		log.Fatal("failed to run session", err)
 	}

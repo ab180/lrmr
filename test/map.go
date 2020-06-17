@@ -3,27 +3,25 @@ package test
 import (
 	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/test/testutils"
 )
+
+var _ = lrmr.RegisterTypes(&Multiply{})
 
 // Multiply multiplies input.
 type Multiply struct{}
 
-func (m *Multiply) Map(ctx stage.Context, row *lrdd.Row) (*lrdd.Row, error) {
+func (m *Multiply) Map(ctx lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
 	n := testutils.IntValue(row)
 	return lrdd.Value(n * 2), nil
 }
 
-var _ = stage.RegisterMap("Multiply", &Multiply{})
-
-func Map(m *master.Master) *lrmr.Dataset {
+func Map(sess *lrmr.Session) *lrmr.Dataset {
 	data := make([]int, 1000)
 	for i := 0; i < len(data); i++ {
 		data[i] = i + 1
 	}
-	return lrmr.Parallelize(data, m).
+	return sess.Parallelize(data).
 		Map(&Multiply{}).
 		Map(&Multiply{}).
 		Map(&Multiply{})

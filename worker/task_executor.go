@@ -7,7 +7,7 @@ import (
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformer"
+	"github.com/therne/lrmr/transformation"
 )
 
 type TaskExecutor struct {
@@ -15,19 +15,19 @@ type TaskExecutor struct {
 	task    *job.Task
 
 	Input    *input.Reader
-	function transformer.Transformer
+	function transformation.Transformation
 	Output   output.Output
 
 	finishChan chan bool
 	reporter   *job.Reporter
 }
 
-func NewTaskExecutor(c *taskContext, task *job.Task, tf transformer.Transformer, in *input.Reader, out output.Output) (*TaskExecutor, error) {
+func NewTaskExecutor(c *taskContext, task *job.Task, fn transformation.Transformation, in *input.Reader, out output.Output) (*TaskExecutor, error) {
 	return &TaskExecutor{
 		context:    c,
 		task:       task,
 		Input:      in,
-		function:   tf,
+		function:   fn,
 		Output:     out,
 		reporter:   c.worker.jobReporter,
 		finishChan: make(chan bool),
@@ -37,7 +37,7 @@ func NewTaskExecutor(c *taskContext, task *job.Task, tf transformer.Transformer,
 func (e *TaskExecutor) Run() {
 	defer e.AbortOnPanic()
 	rowCnt := 0
-	inputChan := make(chan []*lrdd.Row)
+	inputChan := make(chan *lrdd.Row, 100)
 	go func() {
 		// pipe input channel
 		defer close(inputChan)
@@ -52,7 +52,9 @@ func (e *TaskExecutor) Run() {
 					return
 				}
 				rowCnt += len(rows)
-				inputChan <- rows
+				for _, r := range rows {
+					inputChan <- r
+				}
 
 			case <-e.context.Done():
 				return
@@ -60,7 +62,7 @@ func (e *TaskExecutor) Run() {
 		}
 	}()
 
-	if err := e.function.Run(e.context, inputChan, e.Output); err != nil {
+	if err := e.function.Apply(e.context, inputChan, e.Output); err != nil {
 		e.Abort(err)
 		return
 	}

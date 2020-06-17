@@ -1,22 +1,22 @@
 package test
 
 import (
-	gocontext "context"
+	"testing"
+
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/therne/lrmr/test/testutils"
-	"testing"
 )
 
 func TestMap(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		m, stop := testutils.StartLocalCluster(c, 2)
+		sess, stop := testutils.StartLocalCluster(c, 2)
 		defer stop()
 
 		Convey("When running Map", func() {
-			ds := Map(m)
+			ds := Map(sess)
 
 			Convey("It should run without error", func() {
-				res, err := ds.Collect(gocontext.TODO())
+				res, err := ds.Collect()
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 1)
 				So(res[""], ShouldHaveLength, 1000)

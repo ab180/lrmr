@@ -1,20 +1,21 @@
 package test
 
 import (
-	gocontext "context"
-	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/test/testutils"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestBasicGroupByKey(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		m, stop := testutils.StartLocalCluster(c, 2)
+		sess, stop := testutils.StartLocalCluster(c, 2)
 		defer stop()
 
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKey(m)
-			j, err := ds.Run(gocontext.TODO(), "Test")
+			ds := BasicGroupByKey(sess)
+			j, err := ds.Run()
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
@@ -23,10 +24,10 @@ func TestBasicGroupByKey(t *testing.T) {
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
-					So(m, ShouldContainKey, "DecodeJSON0/Files")
-					So(m, ShouldContainKey, "Count1/Events")
-					So(m["DecodeJSON0/Files"], ShouldEqual, 55)
-					So(m["Count1/Events"], ShouldEqual, 647437)
+					So(m, ShouldResemble, job.Metrics{
+						"jsonDecoder0/Files": 55,
+						"counter1/Events":    647437,
+					})
 				})
 			})
 		})
@@ -35,14 +36,14 @@ func TestBasicGroupByKey(t *testing.T) {
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		m, stop := testutils.StartLocalCluster(c, 2)
+		sess, stop := testutils.StartLocalCluster(c, 2)
 		defer stop()
 
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKnownKeys(m)
+			ds := BasicGroupByKnownKeys(sess)
 
 			Convey("It should run without error", func() {
-				res, err := ds.Collect(gocontext.TODO())
+				res, err := ds.Collect()
 				So(err, ShouldBeNil)
 
 				Convey("Its result should be collected", func() {
@@ -56,12 +57,12 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 
 func TestSimpleCount(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		m, stop := testutils.StartLocalCluster(c, 2)
+		sess, stop := testutils.StartLocalCluster(c, 2)
 		defer stop()
 
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(m)
-			j, err := ds.Run(gocontext.TODO(), "Test")
+			ds := SimpleCount(sess)
+			j, err := ds.Run()
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
@@ -70,8 +71,8 @@ func TestSimpleCount(t *testing.T) {
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
-					So(m, ShouldContainKey, "Count0/Events")
-					So(m["Count0/Events"], ShouldEqual, 3)
+					So(m, ShouldContainKey, "counter0/Events")
+					So(m["counter0/Events"], ShouldEqual, 3)
 				})
 			})
 		})
@@ -80,14 +81,14 @@ func TestSimpleCount(t *testing.T) {
 
 func TestSimpleCount_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		m, stop := testutils.StartLocalCluster(c, 2)
+		sess, stop := testutils.StartLocalCluster(c, 2)
 		defer stop()
 
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(m)
+			ds := SimpleCount(sess)
 
 			Convey("Calling Collect() should return results with no error", func() {
-				res, err := ds.Collect(gocontext.TODO())
+				res, err := ds.Collect()
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 2)
 				So(res["foo"], ShouldHaveLength, 1)

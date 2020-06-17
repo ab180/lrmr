@@ -1,11 +1,12 @@
 package lrmr
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
-	"os"
-	"path/filepath"
 )
 
 type InputProvider interface {
@@ -23,15 +24,15 @@ func (l localInput) FeedInput(out output.Output) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Write([]*lrdd.Row{lrdd.Value(path)})
+		return out.Write(lrdd.Value(path))
 	})
 }
 
 type parallelizedInput struct {
 	partitions.ShuffledPartitioner
-	Data []*lrdd.Row
+	data []*lrdd.Row
 }
 
 func (p parallelizedInput) FeedInput(out output.Output) error {
-	return out.Write(p.Data)
+	return out.Write(p.data...)
 }
