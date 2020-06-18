@@ -11,16 +11,18 @@ import (
 type taskContext struct {
 	context.Context
 	worker    *Worker
+	jobID     string
 	task      *job.Task
 	broadcast serialization.Broadcast
 	cancel    context.CancelFunc
 }
 
-func newTaskContext(parent context.Context, w *Worker, t *job.Task, b serialization.Broadcast) *taskContext {
+func newTaskContext(parent context.Context, w *Worker, jobID string, t *job.Task, b serialization.Broadcast) *taskContext {
 	ctx, cancel := context.WithCancel(parent)
 	return &taskContext{
 		Context:   ctx,
 		worker:    w,
+		jobID:     jobID,
 		task:      t,
 		broadcast: b,
 		cancel:    cancel,
@@ -29,6 +31,10 @@ func newTaskContext(parent context.Context, w *Worker, t *job.Task, b serializat
 
 func (c taskContext) PartitionID() string {
 	return c.task.PartitionID
+}
+
+func (c taskContext) JobID() string {
+	return c.jobID
 }
 
 func (c taskContext) Broadcast(key string) interface{} {

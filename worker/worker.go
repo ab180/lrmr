@@ -128,7 +128,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	c := newTaskContext(context.Background(), w, task, broadcasts)
+	c := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
 	out, err := w.newOutputWriter(c, req.Job.Id, s, req.Output)
 	if err != nil {

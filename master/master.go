@@ -198,6 +198,7 @@ func newContextForInput(ctx context.Context, numOutputs int) transformation.Cont
 func (i ctxForInput) Broadcast(key string) interface{}         { return nil }
 func (i ctxForInput) WorkerLocalOption(key string) interface{} { return nil }
 func (i ctxForInput) PartitionID() string                      { return "0" }
+func (i ctxForInput) JobID() string                            { return "" }
 func (i ctxForInput) NumOutputs() int                          { return i.numOutputs }
 func (i ctxForInput) AddMetric(name string, delta int)         {}
 func (i ctxForInput) SetMetric(name string, val int)           {}
