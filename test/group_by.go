@@ -2,7 +2,6 @@ package test
 
 import (
 	"github.com/therne/lrmr"
-	. "github.com/therne/lrmr/playground"
 )
 
 func BasicGroupByKey(sess *lrmr.Session) *lrmr.Dataset {

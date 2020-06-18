@@ -1,17 +1,18 @@
-package playground
+package test
 
 import (
 	"bufio"
 	"bytes"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+
 	"github.com/airbloc/logger"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/lrdd"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
 )
 
 type jsonDecoder struct{}

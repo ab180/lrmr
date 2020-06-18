@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/therne/lrmr"
-	_ "github.com/therne/lrmr/playground"
 	"os"
 	"strconv"
+
+	"github.com/therne/lrmr"
+	_ "github.com/therne/lrmr/test"
 )
 
 func main() {
