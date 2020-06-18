@@ -2,14 +2,15 @@ package coordinator
 
 import (
 	"context"
-	"github.com/coreos/etcd/clientv3"
-	jsoniter "github.com/json-iterator/go"
 	"math/rand"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/coreos/etcd/clientv3"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type localMemoryCoordinator struct {
@@ -21,6 +22,7 @@ type localMemoryCoordinator struct {
 	counterLock sync.RWMutex
 
 	subscriptions []subscription
+	subsLock      sync.RWMutex
 }
 
 type subscription struct {
@@ -199,6 +201,9 @@ func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Dura
 }
 
 func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) chan WatchEvent {
+	lmc.subsLock.Lock()
+	defer lmc.subsLock.Unlock()
+
 	eventsChan := make(chan WatchEvent)
 	lmc.subscriptions = append(lmc.subscriptions, subscription{
 		prefix: prefix,
@@ -208,6 +213,9 @@ func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) cha
 }
 
 func (lmc *localMemoryCoordinator) notifySubscribers(ev WatchEvent) {
+	lmc.subsLock.RLock()
+	defer lmc.subsLock.RUnlock()
+
 	for _, sub := range lmc.subscriptions {
 		if strings.HasPrefix(ev.Item.Key, sub.prefix) {
 			sub.events <- ev
@@ -216,6 +224,9 @@ func (lmc *localMemoryCoordinator) notifySubscribers(ev WatchEvent) {
 }
 
 func (lmc *localMemoryCoordinator) Close() error {
+	lmc.subsLock.RLock()
+	defer lmc.subsLock.RUnlock()
+
 	for _, sub := range lmc.subscriptions {
 		close(sub.events)
 	}
