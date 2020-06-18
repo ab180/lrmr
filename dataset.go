@@ -108,7 +108,20 @@ func (d *Dataset) Collect() (map[string][]*lrdd.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	return j.Collect()
+	res, err := j.Collect()
+	if err != nil {
+		return nil, err
+	}
+	m, err := j.Metrics()
+	if err != nil {
+		log.Warn("Unable to get metric of job {} ({}): {}", j.Name, j.ID, err)
+		return res, nil
+	}
+	log.Verbose("Collected {} metrics from {} ({}):", len(m), j.Name, j.ID)
+	for key, val := range m {
+		log.Verbose(" - {}: {}", key, val)
+	}
+	return res, nil
 }
 
 func (d *Dataset) stageName(v interface{}) string {
@@ -119,6 +132,10 @@ func (d *Dataset) stageName(v interface{}) string {
 
 func (d *Dataset) Run() (*RunningJob, error) {
 	return d.session.Run(d)
+}
+
+func (d *Dataset) lastStage() *stage.Stage {
+	return &d.stages[len(d.stages)-1]
 }
 
 func (d *Dataset) lastPlan() *partitions.Plan {
