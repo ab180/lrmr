@@ -3,6 +3,8 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/airbloc/logger v1.4.2 h1:xpfz4ktAEbcB9+BwkoFTzSLOTuVSUkxmA45Hi03rO0Y=
 github.com/airbloc/logger v1.4.2/go.mod h1:o8ArLDU04j/9hu1fevwO7WfUPNFKldHYeZ7ov8zJSIo=
+github.com/airbloc/logger v1.4.5 h1:WfDoJtsjTZK6FSaxI+x1z2EBvGwjhKaJgI0gHYt2UKE=
+github.com/airbloc/logger v1.4.5/go.mod h1:X5o8zlCv3K7bsulrjZkO4i+is5O02KdiVuiKzis4zgI=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 h1:JYp7IbQjafoB+tBA3gMyHYHrpOtNuDiK/uB5uXxq5wM=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

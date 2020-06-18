@@ -3,14 +3,15 @@ package node
 import (
 	"context"
 	"fmt"
+	"path"
+	"sync"
+
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	"path"
-	"sync"
 )
 
 var (
@@ -77,7 +78,7 @@ func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
 		return fmt.Errorf("failed to write to etcd: %v", err)
 	}
 	m.self = n
-	m.log.Info("node {id} registered with", logger.Attrs{"id": n.ID, "host": n.Host})
+	m.log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
 	return nil
 }
 

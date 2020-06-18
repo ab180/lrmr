@@ -3,7 +3,7 @@ module github.com/therne/lrmr
 go 1.14
 
 require (
-	github.com/airbloc/logger v1.4.2
+	github.com/airbloc/logger v1.4.5
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect

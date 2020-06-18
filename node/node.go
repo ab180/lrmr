@@ -1,7 +1,7 @@
 package node
 
 import (
-	"github.com/therne/lrmr/internal/utils"
+	"github.com/therne/lrmr/internal/util"
 	"runtime"
 )
 
@@ -28,9 +28,9 @@ type Node struct {
 
 func New(host string, typ Type) *Node {
 	return &Node{
-		ID:        utils.GenerateID("N"),
+		ID:        util.GenerateID("N"),
 		Host:      host,
 		Type:      typ,
-		Executors: runtime.NumCPU() / 2,
+		Executors: runtime.NumCPU(),
 	}
 }
