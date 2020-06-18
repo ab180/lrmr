@@ -128,7 +128,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 	c := newTaskContext(context.Background(), w, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(c, req.Job.Id, req.Output)
+	out, err := w.newOutputWriter(c, req.Job.Id, s, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
@@ -149,19 +149,10 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, o *lrmrpb.Output) (output.Output, error) {
-	var outDesc stage.Output
-	if err := o.OutputDesc.UnmarshalJSON(&outDesc); err != nil {
-		return nil, errors.Errorf("unmarshal output desc: %v", err)
-	}
-	var s stage.Stage
-	if err := o.NextStage.UnmarshalJSON(&s); err != nil {
-		return nil, errors.Errorf("unmarshal output stage: %v", err)
-	}
-
+func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage, o *lrmrpb.Output) (output.Output, error) {
 	idToOutput := make(map[string]output.Output)
 	for id, host := range o.PartitionToHost {
-		taskID := path.Join(jobID, s.Name, id)
+		taskID := path.Join(jobID, cur.Output.Stage, id)
 		if host == w.nodeManager.Self().Host {
 			t := w.getRunningTask(taskID)
 			if t != nil {
@@ -175,7 +166,7 @@ func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, o *lrmrpb.Outpu
 		}
 		idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
 	}
-	return output.NewWriter(ctx, outDesc.Partitioner.Partitioner, idToOutput), nil
+	return output.NewWriter(ctx, partitions.UnwrapPartitioner(cur.Output.Partitioner), idToOutput), nil
 }
 
 func (w *Worker) getRunningTask(taskID string) *TaskExecutor {

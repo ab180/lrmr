@@ -36,7 +36,9 @@ func newDataset(sess *Session, input InputProvider) *Dataset {
 }
 
 func (d *Dataset) addStage(name string, tf transformation.Transformation) {
-	st := stage.New(name, tf, stage.InputFrom(d.stages[len(d.stages)-1]))
+	st := stage.New(name, tf, stage.InputFrom(*d.lastStage()))
+	d.lastStage().SetOutputTo(st)
+
 	d.stages = append(d.stages, st)
 	d.plans = append(d.plans, d.defaultPlan)
 }

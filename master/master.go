@@ -75,7 +75,9 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		MaxNodes:         1,
 		ExecutorsPerNode: 1,
 	})
-	stages = append(stages, stage.New(CollectStageName, nil))
+	colStage := stage.New(CollectStageName, nil)
+	stages[len(stages)-1].SetOutputTo(colStage)
+	stages = append(stages, colStage)
 
 	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.collector.Node))
 	for i, p := range pp {
@@ -108,18 +110,15 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 			},
 			Stage: pbtypes.MustMarshalJSON(s),
 			Input: []*lrmrpb.Input{
-				{
-					Type:      lrmrpb.Input_PUSH,
-					PrevStage: pbtypes.MustMarshalJSON(j.Stages[i-1]),
-				},
+				{Type: lrmrpb.Input_PUSH},
 			},
-			Output:     &lrmrpb.Output{Type: lrmrpb.Output_PUSH},
+			Output: &lrmrpb.Output{
+				Type: lrmrpb.Output_PUSH,
+			},
 			Broadcasts: broadcasts,
 		}
 		if i < len(j.Stages)-1 {
 			reqTmpl.Output.PartitionToHost = assignments[i+1].ToMap()
-			reqTmpl.Output.OutputDesc = pbtypes.MustMarshalJSON(s.Output)
-			reqTmpl.Output.NextStage = pbtypes.MustMarshalJSON(j.Stages[i+1])
 		}
 
 		wg, wctx := errgroup.WithContext(ctx)
@@ -148,19 +147,14 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 }
 
 func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, targets partitions.Assignments, partitioner partitions.Partitioner) (output.Output, error) {
-	s := j.GetStage(stageName)
-	if s == nil {
-		return nil, errors.Errorf("stage %s not found", stageName)
-	}
-
-	outs := make(map[string]output.Output)
+	outs := make(map[string]output.Output, len(targets))
 	var lock sync.Mutex
 
 	wg, reqCtx := errgroup.WithContext(ctx)
 	for _, t := range targets {
 		p := t
 		wg.Go(func() error {
-			taskID := path.Join(j.ID, s.Name, p.ID)
+			taskID := path.Join(j.ID, stageName, p.ID)
 			out, err := output.NewPushStream(reqCtx, m.NodeManager, p.Node.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", p.Node.Host)

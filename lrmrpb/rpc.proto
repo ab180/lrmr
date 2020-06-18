@@ -33,7 +33,6 @@ message Input {
         POLL = 1;
     }
     Type type = 1;
-    pbtypes.JSON prevStage = 2;
 }
 
 message Output {
@@ -42,11 +41,9 @@ message Output {
         POLL = 1;
     }
     Type type = 1;
-    pbtypes.JSON nextStage = 2;
-    pbtypes.JSON outputDesc = 3;
 
     // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
-    map<string, string> partitionToHost = 4;
+    map<string, string> partitionToHost = 2;
 }
 
 message HostMapping {
