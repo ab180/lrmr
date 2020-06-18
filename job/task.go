@@ -2,9 +2,11 @@ package job
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/node"
 	"net/url"
 	"time"
+
+	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/stage"
 )
 
 type Task struct {
@@ -18,11 +20,11 @@ type Task struct {
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
-func NewTask(partitionKey string, node *node.Node, job *Job, stage *Stage) *Task {
+func NewTask(partitionKey string, node *node.Node, jobID string, stage stage.Stage) *Task {
 	return &Task{
 		PartitionID: partitionKey,
-		StageName:   string(stage.Name),
-		JobID:       job.ID,
+		StageName:   stage.Name,
+		JobID:       jobID,
 		NodeID:      node.ID,
 		NodeHost:    node.Host,
 		SubmittedAt: time.Now(),

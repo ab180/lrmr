@@ -29,3 +29,21 @@ func (s *baseStatus) Complete(rs RunningState) {
 	s.Status = rs
 	s.CompletedAt = &now
 }
+
+// Status is a status of the job.
+type Status struct {
+	baseStatus
+}
+
+func newStatus() *Status {
+	return &Status{newBaseStatus()}
+}
+
+type StageStatus struct {
+	baseStatus
+	Errors []string `json:"errors,omitempty"`
+}
+
+func newStageStatus() *StageStatus {
+	return &StageStatus{baseStatus: newBaseStatus()}
+}

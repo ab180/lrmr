@@ -1,30 +1,52 @@
 package stage
 
-import "github.com/therne/lrmr/transformation"
+import (
+	"github.com/therne/lrmr/internal/serialization"
+	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/transformation"
+)
 
 type Stage struct {
-	Name string
-	Step int
+	Name string `json:"name"`
 
-	// Dependencies are list of stages need to be executed before this stage.
-	Dependencies []*Stage
+	// Input are list of stages need to be executed before this stage.
+	Inputs []Input `json:"inputs"`
 
-	// Transformer is a function the stage executes.
-	Transformation transformation.Serializable
+	// Function is a transformation the stage executes.
+	Function transformation.Serializable `json:"function"`
+
+	Output Output
 }
 
 // New creates a new stage.
-func New(name string, tf transformation.Transformation, deps ...*Stage) *Stage {
-	maxStep := -1
-	for _, dep := range deps {
-		if maxStep < dep.Step {
-			maxStep = dep.Step
-		}
+func New(name string, fn transformation.Transformation, in ...Input) Stage {
+	return Stage{
+		Name:     name,
+		Inputs:   in,
+		Function: transformation.Serializable{Transformation: fn},
 	}
-	return &Stage{
-		Name:           name,
-		Step:           maxStep + 1,
-		Dependencies:   deps,
-		Transformation: transformation.Serializable{Transformation: tf},
+}
+
+func (s *Stage) SetOutputTo(dest Stage) {
+	s.Output.Stage = dest.Name
+	// s.Output.Type
+}
+
+type Input struct {
+	Stage string             `json:"stage"`
+	Type  serialization.Type `json:"type"`
+}
+
+func InputFrom(s Stage) Input {
+	return Input{
+		Stage: s.Name,
+		// Type:  s.Output.Type,
 	}
+}
+
+type Output struct {
+	Stage string             `json:"stage"`
+	Type  serialization.Type `json:"type"`
+
+	Partitioner partitions.SerializablePartitioner `json:"partitioner"`
 }

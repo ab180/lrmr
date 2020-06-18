@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/therne/lrmr/internal/util"
-	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
 )
 
@@ -15,7 +15,7 @@ type Dataset struct {
 	session *Session
 
 	input  InputProvider
-	stages []*job.Stage
+	stages []stage.Stage
 
 	// len(plans) == len(stages)+1 (because of input stage)
 	plans       []partitions.Plan
@@ -28,9 +28,7 @@ func newDataset(sess *Session, input InputProvider) *Dataset {
 	return &Dataset{
 		session: sess,
 		input:   input,
-		stages: []*job.Stage{
-			job.NewStage("_input", nil),
-		},
+		stages:  []stage.Stage{{Name: "_input"}},
 		plans: []partitions.Plan{
 			{Partitioner: input, DesiredCount: 1, MaxNodes: 1, DesiredNodeAffinity: map[string]string{"Type": "master"}},
 		},
@@ -38,7 +36,7 @@ func newDataset(sess *Session, input InputProvider) *Dataset {
 }
 
 func (d *Dataset) addStage(name string, tf transformation.Transformation) {
-	st := job.NewStage(name, tf, d.stages[len(d.stages)-1])
+	st := stage.New(name, tf, stage.InputFrom(d.stages[len(d.stages)-1]))
 	d.stages = append(d.stages, st)
 	d.plans = append(d.plans, d.defaultPlan)
 }

@@ -14,7 +14,7 @@ import (
 
 func RegisterTypes(tfs ...interface{}) interface{} {
 	for _, tf := range tfs {
-		serialization.RegisterType(tf)
+		serialization.TypeOf(tf)
 	}
 	return nil
 }

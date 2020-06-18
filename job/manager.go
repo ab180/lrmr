@@ -8,6 +8,8 @@ import (
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/stage"
+
 	"path"
 )
 
@@ -36,7 +38,7 @@ func NewManager(nm node.Manager, crd coordinator.Coordinator) *Manager {
 	}
 }
 
-func (m *Manager) CreateJob(ctx context.Context, name string, stages []*Stage) (*Job, error) {
+func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Stage) (*Job, error) {
 	js := newStatus()
 	j := &Job{
 		ID:          util.GenerateID("J"),
@@ -48,8 +50,8 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []*Stage) (
 		Put(path.Join(jobNs, j.ID), j).
 		Put(path.Join(jobStatusNs, j.ID), js)
 
-	for _, stage := range j.Stages {
-		txn.Put(path.Join(stageStatusNs, j.ID, stage.Name), newStageStatus())
+	for _, s := range j.Stages {
+		txn.Put(path.Join(stageStatusNs, j.ID, s.Name), newStageStatus())
 	}
 	if err := m.crd.Commit(ctx, txn); err != nil {
 		return nil, errors.Wrap(err, "etcd write")
