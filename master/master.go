@@ -101,7 +101,7 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 1; i-- {
 		s := j.Stages[i]
-		reqTmpl := lrmrpb.CreateTaskRequest{
+		reqTmpl := lrmrpb.CreateTasksRequest{
 			Job: &lrmrpb.Job{
 				Id:   j.ID,
 				Name: j.Name,
@@ -123,18 +123,19 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 		}
 
 		wg, wctx := errgroup.WithContext(ctx)
-		for _, a := range assignments[i] {
-			curPartition := a
+		for h, ps := range assignments[i].GroupIDsByHost() {
+			host := h
+			partitionIDs := ps
 
 			wg.Go(func() error {
-				conn, err := m.NodeManager.Connect(wctx, curPartition.Node.Host)
+				conn, err := m.NodeManager.Connect(wctx, host)
 				if err != nil {
-					return errors.Wrapf(err, "dial %s for stage %s", curPartition.Node.Host, s.Name)
+					return errors.Wrapf(err, "dial %s for stage %s", host, s.Name)
 				}
 				req := reqTmpl
-				req.PartitionID = curPartition.ID
-				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(wctx, &req); err != nil {
-					return errors.Wrapf(err, "call CreateTask on %s", curPartition.Node.Host)
+				req.PartitionIDs = partitionIDs
+				if _, err := lrmrpb.NewNodeClient(conn).CreateTasks(wctx, &req); err != nil {
+					return errors.Wrapf(err, "call CreateTask on %s", host)
 				}
 				return nil
 			})

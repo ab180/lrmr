@@ -7,15 +7,15 @@ import "lrdd/row.proto";
 import "internal/pbtypes/types.proto";
 
 service Node {
-    rpc CreateTask (CreateTaskRequest) returns (google.protobuf.Empty);
+    rpc CreateTasks (CreateTasksRequest) returns (google.protobuf.Empty);
     rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
 }
 
-message CreateTaskRequest {
+message CreateTasksRequest {
     Job job = 1;
     pbtypes.JSON stage = 2;
-    string partitionID = 3;
+    repeated string partitionIDs = 3;
 
     repeated Input input = 4;
     Output output = 5;

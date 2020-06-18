@@ -46,6 +46,14 @@ func (pp Assignments) ToMap() map[string]string {
 	return m
 }
 
+func (pp Assignments) GroupIDsByHost() map[string][]string {
+	m := make(map[string][]string)
+	for _, p := range pp {
+		m[p.Node.Host] = append(m[p.Node.Host], p.ID)
+	}
+	return m
+}
+
 // Keys returns an unordered list of partition keys.
 func (pp Assignments) Keys() (kk []string) {
 	for _, p := range pp {

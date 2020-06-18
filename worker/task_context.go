@@ -16,8 +16,8 @@ type taskContext struct {
 	cancel    context.CancelFunc
 }
 
-func newTaskContext(w *Worker, t *job.Task, b serialization.Broadcast) *taskContext {
-	ctx, cancel := context.WithCancel(context.Background())
+func newTaskContext(parent context.Context, w *Worker, t *job.Task, b serialization.Broadcast) *taskContext {
+	ctx, cancel := context.WithCancel(parent)
 	return &taskContext{
 		Context:   ctx,
 		worker:    w,

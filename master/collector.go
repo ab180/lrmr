@@ -129,7 +129,7 @@ func (c *Collector) PollData(stream lrmrpb.Node_PollDataServer) error {
 	return status.Error(codes.Unimplemented, "unimplemented")
 }
 
-func (c *Collector) CreateTask(context.Context, *lrmrpb.CreateTaskRequest) (*empty.Empty, error) {
+func (c *Collector) CreateTasks(context.Context, *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
 	return &empty.Empty{}, nil
 }
 

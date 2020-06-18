@@ -22,6 +22,7 @@ import (
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/stage"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -95,56 +96,57 @@ func (w *Worker) Start() error {
 	return w.server.Serve(lis)
 }
 
-func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) (*empty.Empty, error) {
+func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
 	var s stage.Stage
 	if err := req.Stage.UnmarshalJSON(&s); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid stage JSON: %v", err)
 	}
-
-	task := job.NewTask(req.PartitionID, w.nodeManager.Self(), req.Job.Id, s)
-	ts, err := w.jobManager.CreateTask(ctx, task)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "create task failed: %v", err)
-	}
-	w.jobReporter.Add(task.Reference(), ts)
-
 	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	c := newTaskContext(w, task, broadcasts)
 
+	wg, wctx := errgroup.WithContext(ctx)
+	for _, p := range req.PartitionIDs {
+		partitionID := p
+		wg.Go(func() error { return w.createTask(wctx, req, partitionID, s, broadcasts) })
+	}
+	if err := wg.Wait(); err != nil {
+		return nil, err
+	}
+	log.Info("Create {}/{}/[{}] (Job ID: {})", req.Job.Name, s.Name, strings.Join(req.PartitionIDs, ","), req.Job.Id)
+	return &empty.Empty{}, nil
+}
+
+func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest, partitionID string, s stage.Stage, broadcasts serialization.Broadcast) error {
+	task := job.NewTask(partitionID, w.nodeManager.Self(), req.Job.Id, s)
+	ts, err := w.jobManager.CreateTask(ctx, task)
+	if err != nil {
+		return status.Errorf(codes.Internal, "create task failed: %v", err)
+	}
+	w.jobReporter.Add(task.Reference(), ts)
+
+	c := newTaskContext(context.Background(), w, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
 	out, err := w.newOutputWriter(c, req.Job.Id, req.Output)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create output: %v", err)
+		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
-
-	log.Info("Create {}/{}/{} (Job ID: {})", req.Job.Name, s.Name, task.PartitionID, req.Job.Id)
-	// log.Info("  Output: Partitioner {} with {} partitions", req.Output.Partitioner.String())
 
 	exec, err := NewTaskExecutor(c, task, s.Function, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")
 		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
-			return nil, reportErr
+			return reportErr
 		}
-		return nil, err
+		return err
 	}
-	taskID := path.Join(req.Job.Id, s.Name, task.PartitionID)
 	w.runningTasksMu.Lock()
-	w.runningTasks[taskID] = exec
+	w.runningTasks[task.Reference().String()] = exec
 	w.runningTasksMu.Unlock()
 
 	go exec.Run()
-	// go func() {
-	// for reason := range w.jobManager.WatchJobErrors(exec.context, exec.task.JobID) {
-	// 	log.Warn("Task {} canceled because job is aborted. Reason: {}", exec.task.Reference(), reason)
-	// 	exec.Cancel()
-	// 	break
-	// }
-	// }()
-	return &empty.Empty{}, nil
+	return nil
 }
 
 func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, o *lrmrpb.Output) (output.Output, error) {

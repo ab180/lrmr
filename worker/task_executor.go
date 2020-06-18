@@ -36,6 +36,8 @@ func NewTaskExecutor(c *taskContext, task *job.Task, fn transformation.Transform
 
 func (e *TaskExecutor) Run() {
 	defer e.AbortOnPanic()
+	go e.cancelOnJobAbort()
+
 	rowCnt := 0
 	inputChan := make(chan *lrdd.Row, 100)
 	go func() {
@@ -96,13 +98,21 @@ func (e *TaskExecutor) AbortOnPanic() {
 	}
 }
 
-func (e *TaskExecutor) Cancel() {
-	if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
-		log.Error("While reporting the cancellation, another error occurred", err)
+func (e *TaskExecutor) cancelOnJobAbort() {
+	for {
+		select {
+		case reason := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
+			log.Warn("Task {} canceled because job is aborted. Reason: {}", e.task.Reference(), reason)
+			if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
+				log.Error("While reporting the cancellation, another error occurred", err)
+			}
+			_ = e.Input.Close()
+			_ = e.Output.Close()
+			e.close()
+		case <-e.context.Done():
+			return
+		}
 	}
-	_ = e.Input.Close()
-	_ = e.Output.Close()
-	e.close()
 }
 
 func (e *TaskExecutor) close() {
