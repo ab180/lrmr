@@ -3,6 +3,7 @@ package lrmrpb;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
+import "lrdd/row.proto";
 
 service Node {
     rpc CreateTask (CreateTaskRequest) returns (google.protobuf.Empty);
@@ -53,7 +54,7 @@ message CreateTaskResponse {
 // PushDataRequest is a request to push data for a worker to process.
 // metadata with key "header" and value of DataHeader is required.
 message PushDataRequest {
-    repeated Row data = 1;
+    repeated lrdd.Row data = 1;
 }
 
 // PollDataRequest is a request to poll data for a worker to process.
@@ -64,16 +65,11 @@ message PollDataRequest {
 }
 
 message PollDataResponse {
-    repeated Row data = 1;
+    repeated lrdd.Row data = 1;
 }
 
 message DataHeader {
     string taskID = 1;
     string fromHost = 2;
     string fromNodeID = 3;
-}
-
-message Row {
-    string key = 1;
-    bytes value = 2;
 }

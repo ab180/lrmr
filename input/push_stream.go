@@ -2,11 +2,11 @@ package input
 
 import (
 	"context"
+	"io"
+
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
-	"io"
 )
 
 type PushStream struct {
@@ -33,11 +33,7 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 				errChan <- err
 				return
 			}
-			rows := make([]*lrdd.Row, len(req.Data))
-			for i, d := range req.Data {
-				rows[i] = lrdd.FromProto(d)
-			}
-			p.reader.C <- rows
+			p.reader.C <- req.Data
 		}
 	}()
 

@@ -45,11 +45,7 @@ func NewPushStream(ctx context.Context, nm node.Manager, host, taskID string) (*
 }
 
 func (p *PushStream) Write(data ...*lrdd.Row) (err error) {
-	rows := make([]*lrmrpb.Row, len(data))
-	for i, d := range data {
-		rows[i] = d.ToProto()
-	}
-	return p.stream.Send(&lrmrpb.PushDataRequest{Data: rows})
+	return p.stream.Send(&lrmrpb.PushDataRequest{Data: data})
 }
 
 func (p *PushStream) Close() error {
