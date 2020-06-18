@@ -9,12 +9,14 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/internal/pbtypes"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
+	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
 	"golang.org/x/sync/errgroup"
 )
@@ -57,7 +59,7 @@ func (m *Master) Start() {
 	go m.JobTracker.HandleJobCompletion()
 }
 
-func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []*job.Stage) ([]partitions.Assignments, *job.Job, error) {
+func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage) ([]partitions.Assignments, *job.Job, error) {
 	workers, err := m.NodeManager.List(ctx, node.Worker)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "list available workers")
@@ -73,11 +75,11 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		MaxNodes:         1,
 		ExecutorsPerNode: 1,
 	})
-	stages = append(stages, job.NewStage(CollectStageName, nil))
+	stages = append(stages, stage.New(CollectStageName, nil))
 
 	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.collector.Node))
 	for i, p := range pp {
-		stages[i].Partitions = p
+		stages[i].Output.Partitioner = p.Partitioner
 
 		partitionerName := fmt.Sprintf("%T", partitions.UnwrapPartitioner(p.Partitioner))
 		log.Verbose("Planned {} partitions on {}/{} (output by {}):\n{}", len(p.Partitions),
@@ -98,24 +100,41 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partitions.Assignments, broadcasts map[string][]byte) error {
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 1; i-- {
+		s := j.Stages[i]
+		reqTmpl := lrmrpb.CreateTaskRequest{
+			Job: &lrmrpb.Job{
+				Id:   j.ID,
+				Name: j.Name,
+			},
+			Stage: pbtypes.MustMarshalJSON(s),
+			Input: []*lrmrpb.Input{
+				{
+					Type:      lrmrpb.Input_PUSH,
+					PrevStage: pbtypes.MustMarshalJSON(j.Stages[i-1]),
+				},
+			},
+			Output:     &lrmrpb.Output{Type: lrmrpb.Output_PUSH},
+			Broadcasts: broadcasts,
+		}
+		if i < len(j.Stages)-1 {
+			reqTmpl.Output.PartitionToHost = assignments[i+1].ToMap()
+			reqTmpl.Output.OutputDesc = pbtypes.MustMarshalJSON(s.Output)
+			reqTmpl.Output.NextStage = pbtypes.MustMarshalJSON(j.Stages[i+1])
+		}
+
 		wg, wctx := errgroup.WithContext(ctx)
-		for _, curPartition := range assignments[i] {
-			w := curPartition.Node
-			req := &lrmrpb.CreateTaskRequest{
-				JobID:       j.ID,
-				StageName:   j.Stages[i].Name,
-				PartitionID: curPartition.ID,
-				Input:       []*lrmrpb.Input{{Type: lrmrpb.Input_PUSH, PrevStageName: j.Stages[i-1].Name}},
-				Output:      buildOutputTo(j.Stages, assignments, i+1),
-				Broadcasts:  broadcasts,
-			}
+		for _, a := range assignments[i] {
+			curPartition := a
+
 			wg.Go(func() error {
-				conn, err := m.NodeManager.Connect(wctx, w.Host)
+				conn, err := m.NodeManager.Connect(wctx, curPartition.Node.Host)
 				if err != nil {
-					return errors.Wrapf(err, "dial %s for stage %s", w.Host, req.StageName)
+					return errors.Wrapf(err, "dial %s for stage %s", curPartition.Node.Host, s.Name)
 				}
-				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(wctx, req); err != nil {
-					return errors.Wrapf(err, "call CreateTask on %s", w.Host)
+				req := reqTmpl
+				req.PartitionID = curPartition.ID
+				if _, err := lrmrpb.NewNodeClient(conn).CreateTask(wctx, &req); err != nil {
+					return errors.Wrapf(err, "call CreateTask on %s", curPartition.Node.Host)
 				}
 				return nil
 			})
@@ -125,19 +144,6 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 		}
 	}
 	return nil
-}
-
-func buildOutputTo(stages []*job.Stage, assignments []partitions.Assignments, nextStageIdx int) []*lrmrpb.Output {
-	if nextStageIdx == len(stages) {
-		return []*lrmrpb.Output{{Type: lrmrpb.Output_PUSH}}
-	}
-	return []*lrmrpb.Output{
-		{
-			Type:            lrmrpb.Output_PUSH,
-			PartitionToHost: assignments[nextStageIdx].ToMap(),
-			NextStageName:   stages[nextStageIdx].Name,
-		},
-	}
 }
 
 func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, targets partitions.Assignments, partitioner partitions.Partitioner) (output.Output, error) {
@@ -167,7 +173,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	out := output.NewWriter(newContextForInput(ctx, len(s.Partitions.Partitions)), partitioner, outs)
+	out := output.NewWriter(newContextForInput(ctx, len(targets)), partitioner, outs)
 	return out, nil
 }
 

@@ -25,6 +25,17 @@ type SerializablePartitioner struct {
 	Partitioner
 }
 
+func WrapPartitioner(p Partitioner) SerializablePartitioner {
+	return SerializablePartitioner{p}
+}
+
+func UnwrapPartitioner(p Partitioner) Partitioner {
+	if sp, ok := p.(SerializablePartitioner); ok {
+		return sp.Partitioner
+	}
+	return p
+}
+
 func (s SerializablePartitioner) MarshalJSON() ([]byte, error) {
 	return serialization.SerializeStruct(s.Partitioner)
 }
@@ -36,13 +47,6 @@ func (s *SerializablePartitioner) UnmarshalJSON(data []byte) error {
 	}
 	s.Partitioner = v.(Partitioner)
 	return nil
-}
-
-func UnwrapPartitioner(p Partitioner) Partitioner {
-	if sp, ok := p.(SerializablePartitioner); ok {
-		return sp.Partitioner
-	}
-	return p
 }
 
 // PlanForNumberOf creates partition for the number of executors.

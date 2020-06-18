@@ -4,6 +4,7 @@ package lrmrpb;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "lrdd/row.proto";
+import "internal/pbtypes/types.proto";
 
 service Node {
     rpc CreateTask (CreateTaskRequest) returns (google.protobuf.Empty);
@@ -12,13 +13,18 @@ service Node {
 }
 
 message CreateTaskRequest {
-    string jobID = 1;
-    string stageName = 2;
+    Job job = 1;
+    pbtypes.JSON stage = 2;
     string partitionID = 3;
 
     repeated Input input = 4;
-    repeated Output output = 5;
+    Output output = 5;
     map<string, bytes> broadcasts = 6;
+}
+
+message Job {
+    string id = 1;
+    string name = 2;
 }
 
 message Input {
@@ -27,7 +33,7 @@ message Input {
         POLL = 1;
     }
     Type type = 1;
-    string prevStageName = 2;
+    pbtypes.JSON prevStage = 2;
 }
 
 message Output {
@@ -36,7 +42,8 @@ message Output {
         POLL = 1;
     }
     Type type = 1;
-    string nextStageName = 2;
+    pbtypes.JSON nextStage = 2;
+    pbtypes.JSON outputDesc = 3;
 
     // partitionKeyToHost contains an ordered mapping of partition key to output hostname.
     map<string, string> partitionToHost = 4;
