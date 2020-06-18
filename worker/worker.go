@@ -21,6 +21,7 @@ import (
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
+	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -97,10 +98,6 @@ func (w *Worker) Start() error {
 }
 
 func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
-	var s stage.Stage
-	if err := req.Stage.UnmarshalJSON(&s); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid stage JSON: %v", err)
-	}
 	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -109,16 +106,21 @@ func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest
 	wg, wctx := errgroup.WithContext(ctx)
 	for _, p := range req.PartitionIDs {
 		partitionID := p
-		wg.Go(func() error { return w.createTask(wctx, req, partitionID, s, broadcasts) })
+		wg.Go(func() error { return w.createTask(wctx, req, partitionID, broadcasts) })
 	}
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	log.Info("Create {}/{}/[{}] (Job ID: {})", req.Job.Name, s.Name, strings.Join(req.PartitionIDs, ","), req.Job.Id)
+	// log.Info("Create {}/{}/[{}] (Output {})", req.Job.Name, s.Name, strings.Join(req.PartitionIDs, ","))
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest, partitionID string, s stage.Stage, broadcasts serialization.Broadcast) error {
+func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest, partitionID string, broadcasts serialization.Broadcast) error {
+	var s stage.Stage
+	if err := req.Stage.UnmarshalJSON(&s); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid stage JSON: %v", err)
+	}
+
 	task := job.NewTask(partitionID, w.nodeManager.Self(), req.Job.Id, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
