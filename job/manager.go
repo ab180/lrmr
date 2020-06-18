@@ -47,7 +47,7 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 		SubmittedAt: js.SubmittedAt,
 	}
 	txn := coordinator.NewTxn().
-		Put(path.Join(jobNs, j.ID), j).
+		// Put(path.Join(jobNs, j.ID), j).
 		Put(path.Join(jobStatusNs, j.ID), js)
 
 	for _, s := range j.Stages {
@@ -134,7 +134,7 @@ func (m *Manager) ListTasks(ctx context.Context, prefixFormat string, args ...in
 func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	status := newTaskStatus()
 	txn := coordinator.NewTxn().
-		Put(path.Join(taskNs, task.ID()), task).
+		// Put(path.Join(taskNs, task.ID()), task).
 		Put(path.Join(taskStatusNs, task.Reference().String()), status).
 		IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")).
 		IncrementCounter(path.Join(nodeStatusNs, task.NodeID, "totalTasks"))
