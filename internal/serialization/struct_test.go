@@ -76,8 +76,10 @@ func TestSerializeStruct(t *testing.T) {
 
 		Convey("On a primitive", func() {
 			expected := 3
-			Convey("It should raise error on serialization", func() {
-				So(func() { serializeAndDeserialize(expected) }, ShouldPanic)
+			actual := serializeAndDeserialize(expected)
+
+			Convey("It should same after serialization", func() {
+				So(actual, ShouldResemble, expected)
 			})
 		})
 	})
