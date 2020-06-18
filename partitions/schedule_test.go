@@ -113,7 +113,7 @@ func (p partitionerStub) PlanNext(int) []Partition {
 	return p.Partitions
 }
 
-func (p partitionerStub) DeterminePartition(c Context, r *lrdd.Row) (id string, err error) {
+func (p partitionerStub) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
 	return
 }
 
