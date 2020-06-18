@@ -10,7 +10,7 @@ type Stage struct {
 	Dependencies []*Stage
 
 	// Transformer is a function the stage executes.
-	Transformation transformation.Transformation
+	Transformation transformation.Serializable
 }
 
 // New creates a new stage.
@@ -25,6 +25,6 @@ func New(name string, tf transformation.Transformation, deps ...*Stage) *Stage {
 		Name:           name,
 		Step:           maxStep + 1,
 		Dependencies:   deps,
-		Transformation: tf,
+		Transformation: transformation.Serializable{Transformation: tf},
 	}
 }

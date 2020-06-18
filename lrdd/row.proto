@@ -1,9 +1,0 @@
-syntax = "proto3";
-package lrdd;
-
-option go_package = "github.com/therne/lrmr/lrdd";
-
-message Row {
-    string key = 1;
-    bytes value = 2;
-}

@@ -3,12 +3,13 @@ package job
 import (
 	"context"
 	"fmt"
-	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/coordinator"
 	"path"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/airbloc/logger"
+	"github.com/therne/lrmr/coordinator"
 )
 
 // JobTracker tracks and updates jobs and their tasks' status.
@@ -29,7 +30,7 @@ type Tracker struct {
 func NewJobTracker(crd coordinator.Coordinator) *Tracker {
 	return &Tracker{
 		crd:               crd,
-		log:               logger.New("jobtracker"),
+		log:               logger.New("lrmr"),
 		subscriptions:     make(map[string][]chan *Status),
 		activeJobs:        make(map[string]*Job),
 		totalTasksOfStage: make(map[string]int64),
@@ -87,7 +88,7 @@ func (t *Tracker) trackStage(e coordinator.WatchEvent) {
 		totalTasks := t.totalTasksOfStage[stageID]
 		t.lock.RUnlock()
 
-		t.log.Info("Task ({}/{}) finished of {}", e.Counter, totalTasks, stageID)
+		// t.log.Info("Task ({}/{}) finished of {}", e.Counter, totalTasks, stageID)
 		if e.Counter == totalTasks {
 			err := t.finalizeStage(context.TODO(), job, stageID)
 			if err != nil {
@@ -128,7 +129,7 @@ func (t *Tracker) finalizeStage(ctx context.Context, job *Job, stageID string) e
 	t.lock.Unlock()
 
 	totalStages := int64(len(job.Stages)) - 2
-	t.log.Info("Stage {} {}. ({}/{})", stageID, s.Status, doneStages, totalStages)
+	t.log.Verbose("Stage {} {}. ({}/{})", stageID, s.Status, doneStages, totalStages)
 
 	if s.Status == Failed {
 		return t.finalizeJob(ctx, job, Failed)

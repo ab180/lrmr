@@ -30,7 +30,7 @@ func NewTaskExecutor(c *taskContext, task *job.Task, fn transformation.Transform
 		function:   fn,
 		Output:     out,
 		reporter:   c.worker.jobReporter,
-		finishChan: make(chan bool),
+		finishChan: make(chan bool, 1),
 	}, nil
 }
 
@@ -66,8 +66,6 @@ func (e *TaskExecutor) Run() {
 		e.Abort(err)
 		return
 	}
-	log.Info("Task {} finished. (Total inputs {}) Closing... ", e.task.Reference(), rowCnt)
-
 	if err := e.Output.Close(); err != nil {
 		e.Abort(errors.Wrap(err, "close output"))
 	}
@@ -77,6 +75,7 @@ func (e *TaskExecutor) Run() {
 		return
 	}
 	e.finishChan <- true
+	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
@@ -86,7 +85,9 @@ func (e *TaskExecutor) Abort(err error) {
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
 	}
+	_ = e.Input.Close()
 	_ = e.Output.Close()
+	e.close()
 }
 
 func (e *TaskExecutor) AbortOnPanic() {
@@ -96,12 +97,18 @@ func (e *TaskExecutor) AbortOnPanic() {
 }
 
 func (e *TaskExecutor) Cancel() {
-	e.context.cancel()
 	if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
 		log.Error("While reporting the cancellation, another error occurred", err)
 	}
 	_ = e.Input.Close()
 	_ = e.Output.Close()
+	e.close()
+}
+
+func (e *TaskExecutor) close() {
+	e.context.cancel()
+	e.reporter.Remove(e.task.Reference())
+	e.function = nil
 }
 
 func (e *TaskExecutor) WaitForFinish() {

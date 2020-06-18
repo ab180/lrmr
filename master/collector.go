@@ -34,22 +34,9 @@ type Collector struct {
 
 func NewCollector(m *Master) *Collector {
 	srv := grpc.NewServer(
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			loggergrpc.UnaryServerLogger(log),
-			loggergrpc.UnaryServerRecover(),
-		)),
+		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
-			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-				// dump header on stream failure
-				if err := handler(srv, ss); err != nil {
-					if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
-						log.Error(" By {} (From {})", h.TaskID, h.FromHost)
-					}
-					return err
-				}
-				return nil
-			},
-			loggergrpc.StreamServerLogger(log),
+			streamErrorLogger,
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
@@ -170,4 +157,15 @@ func (c CollectPartitioner) PlanNext(numExecutors int) []partitions.Partition {
 // DeterminePartition always partitions data to "_collect" partition.
 func (c CollectPartitioner) DeterminePartition(partitions.Context, *lrdd.Row, int) (id string, err error) {
 	return "_collect", nil
+}
+
+func streamErrorLogger(srv interface{}, ss grpc.ServerStream, _ *grpc.StreamServerInfo, next grpc.StreamHandler) error {
+	// dump header on stream failure
+	if err := next(srv, ss); err != nil {
+		if h, herr := lrmrpb.DataHeaderFromMetadata(ss); herr == nil {
+			log.Error("Collecting task {} from {} failed: {}", h.TaskID, h.FromHost, errors.Cause(err))
+		}
+		return err
+	}
+	return nil
 }

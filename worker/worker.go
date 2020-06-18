@@ -3,6 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
+	"net"
+	"path"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/airbloc/logger"
 	"github.com/airbloc/logger/module/loggergrpc"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -19,14 +25,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net"
-	"path"
-	"strings"
-	"sync"
-	"time"
 )
 
-var log = logger.New("worker")
+var log = logger.New("lrmr")
 
 type Worker struct {
 	nodeManager node.Manager
@@ -34,7 +35,8 @@ type Worker struct {
 	jobReporter *job.Reporter
 	server      *grpc.Server
 
-	runningTasks    sync.Map
+	runningTasksMu  sync.RWMutex
+	runningTasks    map[string]*TaskExecutor
 	workerLocalOpts map[string]interface{}
 
 	opt Options
@@ -47,22 +49,9 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	}
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			// loggergrpc.UnaryServerLogger(log),
-			loggergrpc.UnaryServerRecover(),
-		)),
+		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
-			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-				// dump header on stream failure
-				if err := handler(srv, ss); err != nil {
-					if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
-						log.Error(" By {} (From {})", h.TaskID, h.FromHost)
-					}
-					return err
-				}
-				return nil
-			},
-			// loggergrpc.StreamServerLogger(log),
+			errorLogMiddleware,
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
@@ -71,6 +60,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		jobReporter:     job.NewJobReporter(crd),
 		jobManager:      job.NewManager(nm, crd),
 		server:          srv,
+		runningTasks:    make(map[string]*TaskExecutor),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
 	}, nil
@@ -146,15 +136,18 @@ func (w *Worker) CreateTask(ctx context.Context, req *lrmrpb.CreateTaskRequest) 
 		return nil, err
 	}
 	taskID := path.Join(j.ID, s.Name, task.PartitionID)
-	w.runningTasks.Store(taskID, exec)
+	w.runningTasksMu.Lock()
+	w.runningTasks[taskID] = exec
+	w.runningTasksMu.Unlock()
+
 	go exec.Run()
-	go func() {
-		for reason := range w.jobManager.WatchJobErrors(exec.context, exec.task.JobID) {
-			log.Warn("Task {} canceled because job is aborted. Reason: {}", exec.task.Reference(), reason)
-			exec.Cancel()
-			break
-		}
-	}()
+	// go func() {
+	// for reason := range w.jobManager.WatchJobErrors(exec.context, exec.task.JobID) {
+	// 	log.Warn("Task {} canceled because job is aborted. Reason: {}", exec.task.Reference(), reason)
+	// 	exec.Cancel()
+	// 	break
+	// }
+	// }()
 	return &empty.Empty{}, nil
 }
 
@@ -170,9 +163,9 @@ func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, cur partitions.Pa
 		for id, host := range outDesc.PartitionToHost {
 			taskID := path.Join(j.ID, outDesc.NextStageName, id)
 			if host == w.nodeManager.Self().Host {
-				t, ok := w.runningTasks.Load(taskID)
-				if ok {
-					idToOutput[id] = NewLocalPipe(t.(*TaskExecutor).Input)
+				t := w.getRunningTask(taskID)
+				if t != nil {
+					idToOutput[id] = NewLocalPipe(t.Input)
 					continue
 				}
 			}
@@ -187,17 +180,26 @@ func (w *Worker) newOutputWriter(ctx *taskContext, j *job.Job, cur partitions.Pa
 	return output.NewComposed(outputs), nil
 }
 
+func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
+	w.runningTasksMu.RLock()
+	defer w.runningTasksMu.RUnlock()
+	return w.runningTasks[taskID]
+}
+
 func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
-	e, ok := w.runningTasks.Load(h.TaskID)
-	if !ok {
+	exec := w.getRunningTask(h.TaskID)
+	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
-	exec := e.(*TaskExecutor)
-	defer w.runningTasks.Delete(h.TaskID)
+	defer func() {
+		w.runningTasksMu.Lock()
+		delete(w.runningTasks, h.TaskID)
+		w.runningTasksMu.Unlock()
+	}()
 
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(exec.context); err != nil {
@@ -212,11 +214,10 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
-	e, ok := w.runningTasks.Load(h.TaskID)
-	if !ok {
+	exec := w.getRunningTask(h.TaskID)
+	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
-	_ = e.(*TaskExecutor)
 	panic("implement me")
 }
 
@@ -227,4 +228,15 @@ func (w *Worker) Stop() error {
 		return errors.Wrap(err, "unregister node")
 	}
 	return w.nodeManager.Close()
+}
+
+func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// dump header on stream failure
+	if err := handler(srv, ss); err != nil {
+		if h, err := lrmrpb.DataHeaderFromMetadata(ss); err == nil {
+			log.Error(" By {} (From {})", h.TaskID, h.FromHost)
+		}
+		return err
+	}
+	return nil
 }

@@ -27,5 +27,6 @@ func (l *LocalPipe) Write(rows ...*lrdd.Row) error {
 
 func (l *LocalPipe) Close() error {
 	l.reader.Done()
+	l.reader = nil
 	return nil
 }

@@ -57,5 +57,6 @@ func (w *Writer) Close() error {
 			return err
 		}
 	}
+	w.outputs = nil
 	return nil
 }
