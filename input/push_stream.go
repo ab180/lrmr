@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrmrpb"
@@ -27,6 +28,11 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 
 	errChan := make(chan error)
 	go func() {
+		defer func() {
+			if err := logger.WrapRecover(recover()); err != nil {
+				errChan <- err
+			}
+		}()
 		for {
 			req, err := p.stream.Recv()
 			if err != nil {
