@@ -84,6 +84,8 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		var partitions []Partition
 		if i == 0 {
 			partitions = []Partition{{ID: InputPartitionID}}
+		} else if isPreserved(plans[i-1].Partitioner) && len(pp) > 0 {
+			partitions = pp[i-1].Partitions
 		} else {
 			partitions = plans[i-1].Partitioner.PlanNext(numExecutors)
 		}
