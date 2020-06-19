@@ -2,7 +2,6 @@ package job
 
 import (
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/therne/lrmr/node"
@@ -32,7 +31,7 @@ func NewTask(partitionKey string, node *node.Node, jobID string, stage stage.Sta
 }
 
 func (t *Task) ID() string {
-	return url.QueryEscape(t.PartitionID)
+	return t.PartitionID
 }
 
 func (t Task) Reference() TaskReference {
