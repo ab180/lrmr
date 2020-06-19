@@ -78,6 +78,11 @@ func (d *Dataset) GroupByKnownKeys(knownKeys []string) *Dataset {
 	return d
 }
 
+func (d *Dataset) Shuffle() *Dataset {
+	d.lastPlan().Partitioner = partitions.NewShuffledPartitioner()
+	return d
+}
+
 func (d *Dataset) Repartition(n int) *Dataset {
 	d.defaultPlan.DesiredCount = n
 	return d
