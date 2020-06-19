@@ -51,6 +51,14 @@ func TestFrom(t *testing.T) {
 			})
 		})
 
+		Convey("When calling with an array of lrdd.Row", func() {
+			Convey("It should not create a new row", func() {
+				original := []*Row{KeyValue("hi", "ho"), Value("yo")}
+				rows := From(original)
+				So(original, ShouldResemble, rows)
+			})
+		})
+
 		Convey("When calling with map", func() {
 			Convey("It should create a row when it is string map", func() {
 				rows := From(map[string]string{

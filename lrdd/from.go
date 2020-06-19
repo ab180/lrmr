@@ -2,12 +2,15 @@ package lrdd
 
 import "reflect"
 
+var rowType = reflect.TypeOf((*Row)(nil))
+
 func From(values interface{}) (rows []*Row) {
 	inputVal := reflect.ValueOf(values)
 	switch inputVal.Kind() {
-	case reflect.Slice:
-		fallthrough
-	case reflect.Array:
+	case reflect.Slice, reflect.Array:
+		if inputVal.Type().Elem() == rowType {
+			return values.([]*Row)
+		}
 		for i := 0; i < inputVal.Len(); i++ {
 			rows = append(rows, Value(inputVal.Index(i).Interface()))
 		}
