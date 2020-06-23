@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/airbloc/logger"
+	"github.com/coreos/etcd/clientv3"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 	"google.golang.org/grpc"
@@ -43,6 +45,9 @@ type manager struct {
 	grpcOpts []grpc.DialOption
 	conns    sync.Map
 
+	// livenessProveTick refreshes node info periodically to prove that the node is live.
+	livenessProveTick *time.Ticker
+
 	opt ManagerOptions
 	log logger.Logger
 }
@@ -73,13 +78,35 @@ func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error
 
 // RegisterSelf is used for registering information of this node to etcd.
 func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
-	key := path.Join(nodeNs, n.ID)
-	if err := m.crd.Put(ctx, key, n); err != nil {
-		return fmt.Errorf("failed to write to etcd: %v", err)
+	if err := m.registerOrRefresh(ctx, n); err != nil {
+		return err
 	}
 	m.self = n
 	m.log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
+	go m.sendPeriodicLivenessProve()
 	return nil
+}
+
+// sendPeriodicLivenessProve refreshes node info periodically to prove that the node is live.
+func (m *manager) sendPeriodicLivenessProve() {
+	m.livenessProveTick = time.NewTicker(m.opt.LivenessProbeInterval)
+	for range m.livenessProveTick.C {
+		if err := m.registerOrRefresh(context.Background(), m.self); err != nil {
+			m.log.Error("Failed to renew liveness prove. The node could not be available for {}", m.opt.LivenessProbeInterval)
+			m.log.Error("  Reason: failed to {}", err)
+		}
+	}
+}
+
+func (m *manager) registerOrRefresh(ctx context.Context, n *Node) error {
+	ctx, cancel := context.WithTimeout(ctx, m.opt.LivenessProbeTimeout)
+	defer cancel()
+
+	ttl, err := m.crd.GrantLease(ctx, m.opt.LivenessProbeInterval)
+	if err != nil {
+		return errors.Wrap(err, "grant TTL")
+	}
+	return m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, clientv3.WithLease(ttl))
 }
 
 // Self returns a information of this node.
@@ -135,16 +162,17 @@ func (m *manager) UnregisterNode(nid string) error {
 	if _, err := m.crd.Delete(context.Background(), key); err != nil {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
+	if nid == m.self.ID {
+		m.livenessProveTick.Stop()
+		m.self = nil
+	}
 	return nil
 }
 
 func (m *manager) Close() (err error) {
 	m.conns.Range(func(k, v interface{}) bool {
-		conn := v.(*grpc.ClientConn)
-		if err = conn.Close(); err != nil {
-			return false
-		}
-		return true
+		err = v.(*grpc.ClientConn).Close()
+		return err == nil
 	})
-	return
+	return err
 }
