@@ -68,6 +68,14 @@ func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	return job, nil
 }
 
+func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (*Status, error) {
+	job := new(Status)
+	if err := m.crd.Get(ctx, path.Join(jobStatusNs, jobID), job); err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
 func (m *Manager) GetJobErrors(ctx context.Context, jobID string) (stacktraces []string, err error) {
 	items, err := m.crd.Scan(ctx, path.Join(jobErrorNs, jobID))
 	if err != nil {
