@@ -47,7 +47,7 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 		SubmittedAt: js.SubmittedAt,
 	}
 	txn := coordinator.NewTxn().
-		// Put(path.Join(jobNs, j.ID), j).
+		Put(path.Join(jobNs, j.ID), j).
 		Put(path.Join(jobStatusNs, j.ID), js)
 
 	for _, s := range j.Stages {
