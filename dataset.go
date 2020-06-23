@@ -117,15 +117,17 @@ func (d *Dataset) Collect() (map[string][]*lrdd.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	m, err := j.Metrics()
-	if err != nil {
-		log.Warn("Unable to get metric of job {} ({}): {}", j.Name, j.ID, err)
-		return res, nil
-	}
-	log.Verbose("Collected {} metrics from {} ({}):", len(m), j.Name, j.ID)
-	for key, val := range m {
-		log.Verbose(" - {}: {}", key, val)
-	}
+	go func() {
+		m, err := j.Metrics()
+		if err != nil {
+			log.Warn("Unable to get metric of job {} ({}): {}", j.Name, j.ID, err)
+			return
+		}
+		log.Verbose("Collected {} metrics from {} ({}):", len(m), j.Name, j.ID)
+		for key, val := range m {
+			log.Verbose(" - {}: {}", key, val)
+		}
+	}()
 	return res, nil
 }
 
