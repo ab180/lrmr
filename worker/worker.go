@@ -90,6 +90,7 @@ func (w *Worker) Start() error {
 
 	n := node.New(advHost, node.Worker)
 	n.Tag = w.opt.NodeTags
+	n.Executors = w.opt.Concurrency
 	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}
@@ -128,14 +129,14 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	}
 	w.jobReporter.Add(task.Reference(), ts)
 
-	c := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
+	taskCtx := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(c, req.Job.Id, s, req.Output)
+	out, err := w.newOutputWriter(taskCtx, req.Job.Id, s, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec, err := NewTaskExecutor(c, task, s.Function, in, out)
+	exec, err := NewTaskExecutor(taskCtx, task, s.Function, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")
 		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
