@@ -3,11 +3,17 @@ package master
 import (
 	"context"
 	"fmt"
+	"net"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/airbloc/logger/module/loggergrpc"
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/input"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/node"
@@ -15,21 +21,21 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net"
-	"strings"
-	"sync"
-	"time"
 )
 
 const CollectStageName = "_collect"
+
+type CollectedResult struct {
+	Result []*lrdd.Row
+	Error  *job.Error
+}
 
 type Collector struct {
 	m    *Master
 	srv  *grpc.Server
 	Node *node.Node
 
-	runningJobInputs sync.Map
-	jobResultChans   sync.Map
+	resultPipes sync.Map
 }
 
 func NewCollector(m *Master) *Collector {
@@ -75,38 +81,54 @@ func (c *Collector) Start() error {
 	return nil
 }
 
-func (c *Collector) Collect(jobID string) {
-	in := input.NewReader(c.m.opt.Output.BufferLength)
-	resultChan := make(chan map[string][]*lrdd.Row, 1)
+func (c *Collector) Prepare(jobID string) {
+	pipe := input.NewReader(c.m.opt.Output.BufferLength)
+	c.resultPipes.Store(jobID, pipe)
+}
 
-	c.runningJobInputs.Store(jobID, in)
-	c.jobResultChans.Store(jobID, resultChan)
+func (c *Collector) Collect(jobID string) <-chan CollectedResult {
+	p, ok := c.resultPipes.Load(jobID)
+	if !ok {
+		panic("you need to call Prepare() on job " + jobID)
+	}
+	pipe := p.(*input.Reader)
 
+	resultChan := make(chan CollectedResult, 1)
 	go func() {
-		totalRows := 0
-		results := make(map[string][]*lrdd.Row)
-		for rows := range in.C {
-			for _, row := range rows {
-				results[row.Key] = append(results[row.Key], row)
-				totalRows += 1
+		defer close(resultChan)
+		defer c.resultPipes.Delete(jobID)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		jobErrors := c.m.JobManager.WatchJobErrors(ctx, jobID)
+
+		var res CollectedResult
+	CollectingLoop:
+		for {
+			select {
+			case rows, ok := <-pipe.C:
+				if !ok {
+					break CollectingLoop
+				}
+				res.Result = append(res.Result, rows...)
+
+			case e := <-jobErrors:
+				res.Error = &e
+				break CollectingLoop
 			}
 		}
-		log.Verbose("Collected {} results from {} partitions", totalRows, len(results))
-		resultChan <- results
-
-		c.runningJobInputs.Delete(jobID)
-		c.jobResultChans.Delete(jobID)
+		if res.Error != nil {
+			log.Error("Job failed. Cause: {}", res.Error.Message)
+			log.Error("  (caused by task {})", res.Error.Task)
+		} else {
+			log.Verbose("Successfully collected {} results.", len(res.Result))
+		}
+		resultChan <- res
 	}()
+	return resultChan
 }
 
-func (c *Collector) Results(jobID string) (<-chan map[string][]*lrdd.Row, error) {
-	v, ok := c.jobResultChans.Load(jobID)
-	if !ok {
-		return nil, errors.Errorf("job %s not found", jobID)
-	}
-	return v.(chan map[string][]*lrdd.Row), nil
-}
-
+// PushData implements lrmrpb.Node for receiving and gathering final stage's outputs.
 func (c *Collector) PushData(stream lrmrpb.Node_PushDataServer) error {
 	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
@@ -114,9 +136,9 @@ func (c *Collector) PushData(stream lrmrpb.Node_PushDataServer) error {
 	}
 
 	jobID := strings.Split(h.TaskID, "/")[0]
-	v, ok := c.runningJobInputs.Load(jobID)
+	v, ok := c.resultPipes.Load(jobID)
 	if !ok {
-		return status.Errorf(codes.InvalidArgument, "unknown job ID: %s", jobID)
+		return nil
 	}
 	in := input.NewPushStream(v.(*input.Reader), stream)
 	if err := in.Dispatch(stream.Context()); err != nil {

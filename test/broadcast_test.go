@@ -16,10 +16,10 @@ func TestBroadcast(t *testing.T) {
 			ds := BroadcastTester(sess)
 
 			Convey("It should run without preserving broadcast values from master", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
 				So(err, ShouldBeNil)
-				So(res[""], ShouldHaveLength, 1)
-				So(testutils.StringValue(res[""][0]), ShouldEqual, "throughStruct=foo, throughContext=bar")
+				So(rows, ShouldHaveLength, 1)
+				So(testutils.StringValue(rows[0]), ShouldEqual, "throughStruct=foo, throughContext=bar")
 			})
 		})
 	})

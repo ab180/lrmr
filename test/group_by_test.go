@@ -43,7 +43,8 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 			ds := BasicGroupByKnownKeys(sess)
 
 			Convey("It should run without error", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
+				res := testutils.GroupRowsByKey(rows)
 				So(err, ShouldBeNil)
 
 				Convey("Its result should be collected", func() {
@@ -88,7 +89,9 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 			ds := SimpleCount(sess)
 
 			Convey("Calling Collect() should return results with no error", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
+				res := testutils.GroupRowsByKey(rows)
+
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 2)
 				So(res["foo"], ShouldHaveLength, 1)

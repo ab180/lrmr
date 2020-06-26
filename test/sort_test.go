@@ -16,7 +16,8 @@ func TestSort(t *testing.T) {
 			ds := Sort(sess)
 
 			Convey("It should sort given data", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
+				res := testutils.GroupRowsByKey(rows)
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 3)
 

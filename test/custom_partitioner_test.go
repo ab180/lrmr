@@ -16,7 +16,9 @@ func TestCustomPartitioner(t *testing.T) {
 			ds := PartitionerWithNodeAffinityTest(sess)
 
 			Convey("It should assign rows with its designated partitions and physical nodes", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
+				res := testutils.GroupRowsByKey(rows)
+
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 2)
 				So(res["1"], ShouldHaveLength, 2)

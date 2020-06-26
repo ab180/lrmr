@@ -18,3 +18,11 @@ func StringValues(rows []*lrdd.Row) (ss []string) {
 	}
 	return
 }
+
+func GroupRowsByKey(rows []*lrdd.Row) map[string][]*lrdd.Row {
+	grouped := make(map[string][]*lrdd.Row)
+	for _, row := range rows {
+		grouped[row.Key] = append(grouped[row.Key], row)
+	}
+	return grouped
+}

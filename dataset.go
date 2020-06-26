@@ -108,7 +108,7 @@ func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 	return d
 }
 
-func (d *Dataset) Collect() (map[string][]*lrdd.Row, error) {
+func (d *Dataset) Collect() ([]*lrdd.Row, error) {
 	j, err := d.session.Run(d)
 	if err != nil {
 		return nil, err

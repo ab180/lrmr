@@ -39,7 +39,7 @@ func (r *RunningJob) Wait() error {
 	select {
 	case r.finalStatus = <-r.master.JobTracker.WaitForCompletion(r.Job.ID):
 		if r.finalStatus.Status == job.Failed {
-			return errors.Errorf("job %s failed", r.Job.ID)
+			return r.finalStatus.Errors[0]
 		}
 	case <-sigTerm:
 		log.Info("Canceling jobs")
@@ -48,12 +48,8 @@ func (r *RunningJob) Wait() error {
 	return nil
 }
 
-func (r *RunningJob) Collect() (map[string][]*lrdd.Row, error) {
-	resultsChan, err := r.master.CollectedResults(r.Job.ID)
-	if err != nil {
-		return nil, err
-	}
-	return <-resultsChan, nil
+func (r *RunningJob) Collect() ([]*lrdd.Row, error) {
+	return r.master.CollectedResults(r.Job.ID)
 }
 
 func (r *RunningJob) Abort() error {

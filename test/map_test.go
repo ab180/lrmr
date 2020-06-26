@@ -16,13 +16,12 @@ func TestMap(t *testing.T) {
 			ds := Map(sess)
 
 			Convey("It should run without error", func() {
-				res, err := ds.Collect()
+				rows, err := ds.Collect()
 				So(err, ShouldBeNil)
-				So(res, ShouldHaveLength, 1)
-				So(res[""], ShouldHaveLength, 1000)
+				So(rows, ShouldHaveLength, 1000)
 
 				max := 0
-				for _, row := range res[""] {
+				for _, row := range rows {
 					n := testutils.IntValue(row)
 					if n > max {
 						max = n

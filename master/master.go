@@ -94,13 +94,14 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		return nil, nil, errors.WithMessage(err, "create job")
 	}
 	m.JobTracker.AddJob(j)
-	m.collector.Collect(j.ID)
 
 	return assignments, j, nil
 }
 
 // StartTasks create tasks to the nodes with the plan.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partitions.Assignments, broadcasts map[string][]byte) error {
+	m.collector.Prepare(j.ID)
+
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 1; i-- {
 		s := j.Stages[i]
@@ -173,8 +174,12 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 	return out, nil
 }
 
-func (m *Master) CollectedResults(jobID string) (<-chan map[string][]*lrdd.Row, error) {
-	return m.collector.Results(jobID)
+func (m *Master) CollectedResults(jobID string) ([]*lrdd.Row, error) {
+	result := <-m.collector.Collect(jobID)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return result.Result, nil
 }
 
 func (m *Master) Stop() {
