@@ -41,9 +41,10 @@ func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
 	if err != nil {
 		return nil, err
 	}
+	jm := job.NewManager(nm, crd)
 	m := &Master{
-		JobManager:  job.NewManager(nm, crd),
-		JobTracker:  job.NewJobTracker(crd),
+		JobManager:  jm,
+		JobTracker:  job.NewJobTracker(crd, jm),
 		JobReporter: job.NewJobReporter(crd),
 		NodeManager: nm,
 		opt:         opt,

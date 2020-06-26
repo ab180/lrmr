@@ -3,11 +3,12 @@ package job
 import (
 	"context"
 	"fmt"
-	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/coordinator"
 	"path"
 	"sync"
 	"time"
+
+	"github.com/airbloc/logger"
+	"github.com/therne/lrmr/coordinator"
 )
 
 type Reporter struct {
@@ -47,7 +48,7 @@ func (r *Reporter) Remove(task TaskReference) {
 func (r *Reporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)) {
 	item, ok := r.statuses.Load(ref)
 	if !ok {
-		//tr.log.Warn("trying to update unknown task: {}", ref)
+		// tr.log.Warn("trying to update unknown task: {}", ref)
 		return
 	}
 	tsh := item.(*taskStatusHolder)
@@ -102,14 +103,15 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 		return fmt.Errorf("update task status: %w", err)
 	}
 
-	// report full stacktrace
-	errorKey := path.Join(jobErrorNs, ref.String())
-	stacktrace := fmt.Sprintf("%+v", err)
-
+	errDesc := Error{
+		Task:       ref.String(),
+		Message:    err.Error(),
+		Stacktrace: fmt.Sprintf("%+v", err),
+	}
 	txn := coordinator.NewTxn().
 		IncrementCounter(stageStatusKey(ref, "doneTasks")).
 		IncrementCounter(stageStatusKey(ref, "failedTasks")).
-		Put(errorKey, stacktrace)
+		Put(jobErrorKey(ref), errDesc)
 
 	return r.crd.Commit(context.TODO(), txn)
 }
@@ -185,7 +187,7 @@ func stageStatusKey(ref TaskReference, name string) string {
 	return path.Join(stageStatusNs, ref.JobID, ref.StageName, name)
 }
 
-// jobStatusKey returns a key of job summary entry with given name.
-func jobStatusKey(ref TaskReference, name string) string {
-	return path.Join(jobStatusNs, ref.JobID, name)
+// jobErrorKey returns a key of job error entry with given name.
+func jobErrorKey(ref TaskReference) string {
+	return path.Join(jobErrorNs, ref.String())
 }

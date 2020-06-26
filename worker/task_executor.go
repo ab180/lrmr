@@ -81,8 +81,6 @@ func (e *TaskExecutor) Run() {
 }
 
 func (e *TaskExecutor) Abort(err error) {
-	log.Error("Task {} failed with error: {}", e.task.Reference().String(), err)
-
 	reportErr := e.reporter.ReportFailure(e.task.Reference(), err)
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
@@ -99,19 +97,17 @@ func (e *TaskExecutor) AbortOnPanic() {
 }
 
 func (e *TaskExecutor) cancelOnJobAbort() {
-	for {
-		select {
-		case reason := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
-			log.Warn("Task {} canceled because job is aborted. Reason: {}", e.task.Reference(), reason)
-			if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
-				log.Error("While reporting the cancellation, another error occurred", err)
-			}
-			_ = e.Input.Close()
-			_ = e.Output.Close()
-			e.close()
-		case <-e.context.Done():
-			return
+	select {
+	case errDesc := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
+		log.Verbose("Task {} aborted with error caused by task {}.", e.task.Reference(), errDesc.Task)
+		if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
+			log.Error("While reporting the cancellation, another error occurred", err)
 		}
+		_ = e.Input.Close()
+		_ = e.Output.Close()
+		e.close()
+	case <-e.context.Done():
+		return
 	}
 }
 

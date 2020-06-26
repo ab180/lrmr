@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 )
 
 // JobTracker tracks and updates jobs and their tasks' status.
 type Tracker struct {
-	crd coordinator.Coordinator
-	log logger.Logger
+	crd        coordinator.Coordinator
+	jobManager *Manager
 
 	subscriptions map[string][]chan *Status
 
@@ -25,15 +26,18 @@ type Tracker struct {
 
 	// stopTrack closes watcher channel.
 	stopTrack context.CancelFunc
+
+	log logger.Logger
 }
 
-func NewJobTracker(crd coordinator.Coordinator) *Tracker {
+func NewJobTracker(crd coordinator.Coordinator, jm *Manager) *Tracker {
 	return &Tracker{
 		crd:               crd,
-		log:               logger.New("lrmr"),
+		jobManager:        jm,
 		subscriptions:     make(map[string][]chan *Status),
 		activeJobs:        make(map[string]*Job),
 		totalTasksOfStage: make(map[string]int64),
+		log:               logger.New("lrmr/job.Tracker"),
 	}
 }
 
@@ -141,14 +145,13 @@ func (t *Tracker) finalizeStage(ctx context.Context, job *Job, stageID string) e
 }
 
 func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) error {
-	var js Status
-	key := path.Join(jobStatusNs, job.ID)
-	if err := t.crd.Get(context.TODO(), key, &js); err != nil {
-		return fmt.Errorf("read job status: %w", err)
+	js, err := t.jobManager.GetJobStatus(ctx, job.ID)
+	if err != nil {
+		return errors.Wrapf(err, "get status of job %s", job.ID)
 	}
 	js.Complete(s)
-	if err := t.crd.Put(ctx, key, js); err != nil {
-		return fmt.Errorf("update job status: %w", err)
+	if err := t.jobManager.SetJobStatus(ctx, job.ID, js); err != nil {
+		return errors.Wrapf(err, "update status of job %s", job.ID)
 	}
 	t.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
 	for i, notifyCh := range t.subscriptions[job.ID] {

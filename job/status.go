@@ -1,6 +1,10 @@
 package job
 
-import "time"
+import (
+	"fmt"
+	"io"
+	"time"
+)
 
 type RunningState string
 
@@ -33,10 +37,11 @@ func (s *baseStatus) Complete(rs RunningState) {
 // Status is a status of the job.
 type Status struct {
 	baseStatus
+	Errors []Error `json:"errors,omitempty"`
 }
 
-func newStatus() *Status {
-	return &Status{newBaseStatus()}
+func newStatus() Status {
+	return Status{baseStatus: newBaseStatus()}
 }
 
 type StageStatus struct {
@@ -46,4 +51,28 @@ type StageStatus struct {
 
 func newStageStatus() *StageStatus {
 	return &StageStatus{baseStatus: newBaseStatus()}
+}
+
+// Error is an error caused job to stop.
+type Error struct {
+	Task       string
+	Message    string
+	Stacktrace string
+}
+
+func (e Error) Error() string {
+	return fmt.Sprintf("%s (%s)", e.Task, e.Message)
+}
+
+func (e Error) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			_, _ = io.WriteString(s, fmt.Sprintf("(from %s) %s", e.Message, e.Stacktrace))
+			return
+		}
+		fallthrough
+	case 's', 'q':
+		_, _ = io.WriteString(s, e.Error())
+	}
 }

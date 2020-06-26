@@ -34,7 +34,7 @@ func NewManager(nm node.Manager, crd coordinator.Coordinator) *Manager {
 	return &Manager{
 		nodeManager: nm,
 		crd:         crd,
-		log:         logger.New("jobmanager"),
+		log:         logger.New("lrmr/job.Manager"),
 	}
 }
 
@@ -68,41 +68,52 @@ func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	return job, nil
 }
 
-func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (*Status, error) {
-	job := new(Status)
-	if err := m.crd.Get(ctx, path.Join(jobStatusNs, jobID), job); err != nil {
-		return nil, err
+func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error) {
+	var js Status
+	if err := m.crd.Get(ctx, path.Join(jobStatusNs, jobID), &js); err != nil {
+		return Status{}, err
 	}
-	return job, nil
+	errs, err := m.GetJobErrors(ctx, jobID)
+	if err != nil {
+		return Status{}, err
+	}
+	js.Errors = errs
+	return js, nil
 }
 
-func (m *Manager) GetJobErrors(ctx context.Context, jobID string) (stacktraces []string, err error) {
+func (m *Manager) SetJobStatus(ctx context.Context, jobID string, js Status) error {
+	// errors are stored in separate namespace. omit it on /job/status/:jobID
+	js.Errors = nil
+	return m.crd.Put(ctx, path.Join(jobStatusNs, jobID), &js)
+}
+
+func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, error) {
 	items, err := m.crd.Scan(ctx, path.Join(jobErrorNs, jobID))
 	if err != nil {
 		return nil, err
 	}
-	for _, item := range items {
-		var s string
-		if err := item.Unmarshal(&s); err != nil {
+	errs := make([]Error, len(items))
+	for i, item := range items {
+		if err := item.Unmarshal(&errs[i]); err != nil {
 			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
 		}
-		stacktraces = append(stacktraces, s)
 	}
-	return stacktraces, nil
+	return errs, nil
 }
 
-func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan string {
-	stacktraceChan := make(chan string)
+func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
+	errChan := make(chan Error)
 	go func() {
 		for event := range m.crd.Watch(ctx, path.Join(jobErrorNs, jobID)) {
-			var s string
-			if err := event.Item.Unmarshal(&s); err != nil {
-				m.log.Error("Failed to unmarshal stacktrace {}: {}", err, string(event.Item.Value))
+			var e Error
+			if err := event.Item.Unmarshal(&e); err != nil {
+				m.log.Error("Failed to unmarshal error desc {}: {}", err, string(event.Item.Value))
 			}
-			stacktraceChan <- s
+			errChan <- e
 		}
+		close(errChan)
 	}()
-	return stacktraceChan
+	return errChan
 }
 
 func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {
