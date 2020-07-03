@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"io"
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
@@ -56,15 +57,18 @@ func (e *TaskExecutor) Run() {
 	}()
 
 	if err := e.function.Apply(e.context, inputChan, e.Output); err != nil {
-		if err != context.Canceled {
-			e.Abort(err)
+		if errors.Cause(err) == context.Canceled || (e.context.Err() != nil && errors.Cause(err) == io.EOF) {
+			// ignore errors caused by task cancellation
+			return
 		}
+		e.Abort(err)
 		return
 	} else if e.context.Err() != nil {
 		return
 	}
 	if err := e.Output.Close(); err != nil {
 		e.Abort(errors.Wrap(err, "close output"))
+		return
 	}
 	if err := e.reporter.ReportSuccess(e.task.Reference()); err != nil {
 		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.Reference(), err)

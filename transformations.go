@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/jinzhu/copier"
+	"github.com/pkg/errors"
 	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
@@ -27,24 +28,22 @@ type transformerTransformation struct {
 	transformer Transformer
 }
 
-func (t transformerTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) (err error) {
+func (t transformerTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) (emitErr error) {
 	childCtx, cancel := contextWithCancel(ctx)
 	defer cancel()
 
 	emit := func(row *lrdd.Row) {
-		if err = out.Write(row); err != nil {
+		if emitErr = out.Write(row); emitErr != nil {
 			cancel()
-			close(in)
 		}
 	}
-	retErr := t.transformer.Transform(childCtx, in, emit)
-	if retErr != nil {
-		if err != nil && retErr == context.Canceled {
-			return err
+	if err := t.transformer.Transform(childCtx, in, emit); err != nil {
+		if errors.Cause(err) == context.Canceled && emitErr != nil {
+			return emitErr
 		}
-		return retErr
+		return err
 	}
-	return nil
+	return emitErr
 }
 
 func (t *transformerTransformation) UnmarshalJSON(d []byte) error {
