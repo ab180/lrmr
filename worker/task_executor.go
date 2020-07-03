@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"context"
+
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/input"
@@ -35,37 +37,30 @@ func NewTaskExecutor(c *taskContext, task *job.Task, fn transformation.Transform
 }
 
 func (e *TaskExecutor) Run() {
-	defer e.AbortOnPanic()
+	defer e.guardPanic()
 	go e.cancelOnJobAbort()
 
-	rowCnt := 0
+	// pipe input.Reader.C to function input channel
 	inputChan := make(chan *lrdd.Row, 100)
 	go func() {
-		// pipe input channel
+		defer e.guardPanic()
 		defer close(inputChan)
-		for {
-			select {
-			case rows, ok := <-e.Input.C:
+		for rows := range e.Input.C {
+			for _, r := range rows {
 				if e.context.Err() != nil {
 					return
 				}
-				if !ok {
-					// input is closed
-					return
-				}
-				rowCnt += len(rows)
-				for _, r := range rows {
-					inputChan <- r
-				}
-
-			case <-e.context.Done():
-				return
+				inputChan <- r
 			}
 		}
 	}()
 
 	if err := e.function.Apply(e.context, inputChan, e.Output); err != nil {
-		e.Abort(err)
+		if err != context.Canceled {
+			e.Abort(err)
+		}
+		return
+	} else if e.context.Err() != nil {
 		return
 	}
 	if err := e.Output.Close(); err != nil {
@@ -77,6 +72,7 @@ func (e *TaskExecutor) Run() {
 		return
 	}
 	e.finishChan <- true
+	e.context.cancel()
 	e.close()
 }
 
@@ -85,34 +81,38 @@ func (e *TaskExecutor) Abort(err error) {
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
 	}
-	_ = e.Input.Close()
-	_ = e.Output.Close()
-	e.close()
+	e.stopExecutor()
 }
 
-func (e *TaskExecutor) AbortOnPanic() {
+func (e *TaskExecutor) guardPanic() {
 	if err := logger.WrapRecover(recover()); err != nil {
 		e.Abort(err)
 	}
 }
 
 func (e *TaskExecutor) cancelOnJobAbort() {
+	defer e.guardPanic()
 	select {
 	case errDesc := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
 		log.Verbose("Task {} aborted with error caused by task {}.", e.task.Reference(), errDesc.Task)
 		if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
 			log.Error("While reporting the cancellation, another error occurred", err)
 		}
-		_ = e.Input.Close()
-		_ = e.Output.Close()
-		e.close()
+		e.stopExecutor()
 	case <-e.context.Done():
 		return
 	}
 }
 
-func (e *TaskExecutor) close() {
+// stopExecutor stops TaskExecutor immediately.
+func (e *TaskExecutor) stopExecutor() {
 	e.context.cancel()
+	_ = e.Output.Close()
+	e.close()
+}
+
+// close frees occupied resources and memories.
+func (e *TaskExecutor) close() {
 	e.reporter.Remove(e.task.Reference())
 	e.function = nil
 }

@@ -2,9 +2,9 @@ package input
 
 import (
 	"github.com/therne/lrmr/lrdd"
+	"go.uber.org/atomic"
+
 	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type Reader struct {
@@ -12,7 +12,8 @@ type Reader struct {
 
 	inputs    []Input
 	lock      sync.RWMutex
-	activeCnt int64
+	activeCnt atomic.Int64
+	closed    atomic.Bool
 }
 
 func NewReader(queueLen int) *Reader {
@@ -26,20 +27,22 @@ func (p *Reader) Add(in Input) {
 	defer p.lock.Unlock()
 
 	p.inputs = append(p.inputs, in)
-	atomic.AddInt64(&p.activeCnt, 1)
+	p.activeCnt.Inc()
 }
 
 func (p *Reader) Done() {
-	activeCnt := atomic.AddInt64(&p.activeCnt, -1)
-	if activeCnt == 0 {
-		close(p.C)
-		p.inputs = nil
+	newActiveCnt := p.activeCnt.Dec()
+	if newActiveCnt == 0 {
+		p.Close()
 	}
 }
 
-func (p *Reader) Close() error {
-	for c := atomic.LoadInt64(&p.activeCnt); c > 0; {
-		time.Sleep(10 * time.Millisecond)
+func (p *Reader) Close() {
+	if swapped := p.closed.CAS(false, true); !swapped {
+		// p.closed was true
+		return
 	}
-	return nil
+	// with CAS, only one goroutines can enter here
+	close(p.C)
+	p.inputs = nil
 }

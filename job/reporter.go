@@ -154,7 +154,12 @@ func (r *Reporter) flushTaskStatus() error {
 		isDirty := value.(bool)
 
 		if isDirty {
-			item, _ := r.statuses.Load(task)
+			item, ok := r.statuses.Load(task)
+			if !ok {
+				// probably the task is removed while waiting for flush
+				r.dirty.Delete(key)
+				return true
+			}
 			tsh := item.(*taskStatusHolder)
 
 			tsh.lock.RLock()

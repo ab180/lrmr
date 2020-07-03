@@ -225,6 +225,9 @@ func (w *Worker) Stop() error {
 func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	// dump header on stream failure
 	if err := handler(srv, ss); err != nil {
+		if errors.Cause(err) == context.Canceled {
+			return nil
+		}
 		if h, herr := lrmrpb.DataHeaderFromMetadata(ss); herr == nil {
 			log.Error("{} failed: {}\nBy {} (From {})", info.FullMethod, err, h.TaskID, h.FromHost)
 		}
