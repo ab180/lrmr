@@ -70,13 +70,11 @@ func (e *TaskExecutor) Run() {
 		e.Abort(errors.Wrap(err, "close output"))
 		return
 	}
-	if err := e.reporter.ReportSuccess(e.task.Reference()); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.Reference(), err)
-		e.Abort(errors.Wrap(err, "report successful task"))
-		return
-	}
 	e.finishChan <- true
 	e.context.cancel()
+	if err := e.reporter.ReportSuccess(e.task.Reference()); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.Reference(), err)
+	}
 	e.close()
 }
 

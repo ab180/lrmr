@@ -154,6 +154,11 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 		return errors.Wrapf(err, "update status of job %s", job.ID)
 	}
 	t.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
+	if s == Failed {
+		for i, errDesc := range js.Errors {
+			t.log.Info(" - Error #{}: {} (Caused by {})", i, errDesc.Message, errDesc.Task)
+		}
+	}
 	for i, notifyCh := range t.subscriptions[job.ID] {
 		select {
 		case notifyCh <- &js:
