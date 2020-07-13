@@ -25,6 +25,11 @@ type localMemoryCoordinator struct {
 	subsLock      sync.RWMutex
 }
 
+type entry struct {
+	item  RawItem
+	lease clientv3.LeaseID
+}
+
 type subscription struct {
 	prefix string
 	events chan WatchEvent
@@ -50,11 +55,16 @@ func (lmc *localMemoryCoordinator) Get(ctx context.Context, key string, valuePtr
 	if err := lmc.simulate(ctx); err != nil {
 		return err
 	}
-	val, ok := lmc.data.Load(key)
+	v, ok := lmc.data.Load(key)
 	if !ok {
 		return ErrNotFound
 	}
-	return val.(RawItem).Unmarshal(valuePtr)
+	e := v.(entry)
+	if lmc.isAfterDeadline(e.lease) {
+		lmc.expireLease(key, e.lease)
+		return ErrNotFound
+	}
+	return e.item.Unmarshal(valuePtr)
 }
 
 func (lmc *localMemoryCoordinator) Scan(ctx context.Context, prefix string) (results []RawItem, err error) {
@@ -63,7 +73,12 @@ func (lmc *localMemoryCoordinator) Scan(ctx context.Context, prefix string) (res
 	}
 	lmc.data.Range(func(key, value interface{}) bool {
 		if strings.HasPrefix(key.(string), prefix) {
-			results = append(results, value.(RawItem))
+			e := value.(entry)
+			if lmc.isAfterDeadline(e.lease) {
+				lmc.expireLease(key, e.lease)
+				return true
+			}
+			results = append(results, e.item)
 		}
 		return true
 	})
@@ -84,30 +99,25 @@ func (lmc *localMemoryCoordinator) Put(ctx context.Context, key string, value in
 	leaseID := reflect.NewAt(reflect.TypeOf(clientv3.NoLease), unsafe.Pointer(leaseField.UnsafeAddr())).
 		Elem().Interface().(clientv3.LeaseID)
 
-	if v, ok := lmc.leases.Load(leaseID); leaseID != clientv3.NoLease && ok {
-		ttl := v.(time.Duration)
-		go func() {
-			time.Sleep(ttl)
-			_, _ = lmc.Delete(context.Background(), key)
-			lmc.leases.Delete(leaseID)
-		}()
-	}
-	return lmc.put(key, value)
+	return lmc.put(key, value, leaseID)
 }
 
-func (lmc *localMemoryCoordinator) put(k string, v interface{}) error {
+func (lmc *localMemoryCoordinator) put(k string, v interface{}, lease clientv3.LeaseID) error {
 	raw, err := jsoniter.Marshal(v)
 	if err != nil {
 		return err
 	}
-	item := RawItem{
-		Key:   k,
-		Value: raw,
+	entry := entry{
+		lease: lease,
+		item: RawItem{
+			Key:   k,
+			Value: raw,
+		},
 	}
-	lmc.data.Store(k, item)
+	lmc.data.Store(k, entry)
 	go lmc.notifySubscribers(WatchEvent{
 		Type: PutEvent,
-		Item: item,
+		Item: entry.item,
 	})
 	return nil
 }
@@ -152,7 +162,7 @@ func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn) error {
 	for _, op := range txn.Ops {
 		switch op.Type {
 		case PutEvent:
-			if err := lmc.put(op.Key, op.Value); err != nil {
+			if err := lmc.put(op.Key, op.Value, clientv3.NoLease); err != nil {
 				return err
 			}
 		case CounterEvent:
@@ -196,8 +206,43 @@ func (lmc *localMemoryCoordinator) delete(prefix string) (deleted int64) {
 
 func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
 	lease := clientv3.LeaseID(rand.Uint64())
-	lmc.leases.Store(lease, ttl)
+	deadline := time.Now().Add(ttl)
+	lmc.leases.Store(lease, deadline)
 	return lease, nil
+}
+
+func (lmc *localMemoryCoordinator) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
+	go func() {
+		tick := time.NewTicker(5 * time.Second)
+		for {
+			select {
+			case <-tick.C:
+				newDeadline := time.Now().Add(7 * time.Second)
+				lmc.leases.Store(lease, newDeadline)
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+func (lmc *localMemoryCoordinator) isAfterDeadline(lease clientv3.LeaseID) (expired bool) {
+	if lease == clientv3.NoLease {
+		return false
+	}
+	v, ok := lmc.leases.Load(lease)
+	if !ok {
+		return true
+	}
+	deadline := v.(time.Time)
+	return time.Now().After(deadline)
+}
+
+func (lmc *localMemoryCoordinator) expireLease(key interface{}, lease clientv3.LeaseID) {
+	lmc.leases.Delete(lease)
+	lmc.data.Delete(key)
 }
 
 func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) chan WatchEvent {

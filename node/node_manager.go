@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/airbloc/logger"
 	"github.com/coreos/etcd/clientv3"
@@ -45,8 +44,11 @@ type manager struct {
 	grpcOpts []grpc.DialOption
 	conns    sync.Map
 
-	// livenessProveTick refreshes node info periodically to prove that the node is live.
-	livenessProveTick *time.Ticker
+	// livenessLease is kept alive until the node is alive.
+	// if node dies, the lease will be expired and the keys linked with it will be also deleted.
+	livenessLease clientv3.LeaseID
+	ctx           context.Context
+	cancel        context.CancelFunc
 
 	opt ManagerOptions
 	log logger.Logger
@@ -68,7 +70,10 @@ func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error
 	}
 	grpcOpts = append(grpcOpts, grpc.WithBlock())
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &manager{
+		ctx:      ctx,
+		cancel:   cancel,
 		crd:      crd,
 		grpcOpts: grpcOpts,
 		log:      log,
@@ -78,35 +83,20 @@ func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error
 
 // RegisterSelf is used for registering information of this node to etcd.
 func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
-	if err := m.registerOrRefresh(ctx, n); err != nil {
-		return err
-	}
-	m.self = n
-	m.log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
-	go m.sendPeriodicLivenessProve()
-	return nil
-}
-
-// sendPeriodicLivenessProve refreshes node info periodically to prove that the node is live.
-func (m *manager) sendPeriodicLivenessProve() {
-	m.livenessProveTick = time.NewTicker(m.opt.LivenessProbeInterval)
-	for range m.livenessProveTick.C {
-		if err := m.registerOrRefresh(context.Background(), m.self); err != nil {
-			m.log.Error("Failed to renew liveness prove. The node could not be available for {}", m.opt.LivenessProbeInterval)
-			m.log.Error("  Reason: failed to {}", err)
-		}
-	}
-}
-
-func (m *manager) registerOrRefresh(ctx context.Context, n *Node) error {
-	ctx, cancel := context.WithTimeout(ctx, m.opt.LivenessProbeTimeout)
-	defer cancel()
-
-	ttl, err := m.crd.GrantLease(ctx, m.opt.LivenessProbeInterval)
+	lease, err := m.crd.GrantLease(ctx, m.opt.LivenessProbeInterval)
 	if err != nil {
 		return errors.Wrap(err, "grant TTL")
 	}
-	return m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, clientv3.WithLease(ttl))
+	if err := m.crd.KeepAlive(m.ctx, lease); err != nil {
+		return errors.Wrap(err, "start liveness prove")
+	}
+	m.livenessLease = lease
+	if err := m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, clientv3.WithLease(m.livenessLease)); err != nil {
+		return errors.Wrap(err, "register node info")
+	}
+	m.self = n
+	m.log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
+	return nil
 }
 
 // Self returns a information of this node.
@@ -163,7 +153,7 @@ func (m *manager) UnregisterNode(nid string) error {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
 	if nid == m.self.ID {
-		m.livenessProveTick.Stop()
+		m.cancel()
 		m.self = nil
 	}
 	return nil

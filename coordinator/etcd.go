@@ -146,6 +146,11 @@ func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.Leas
 	return lease.ID, nil
 }
 
+func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
+	_, err := e.lease.KeepAlive(ctx, lease)
+	return err
+}
+
 func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64, err error) {
 	// uses version as a cheap atomic counter
 	result, err := e.kv.Put(ctx, key, counterMark, clientv3.WithPrevKV())

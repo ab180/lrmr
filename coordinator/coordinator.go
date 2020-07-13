@@ -20,6 +20,9 @@ type Coordinator interface {
 	// GrantLease creates a lease (a time-to-live expiration attachable to other keys)
 	GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error)
 
+	// KeepAlive tries to extend given lease's TTL until the context is cancelled or reaches deadline.
+	KeepAlive(ctx context.Context, lease clientv3.LeaseID) error
+
 	// Watch subscribes modification events of the keys starting with given prefix.
 	Watch(ctx context.Context, prefix string) chan WatchEvent
 
