@@ -216,7 +216,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 func (w *Worker) Stop() error {
 	w.server.Stop()
 	w.jobReporter.Close()
-	if err := w.nodeManager.UnregisterNode(w.nodeManager.Self().ID); err != nil {
+	if err := w.nodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")
 	}
 	return w.nodeManager.Close()

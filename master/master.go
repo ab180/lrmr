@@ -60,6 +60,25 @@ func (m *Master) Start() {
 	go m.JobTracker.HandleJobCompletion()
 }
 
+func (m *Master) Workers() ([]WorkerHolder, error) {
+	workers, err := m.NodeManager.List(context.TODO(), node.Worker)
+	if err != nil {
+		return nil, errors.WithMessage(err, "list available workers")
+	}
+	wh := make([]WorkerHolder, len(workers))
+	for i, w := range workers {
+		wh[i] = WorkerHolder{
+			Node: w,
+			nm:   m.NodeManager,
+		}
+	}
+	return wh, nil
+}
+
+func (m *Master) State() coordinator.KV {
+	return m.NodeManager.NodeStates()
+}
+
 func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage) ([]partitions.Assignments, *job.Job, error) {
 	workers, err := m.NodeManager.List(ctx, node.Worker)
 	if err != nil {

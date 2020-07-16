@@ -21,9 +21,6 @@ type Node struct {
 
 	// Tag is used for affinity rules (e.g. resource locality, ...)
 	Tag map[string]string `json:"tag,omitempty"`
-
-	// ResourceUtilization is filled by Manager.calculateResourceUtilization
-	ResourceUtilization uint64 `json:"-"`
 }
 
 func New(host string, typ Type) *Node {

@@ -15,24 +15,33 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-var (
-	// ErrNodeNotFound is raised when node information does not exist with given node ID.
-	ErrNodeNotFound = errors.New("node not found")
-
-	// ErrNodeIDEmpty is raised when an empty node ID is given.
-	ErrNodeIDEmpty = errors.New("node ID is empty")
-)
+var log = logger.New("lrmr.node")
 
 const (
 	nodeNs = "nodes"
 )
 
 type Manager interface {
+	// RegisterSelf registers node to the coordinator and makes it discoverable.
 	RegisterSelf(ctx context.Context, n *Node) error
+
+	// UnregisterSelf removes node from the coordinator and deletes its state.
+	UnregisterSelf() error
+
+	// NodeStates returns an key-value store interface for saving node state.
+	// The state will be deleted automatically after node unregisters or dies.
+	NodeStates() coordinator.KV
+
+	// Self returns current node information. Returns nil if the node is not registered yet.
 	Self() *Node
+
+	// Connect tries to connect the host and returns gRPC connection.
+	// The connection can be pooled and cached, and only one connection per host is maintained.
 	Connect(ctx context.Context, host string) (*grpc.ClientConn, error)
+
+	// List discovers node from the coordinator.
 	List(context.Context, Type) ([]*Node, error)
-	UnregisterNode(nid string) error
+
 	Close() error
 }
 
@@ -51,12 +60,9 @@ type manager struct {
 	cancel        context.CancelFunc
 
 	opt ManagerOptions
-	log logger.Logger
 }
 
 func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error) {
-	log := logger.New("nodemanager")
-
 	var grpcOpts []grpc.DialOption
 	if opt.TLSCertPath != "" {
 		cert, err := credentials.NewClientTLSFromFile(opt.TLSCertPath, opt.TLSCertServerName)
@@ -76,7 +82,6 @@ func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error
 		cancel:   cancel,
 		crd:      crd,
 		grpcOpts: grpcOpts,
-		log:      log,
 		opt:      opt,
 	}, nil
 }
@@ -91,12 +96,18 @@ func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
 		return errors.Wrap(err, "start liveness prove")
 	}
 	m.livenessLease = lease
-	if err := m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, clientv3.WithLease(m.livenessLease)); err != nil {
+	if err := m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, coordinator.WithLease(m.livenessLease)); err != nil {
 		return errors.Wrap(err, "register node info")
 	}
 	m.self = n
-	m.log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
+	log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
 	return nil
+}
+
+// NodeStates returns an key-value store interface for saving node state.
+// The state will be deleted automatically after node unregisters or dies.
+func (m *manager) NodeStates() coordinator.KV {
+	return m.crd.WithOptions(coordinator.WithLease(m.livenessLease))
 }
 
 // Self returns a information of this node.
@@ -115,6 +126,7 @@ func (m *manager) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 	c := conn.(*grpc.ClientConn)
 	if c.GetState() == connectivity.TransientFailure {
 		// TODO: retry limit
+		m.conns.Delete(host)
 		return m.establishNewConnection(dialCtx, host)
 	}
 	return c, nil
@@ -147,19 +159,20 @@ func (m *manager) List(ctx context.Context, typ Type) (nn []*Node, err error) {
 	return
 }
 
-func (m *manager) UnregisterNode(nid string) error {
-	key := path.Join(nodeNs, nid)
-	if _, err := m.crd.Delete(context.Background(), key); err != nil {
+func (m *manager) UnregisterSelf() error {
+	if _, err := m.crd.Delete(context.Background(), path.Join(nodeNs, m.self.ID)); err != nil {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
-	if nid == m.self.ID {
-		m.cancel()
-		m.self = nil
-	}
+	m.self = nil
+	m.cancel()
 	return nil
 }
 
 func (m *manager) Close() (err error) {
+	if m.self != nil {
+		m.self = nil
+		m.cancel()
+	}
 	m.conns.Range(func(k, v interface{}) bool {
 		err = v.(*grpc.ClientConn).Close()
 		return err == nil
