@@ -2,10 +2,10 @@ package coordinator
 
 import (
 	gocontext "context"
-	"github.com/coreos/etcd/clientv3"
-	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 	"time"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestLocalMemoryCoordinator_Get(t *testing.T) {
@@ -52,8 +52,8 @@ func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
 		l, err := crd.GrantLease(ctx, 200*time.Millisecond)
 		So(err, ShouldBeNil)
 
-		So(crd.Put(ctx, "testKey1", "testValue1", clientv3.WithLease(l)), ShouldBeNil)
-		So(crd.Put(ctx, "testKey2", "testValue1", clientv3.WithLease(l)), ShouldBeNil)
+		So(crd.Put(ctx, "testKey1", "testValue1", WithLease(l)), ShouldBeNil)
+		So(crd.Put(ctx, "testKey2", "testValue1", WithLease(l)), ShouldBeNil)
 
 		Convey("It should be retrieved within TTL", func() {
 			items, err := crd.Scan(ctx, "testKey")

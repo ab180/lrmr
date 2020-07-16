@@ -3,11 +3,9 @@ package coordinator
 import (
 	"context"
 	"math/rand"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/coreos/etcd/clientv3"
 	jsoniter "github.com/json-iterator/go"
@@ -23,6 +21,8 @@ type localMemoryCoordinator struct {
 
 	subscriptions []subscription
 	subsLock      sync.RWMutex
+
+	optsApplied []WriteOption
 }
 
 type entry struct {
@@ -85,21 +85,12 @@ func (lmc *localMemoryCoordinator) Scan(ctx context.Context, prefix string) (res
 	return
 }
 
-func (lmc *localMemoryCoordinator) Put(ctx context.Context, key string, value interface{}, opts ...clientv3.OpOption) error {
+func (lmc *localMemoryCoordinator) Put(ctx context.Context, key string, value interface{}, opts ...WriteOption) error {
 	if err := lmc.simulate(ctx); err != nil {
 		return err
 	}
-	op := &clientv3.Op{}
-	for _, opt := range opts {
-		opt(op)
-	}
-
-	// trick for getting internal field
-	leaseField := reflect.ValueOf(op).Elem().FieldByName("leaseID")
-	leaseID := reflect.NewAt(reflect.TypeOf(clientv3.NoLease), unsafe.Pointer(leaseField.UnsafeAddr())).
-		Elem().Interface().(clientv3.LeaseID)
-
-	return lmc.put(key, value, leaseID)
+	opt := buildWriteOption(append(lmc.optsApplied, opts...))
+	return lmc.put(key, value, opt.Lease)
 }
 
 func (lmc *localMemoryCoordinator) put(k string, v interface{}, lease clientv3.LeaseID) error {
@@ -155,14 +146,15 @@ func (lmc *localMemoryCoordinator) ReadCounter(ctx context.Context, key string) 
 	return lmc.counter[key], nil
 }
 
-func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn) error {
+func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error {
 	if err := lmc.simulate(ctx); err != nil {
 		return err
 	}
 	for _, op := range txn.Ops {
 		switch op.Type {
 		case PutEvent:
-			if err := lmc.put(op.Key, op.Value, clientv3.NoLease); err != nil {
+			opt := buildWriteOption(opts)
+			if err := lmc.put(op.Key, op.Value, opt.Lease); err != nil {
 				return err
 			}
 		case CounterEvent:
@@ -266,6 +258,11 @@ func (lmc *localMemoryCoordinator) notifySubscribers(ev WatchEvent) {
 			sub.events <- ev
 		}
 	}
+}
+
+func (lmc *localMemoryCoordinator) WithOptions(opts ...WriteOption) KV {
+	// TODO: implement
+	return lmc
 }
 
 func (lmc *localMemoryCoordinator) Close() error {

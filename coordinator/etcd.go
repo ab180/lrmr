@@ -2,12 +2,13 @@ package coordinator
 
 import (
 	"context"
+	"time"
+
 	"github.com/airbloc/logger"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	jsoniter "github.com/json-iterator/go"
-	"time"
 )
 
 const (
@@ -22,6 +23,7 @@ type Etcd struct {
 	watcher clientv3.Watcher
 	lease   clientv3.Lease
 	log     logger.Logger
+	opts    []WriteOption
 }
 
 func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
@@ -107,16 +109,27 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 	return watchChan
 }
 
-func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...clientv3.OpOption) error {
+func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...WriteOption) error {
 	jsonVal, err := jsoniter.MarshalToString(value)
 	if err != nil {
 		return err
 	}
-	_, err = e.kv.Put(ctx, key, jsonVal, opts...)
+	var etcdOpts []clientv3.OpOption
+	opt := buildWriteOption(append(e.opts, opts...))
+	if opt.Lease != clientv3.NoLease {
+		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
+	}
+	_, err = e.kv.Put(ctx, key, jsonVal, etcdOpts...)
 	return err
 }
 
-func (e *Etcd) Commit(ctx context.Context, txn *Txn) error {
+func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error {
+	var etcdOpts []clientv3.OpOption
+	opt := buildWriteOption(append(e.opts, opts...))
+	if opt.Lease != clientv3.NoLease {
+		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
+	}
+
 	var txOps []clientv3.Op
 	for _, op := range txn.Ops {
 		switch op.Type {
@@ -125,10 +138,10 @@ func (e *Etcd) Commit(ctx context.Context, txn *Txn) error {
 			if err != nil {
 				return err
 			}
-			txOps = append(txOps, clientv3.OpPut(op.Key, jsonVal))
+			txOps = append(txOps, clientv3.OpPut(op.Key, jsonVal, etcdOpts...))
 
 		case CounterEvent:
-			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark))
+			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark, etcdOpts...))
 
 		case DeleteEvent:
 			txOps = append(txOps, clientv3.OpDelete(op.Key, clientv3.WithPrefix()))
@@ -188,6 +201,17 @@ func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err er
 		return 0, err
 	}
 	return resp.Deleted, nil
+}
+
+func (e *Etcd) WithOptions(opt ...WriteOption) KV {
+	return &Etcd{
+		client:  e.client,
+		kv:      e.kv,
+		watcher: e.watcher,
+		lease:   e.lease,
+		log:     logger.New("etcd"),
+		opts:    opt,
+	}
 }
 
 func (e *Etcd) Close() error {
