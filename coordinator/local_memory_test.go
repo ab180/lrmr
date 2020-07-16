@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	gocontext "context"
+	"sort"
 	"testing"
 	"time"
 
@@ -37,9 +38,10 @@ func TestLocalMemoryCoordinator_Scan(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			So(items, ShouldHaveLength, 3)
-			So(items[0].Key, ShouldEqual, "testKey")
-			So(items[1].Key, ShouldEqual, "testKey1")
-			So(items[2].Key, ShouldEqual, "testKey2")
+
+			keys := []string{items[0].Key, items[1].Key, items[2].Key}
+			sort.Strings(keys)
+			So(keys, ShouldResemble, []string{"testKey", "testKey1", "testKey2"})
 		})
 	})
 }
