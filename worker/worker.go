@@ -32,7 +32,7 @@ import (
 var log = logger.New("lrmr")
 
 type Worker struct {
-	nodeManager node.Manager
+	NodeManager node.Manager
 	jobManager  *job.Manager
 	jobReporter *job.Reporter
 	server      *grpc.Server
@@ -58,7 +58,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		)),
 	)
 	return &Worker{
-		nodeManager:     nm,
+		NodeManager:     nm,
 		jobReporter:     job.NewJobReporter(crd),
 		jobManager:      job.NewManager(nm, crd),
 		server:          srv,
@@ -70,6 +70,10 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
+}
+
+func (w *Worker) State() coordinator.KV {
+	return w.NodeManager.NodeStates()
 }
 
 func (w *Worker) Start() error {
@@ -91,7 +95,7 @@ func (w *Worker) Start() error {
 	n := node.New(advHost, node.Worker)
 	n.Tag = w.opt.NodeTags
 	n.Executors = w.opt.Concurrency
-	if err := w.nodeManager.RegisterSelf(ctx, n); err != nil {
+	if err := w.NodeManager.RegisterSelf(ctx, n); err != nil {
 		return fmt.Errorf("register worker: %w", err)
 	}
 	w.jobReporter.Start()
@@ -122,7 +126,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 		return status.Errorf(codes.InvalidArgument, "invalid stage JSON: %v", err)
 	}
 
-	task := job.NewTask(partitionID, w.nodeManager.Self(), req.Job.Id, s)
+	task := job.NewTask(partitionID, w.NodeManager.Self(), req.Job.Id, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
@@ -156,14 +160,14 @@ func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage
 	idToOutput := make(map[string]output.Output)
 	for id, host := range o.PartitionToHost {
 		taskID := path.Join(jobID, cur.Output.Stage, id)
-		if host == w.nodeManager.Self().Host {
+		if host == w.NodeManager.Self().Host {
 			t := w.getRunningTask(taskID)
 			if t != nil {
 				idToOutput[id] = NewLocalPipe(t.Input)
 				continue
 			}
 		}
-		out, err := output.NewPushStream(ctx, w.nodeManager, host, taskID)
+		out, err := output.NewPushStream(ctx, w.NodeManager, host, taskID)
 		if err != nil {
 			return nil, err
 		}
@@ -216,10 +220,10 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 func (w *Worker) Stop() error {
 	w.server.Stop()
 	w.jobReporter.Close()
-	if err := w.nodeManager.UnregisterSelf(); err != nil {
+	if err := w.NodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")
 	}
-	return w.nodeManager.Close()
+	return w.NodeManager.Close()
 }
 
 func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
