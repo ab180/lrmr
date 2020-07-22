@@ -56,7 +56,7 @@ func RunWorker(optionalOpt ...Options) error {
 	signal.Notify(waitForExit, os.Interrupt, os.Kill)
 	<-waitForExit
 
-	if err := w.Stop(); err != nil {
+	if err := w.Close(); err != nil {
 		log.Error("failed to shutdown historical node", err)
 	}
 	log.Info("Bye")

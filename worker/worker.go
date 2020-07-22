@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"path"
 	"strings"
@@ -36,7 +35,9 @@ type Worker struct {
 	NodeManager  node.Manager
 	jobManager   *job.Manager
 	jobReporter  *job.Reporter
-	RPCServer    *grpc.Server
+
+	RPCServer *grpc.Server
+	serverLis net.Listener
 
 	runningTasksMu  sync.RWMutex
 	runningTasks    map[string]*TaskExecutor
@@ -58,7 +59,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
-	return &Worker{
+	w := &Worker{
 		ClusterState:    crd,
 		NodeManager:     nm,
 		jobReporter:     job.NewJobReporter(crd),
@@ -67,7 +68,40 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		runningTasks:    make(map[string]*TaskExecutor),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
-	}, nil
+	}
+	if err := w.register(); err != nil {
+		return nil, errors.WithMessage(err, "register worker")
+	}
+	return w, nil
+}
+
+func (w *Worker) register() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// if port is not specified on ListenHost, it must be automatically
+	// assigned with any available port in system by net.Listen.
+	lis, err := net.Listen("tcp", w.opt.ListenHost)
+	if err != nil {
+		return errors.Wrapf(err, "listen %s", w.opt.ListenHost)
+	}
+
+	advHost := w.opt.AdvertisedHost
+	if strings.HasSuffix(advHost, ":") {
+		// port is assigned automatically
+		_, actualPort, _ := net.SplitHostPort(lis.Addr().String())
+		advHost += actualPort
+	}
+	n := node.New(advHost, node.Worker)
+	n.Tag = w.opt.NodeTags
+	n.Executors = w.opt.Concurrency
+
+	return w.NodeManager.RegisterSelf(ctx, n)
+}
+
+func (w *Worker) Start() error {
+	w.jobReporter.Start()
+	return w.RPCServer.Serve(w.serverLis)
 }
 
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
@@ -76,32 +110,6 @@ func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 
 func (w *Worker) State() coordinator.KV {
 	return w.NodeManager.NodeStates()
-}
-
-func (w *Worker) Start() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	lrmrpb.RegisterNodeServer(w.RPCServer, w)
-	lis, err := net.Listen("tcp", w.opt.ListenHost)
-	if err != nil {
-		return err
-	}
-	advHost := w.opt.AdvertisedHost
-	if strings.HasSuffix(advHost, ":") {
-		// port is assigned automatically
-		addrFrags := strings.Split(lis.Addr().String(), ":")
-		advHost += addrFrags[len(addrFrags)-1]
-	}
-
-	n := node.New(advHost, node.Worker)
-	n.Tag = w.opt.NodeTags
-	n.Executors = w.opt.Concurrency
-	if err := w.NodeManager.RegisterSelf(ctx, n); err != nil {
-		return fmt.Errorf("register worker: %w", err)
-	}
-	w.jobReporter.Start()
-	return w.RPCServer.Serve(lis)
 }
 
 func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
@@ -219,8 +227,8 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 	panic("implement me")
 }
 
-func (w *Worker) Stop() error {
-	w.RPCServer.Stop()
+func (w *Worker) Close() error {
+	w.RPCServer.GracefulStop()
 	w.jobReporter.Close()
 	if err := w.NodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")

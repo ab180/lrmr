@@ -44,7 +44,7 @@ func StartLocalCluster(c C, numWorkers int) (sess *lrmr.Session, stopper func())
 
 	return lrmr.NewSession(context.Background(), m, lrmr.WithTimeout(time.Minute)), func() {
 		for _, w := range workers {
-			c.So(w.Stop(), ShouldBeNil)
+			c.So(w.Close(), ShouldBeNil)
 		}
 		m.Stop()
 	}
