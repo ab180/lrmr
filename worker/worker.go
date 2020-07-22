@@ -36,7 +36,7 @@ type Worker struct {
 	NodeManager  node.Manager
 	jobManager   *job.Manager
 	jobReporter  *job.Reporter
-	server       *grpc.Server
+	RPCServer    *grpc.Server
 
 	runningTasksMu  sync.RWMutex
 	runningTasks    map[string]*TaskExecutor
@@ -63,7 +63,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		NodeManager:     nm,
 		jobReporter:     job.NewJobReporter(crd),
 		jobManager:      job.NewManager(nm, crd),
-		server:          srv,
+		RPCServer:       srv,
 		runningTasks:    make(map[string]*TaskExecutor),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
@@ -82,7 +82,7 @@ func (w *Worker) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	lrmrpb.RegisterNodeServer(w.server, w)
+	lrmrpb.RegisterNodeServer(w.RPCServer, w)
 	lis, err := net.Listen("tcp", w.opt.ListenHost)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (w *Worker) Start() error {
 		return fmt.Errorf("register worker: %w", err)
 	}
 	w.jobReporter.Start()
-	return w.server.Serve(lis)
+	return w.RPCServer.Serve(lis)
 }
 
 func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
@@ -220,7 +220,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 }
 
 func (w *Worker) Stop() error {
-	w.server.Stop()
+	w.RPCServer.Stop()
 	w.jobReporter.Close()
 	if err := w.NodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")
