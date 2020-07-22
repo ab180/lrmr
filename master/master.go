@@ -28,10 +28,11 @@ var log = logger.New("lrmr")
 type Master struct {
 	collector *Collector
 
-	JobManager  *job.Manager
-	JobTracker  *job.Tracker
-	JobReporter *job.Reporter
-	NodeManager node.Manager
+	ClusterStates coordinator.Coordinator
+	JobManager    *job.Manager
+	JobTracker    *job.Tracker
+	JobReporter   *job.Reporter
+	NodeManager   node.Manager
 
 	opt Options
 }
@@ -43,11 +44,12 @@ func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
 	}
 	jm := job.NewManager(nm, crd)
 	m := &Master{
-		JobManager:  jm,
-		JobTracker:  job.NewJobTracker(crd, jm),
-		JobReporter: job.NewJobReporter(crd),
-		NodeManager: nm,
-		opt:         opt,
+		ClusterStates: crd,
+		JobManager:    jm,
+		JobTracker:    job.NewJobTracker(crd, jm),
+		JobReporter:   job.NewJobReporter(crd),
+		NodeManager:   nm,
+		opt:           opt,
 	}
 	m.collector = NewCollector(m)
 	return m, nil

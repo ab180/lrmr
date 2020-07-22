@@ -32,10 +32,11 @@ import (
 var log = logger.New("lrmr")
 
 type Worker struct {
-	NodeManager node.Manager
-	jobManager  *job.Manager
-	jobReporter *job.Reporter
-	server      *grpc.Server
+	ClusterState coordinator.Coordinator
+	NodeManager  node.Manager
+	jobManager   *job.Manager
+	jobReporter  *job.Reporter
+	server       *grpc.Server
 
 	runningTasksMu  sync.RWMutex
 	runningTasks    map[string]*TaskExecutor
@@ -58,6 +59,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		)),
 	)
 	return &Worker{
+		ClusterState:    crd,
 		NodeManager:     nm,
 		jobReporter:     job.NewJobReporter(crd),
 		jobManager:      job.NewManager(nm, crd),
