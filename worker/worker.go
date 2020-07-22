@@ -79,12 +79,15 @@ func (w *Worker) register() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	lrmrpb.RegisterNodeServer(w.RPCServer, w)
+
 	// if port is not specified on ListenHost, it must be automatically
 	// assigned with any available port in system by net.Listen.
 	lis, err := net.Listen("tcp", w.opt.ListenHost)
 	if err != nil {
 		return errors.Wrapf(err, "listen %s", w.opt.ListenHost)
 	}
+	w.serverLis = lis
 
 	advHost := w.opt.AdvertisedHost
 	if strings.HasSuffix(advHost, ":") {
