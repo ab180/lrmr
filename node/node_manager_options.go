@@ -10,7 +10,7 @@ type ManagerOptions struct {
 
 	// LivenessProbeInterval specifies interval for notifying this node's liveness to other nodes.
 	// If a liveness probe fails, the node would not be visible until the next tick of the liveness probe.
-	LivenessProbeInterval time.Duration `default:"5m"`
+	LivenessProbeInterval time.Duration `default:"10s"`
 
 	TLSCertPath       string
 	TLSCertServerName string
