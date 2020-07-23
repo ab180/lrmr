@@ -231,7 +231,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 }
 
 func (w *Worker) Close() error {
-	w.RPCServer.GracefulStop()
+	w.RPCServer.Stop()
 	w.jobReporter.Close()
 	if err := w.NodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")
