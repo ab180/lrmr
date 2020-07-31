@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/therne/lrmr/internal/util"
+	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
@@ -115,8 +116,13 @@ func (d *Dataset) Collect() ([]*lrdd.Row, error) {
 	}
 	res, err := j.Collect()
 	if err != nil {
+		if jobErr, ok := err.(*job.Error); ok {
+			log.Error("Job failed. Cause: {}", jobErr.Message)
+			log.Error("  (caused by task {})", jobErr.Task)
+		}
 		return nil, err
 	}
+	log.Verbose("Successfully collected {} results.", len(res))
 	go func() {
 		m, err := j.Metrics()
 		if err != nil {

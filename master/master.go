@@ -18,6 +18,7 @@ import (
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
+	"github.com/therne/lrmr/worker"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,7 +27,7 @@ var ErrNoAvailableWorkers = errors.New("no available workers")
 var log = logger.New("lrmr")
 
 type Master struct {
-	collector *Collector
+	executor *worker.Worker
 
 	ClusterStates coordinator.Coordinator
 	JobManager    *job.Manager
@@ -38,27 +39,37 @@ type Master struct {
 }
 
 func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
-	nm, err := node.NewManager(crd, opt.RPC)
+	// create task executor by running worker
+	wopt := worker.DefaultOptions()
+	wopt.NodeType = node.Master
+	wopt.ListenHost = opt.ListenHost
+	wopt.AdvertisedHost = opt.AdvertisedHost
+	wopt.Input.MaxRecvSize = opt.Input.MaxRecvSize
+	wopt.Output.BufferLength = opt.Output.BufferLength
+	wopt.Output.MaxSendMsgSize = opt.Output.MaxSendMsgSize
+	w, err := worker.New(crd, wopt)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "init master task executor")
 	}
-	jm := job.NewManager(nm, crd)
-	m := &Master{
+
+	jm := job.NewManager(w.NodeManager, crd)
+	return &Master{
+		executor:      w,
 		ClusterStates: crd,
 		JobManager:    jm,
 		JobTracker:    job.NewJobTracker(crd, jm),
 		JobReporter:   job.NewJobReporter(crd),
-		NodeManager:   nm,
+		NodeManager:   w.NodeManager,
 		opt:           opt,
-	}
-	m.collector = NewCollector(m)
-	return m, nil
+	}, nil
 }
 
 func (m *Master) Start() {
-	if err := m.collector.Start(); err != nil {
-		log.Error("Failed to start collector RPC server", err)
-	}
+	go func() {
+		if err := m.executor.Start(); err != nil {
+			log.Error("Failed to start master task executor", err)
+		}
+	}()
 	go m.JobTracker.HandleJobCompletion()
 }
 
@@ -97,11 +108,11 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		MaxNodes:         1,
 		ExecutorsPerNode: 1,
 	})
-	colStage := stage.New(CollectStageName, nil)
+	colStage := stage.New(CollectStageName, &Collector{})
 	stages[len(stages)-1].SetOutputTo(colStage)
 	stages = append(stages, colStage)
 
-	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.collector.Node))
+	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.executor.NodeManager.Self()))
 	for i, p := range pp {
 		stages[i].Output.Partitioner = p.Partitioner
 
@@ -121,7 +132,7 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 
 // StartTasks create tasks to the nodes with the plan.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partitions.Assignments, broadcasts map[string][]byte) error {
-	m.collector.Prepare(j.ID)
+	prepareCollect(j.ID)
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 1; i-- {
@@ -198,17 +209,26 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 }
 
 func (m *Master) CollectedResults(jobID string) ([]*lrdd.Row, error) {
-	result := <-m.collector.Collect(jobID)
-	if result.Error != nil {
-		return nil, result.Error
+	watchCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resultChan, err := getCollectedResultChan(jobID)
+	if err != nil {
+		return nil, err
 	}
-	return result.Result, nil
+	select {
+	case result := <-resultChan:
+		return result, nil
+
+	case err := <-m.JobManager.WatchJobErrors(watchCtx, jobID):
+		return nil, err
+	}
 }
 
 func (m *Master) Stop() {
 	m.JobTracker.Close()
-	if err := m.NodeManager.Close(); err != nil {
-		log.Error("failed to close node manager", err)
+	if err := m.executor.Close(); err != nil {
+		log.Error("failed to close worker")
 	}
 }
 

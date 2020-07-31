@@ -1,9 +1,11 @@
 package worker
 
 import (
-	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/output"
 	"runtime"
+
+	"github.com/creasty/defaults"
+	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/output"
 )
 
 type Options struct {
@@ -16,6 +18,7 @@ type Options struct {
 
 	// NodeTags is used for partitioner.
 	NodeTags map[string]string `default:"{}"`
+	NodeType node.Type         `default:"worker"`
 
 	Input struct {
 		QueueLength int `default:"1000"`

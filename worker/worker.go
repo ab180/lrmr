@@ -95,7 +95,7 @@ func (w *Worker) register() error {
 		_, actualPort, _ := net.SplitHostPort(lis.Addr().String())
 		advHost += actualPort
 	}
-	n := node.New(advHost, node.Worker)
+	n := node.New(advHost, w.opt.NodeType)
 	n.Tag = w.opt.NodeTags
 	n.Executors = w.opt.Concurrency
 

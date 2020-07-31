@@ -26,6 +26,7 @@ func StartLocalCluster(c C, numWorkers int) (sess *lrmr.Session, stopper func())
 		w, err := worker.New(crd, opt)
 		So(err, ShouldBeNil)
 		w.SetWorkerLocalOption("No", i+1)
+		w.SetWorkerLocalOption("IsWorker", true)
 
 		go w.Start()
 		workers[i] = w
