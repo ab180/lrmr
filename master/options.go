@@ -12,7 +12,10 @@ type Options struct {
 
 	CollectQueueSize int `default:"1000"`
 
-	RPC    node.ManagerOptions
+	RPC   node.ManagerOptions
+	Input struct {
+		MaxRecvSize int `default:"67108864"`
+	}
 	Output output.Options
 }
 

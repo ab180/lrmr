@@ -40,7 +40,7 @@ type Collector struct {
 
 func NewCollector(m *Master) *Collector {
 	srv := grpc.NewServer(
-		grpc.MaxRecvMsgSize(40*1024*1024),
+		grpc.MaxRecvMsgSize(m.opt.Input.MaxRecvSize),
 		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 			streamErrorLogger,
