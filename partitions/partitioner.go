@@ -5,6 +5,8 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/lrdd"
+	"go.uber.org/atomic"
+
 	"strconv"
 )
 
@@ -111,7 +113,7 @@ func (h *hashKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutpu
 }
 
 type ShuffledPartitioner struct {
-	sentEvents int
+	sentEvents *atomic.Uint64
 }
 
 func NewShuffledPartitioner() Partitioner {
@@ -123,8 +125,7 @@ func (f *ShuffledPartitioner) PlanNext(numExecutors int) []Partition {
 }
 
 func (f *ShuffledPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
-	slot := f.sentEvents % numOutputs
-	f.sentEvents++
+	slot := int(f.sentEvents.Add(1)) % numOutputs
 	return strconv.Itoa(slot), nil
 }
 
