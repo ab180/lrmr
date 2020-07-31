@@ -71,7 +71,7 @@ func NewManager(crd coordinator.Coordinator, opt ManagerOptions) (Manager, error
 		}
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(cert))
 	} else {
-		log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
+		// log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
 	grpcOpts = append(grpcOpts, grpc.WithBlock())
