@@ -146,3 +146,28 @@ func isPreserved(p Partitioner) bool {
 	_, ok := p.(*PreservePartitioner)
 	return ok
 }
+
+type masterAssigner struct {
+	Partitioner SerializablePartitioner
+}
+
+// WithAssignmentToMaster wraps existing partitioner to assign partition to master nodes.
+func WithAssignmentToMaster(p Partitioner) Partitioner {
+	return &masterAssigner{Partitioner: WrapPartitioner(p)}
+}
+
+// PlanNext overrides wrapped plans from partitioner with adding affinity to master nodes.
+func (m masterAssigner) PlanNext(numExecutors int) []Partition {
+	planned := m.Partitioner.PlanNext(numExecutors)
+	for i := range planned {
+		if len(planned[i].AssignmentAffinity) == 0 {
+			planned[i].AssignmentAffinity = make(map[string]string)
+		}
+		planned[i].AssignmentAffinity["Type"] = "master"
+	}
+	return planned
+}
+
+func (m masterAssigner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
+	return m.Partitioner.DeterminePartition(c, r, numOutputs)
+}

@@ -6,26 +6,14 @@ import (
 	partitions "github.com/therne/lrmr/partitions"
 )
 
-var _ = lrmr.RegisterTypes(&tagNodeType{}, &masterAssigner{})
+var _ = lrmr.RegisterTypes(&tagNodeType{})
 
 func AssignTaskOnMaster(sess *lrmr.Session) *lrmr.Dataset {
 	in := make([]string, 0)
 	return sess.Parallelize([]*lrdd.Row{lrdd.Value(in)}).
 		Map(&tagNodeType{}).
-		PartitionedBy(&masterAssigner{}).
+		PartitionedBy(partitions.WithAssignmentToMaster(partitions.NewShuffledPartitioner())).
 		Map(&tagNodeType{})
-}
-
-type masterAssigner struct{}
-
-func (c masterAssigner) DeterminePartition(ctx partitions.Context, r *lrdd.Row, numOutputs int) (id string, err error) {
-	return "master-1", nil
-}
-
-func (c masterAssigner) PlanNext(int) []partitions.Partition {
-	return []partitions.Partition{
-		{ID: "master-1", AssignmentAffinity: map[string]string{"Type": "master"}},
-	}
 }
 
 type tagNodeType struct{}
