@@ -2,12 +2,12 @@ package partitions
 
 import (
 	"errors"
+	"math/rand"
+	"strconv"
+
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/lrdd"
-	"go.uber.org/atomic"
-
-	"strconv"
 )
 
 // ErrNoOutput is returned by Partitioner.DeterminePartition when there's no
@@ -112,9 +112,7 @@ func (h *hashKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutpu
 	return strconv.FormatUint(slot, 10), nil
 }
 
-type ShuffledPartitioner struct {
-	sentEvents atomic.Uint64
-}
+type ShuffledPartitioner struct{}
 
 func NewShuffledPartitioner() Partitioner {
 	return &ShuffledPartitioner{}
@@ -125,7 +123,7 @@ func (f *ShuffledPartitioner) PlanNext(numExecutors int) []Partition {
 }
 
 func (f *ShuffledPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
-	slot := int(f.sentEvents.Add(1)) % numOutputs
+	slot := rand.Int() % numOutputs
 	return strconv.Itoa(slot), nil
 }
 
@@ -172,3 +170,70 @@ func (m masterAssigner) PlanNext(numExecutors int) []Partition {
 func (m masterAssigner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
 	return m.Partitioner.DeterminePartition(c, r, numOutputs)
 }
+
+/*
+{
+	"table": "airbridge-fmt-mobile-app-events",
+	"filter": {
+		"type": "and",
+		"filters": [
+			{
+				"type": "select",
+				"fieldName": "data__app__appID",
+				"value": "1737"
+			},
+			{
+				"type": "select",
+				"fieldName": "data__eventData__goal__category",
+				"value": "airbridge.ecommerce.order.completed"
+			},
+			{
+				"type": "select",
+				"fieldName": "data__device__manufacturer",
+				"value": "samsung"
+			},
+			{
+				"type": "select",
+				"fieldName": "data__device__country",
+				"value": "ko"
+			},
+			{
+				"type": "select",
+				"fieldName": "data__device__network__carrier",
+				"value": "SKTelecom"
+			}
+		]
+	},
+	"segmentCondition": {
+		"type": "and",
+		"conditions": [
+			{
+				"type": "greaterThanOrEqualTo",
+				"aggregate": {
+					"type": "sum",
+					"fieldName": "data__"
+				},
+				"overTime": "2020-06-01/P30D",
+				"value": 1
+			},
+			{
+				"type": "equalTo",
+				"aggregate": {"type": "count"},
+				"overTime": "2020-07-23/2020-07-31",
+				"value": 0
+			}
+		]
+	},
+	"aggregationSpec": {
+		"interval": "2020-06-01/P20D",
+		"granularity": "day",
+		"aggregations": [
+			{
+				"name": "User",
+				"axis": "user",
+				"aggregate": {"type": "count"}
+			}
+		]
+	}
+}
+*/
