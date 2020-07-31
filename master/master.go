@@ -144,6 +144,7 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 			reqTmpl.Output.PartitionToHost = assignments[i+1].ToMap()
 		}
 
+		t := log.Timer()
 		wg, wctx := errgroup.WithContext(ctx)
 		for h, ps := range assignments[i].GroupIDsByHost() {
 			host := h
@@ -165,6 +166,7 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 		if err := wg.Wait(); err != nil {
 			return err
 		}
+		t.End("Initialized stage {}/{}", j.ID, s.Name)
 	}
 	return nil
 }
