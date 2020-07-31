@@ -113,7 +113,7 @@ func (h *hashKeyPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutpu
 }
 
 type ShuffledPartitioner struct {
-	sentEvents *atomic.Uint64
+	sentEvents atomic.Uint64
 }
 
 func NewShuffledPartitioner() Partitioner {
