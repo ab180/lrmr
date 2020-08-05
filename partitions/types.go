@@ -2,8 +2,11 @@ package partitions
 
 import (
 	"fmt"
-	"github.com/therne/lrmr/node"
+	"sort"
 	"strings"
+
+	"github.com/therne/lrmr/node"
+	"github.com/thoas/go-funk"
 )
 
 const (
@@ -75,19 +78,25 @@ func (pp Assignments) Pretty() (s string) {
 	for _, p := range pp {
 		groupsByHost[p.Node.Host] = append(groupsByHost[p.Node.Host], p)
 	}
-	for host, plans := range groupsByHost {
+	hosts := funk.Keys(groupsByHost).([]string)
+	sort.Strings(hosts)
+	for _, host := range hosts {
 		var keys []string
-		for _, p := range plans {
+		for _, p := range groupsByHost[host] {
 			keys = append(keys, p.ID)
 		}
-		s += fmt.Sprintf(" - %s: %s\n", host, strings.Join(ellipsis(keys, 500), ", "))
+		s += fmt.Sprintf("  %s: %s\n", host, strings.Join(ellipsis(keys, 50, 500), ", "))
 	}
 	return
 }
 
-func ellipsis(ss []string, maxLen int) []string {
+func ellipsis(ss []string, maxElemLen, maxLen int) []string {
 	lenSum := 0
 	for i, s := range ss {
+		if len(s) > maxElemLen {
+			s = s[:maxElemLen] + "…"
+			ss[i] = s
+		}
 		lenSum += len(s)
 		if lenSum+len(s) > maxLen {
 			return append(ss[:i], "…")

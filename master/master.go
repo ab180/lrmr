@@ -117,7 +117,7 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		stages[i].Output.Partitioner = p.Partitioner
 
 		partitionerName := fmt.Sprintf("%T", partitions.UnwrapPartitioner(p.Partitioner))
-		log.Verbose("Planned {} partitions on {}/{} (output by {}):\n{}", len(p.Partitions),
+		log.Verbose("Planned {} partitions on {}/{} (output with {}):\n{}", len(p.Partitions),
 			name, stages[i].Name, partitionerName, assignments[i].Pretty())
 	}
 
