@@ -1,10 +1,11 @@
 package partitions
 
 import (
+	"testing"
+
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/node"
-	"testing"
 )
 
 func TestScheduler_AffinityRule(t *testing.T) {
@@ -100,6 +101,38 @@ func TestScheduler_AffinityRule(t *testing.T) {
 				So(keyToHostMap["familiarWithFoo2"], ShouldEqual, "localhost:1003")
 				So(keyToHostMap["familiarWithBar2"], ShouldEqual, "localhost:1004")
 				So(keyToHostMap["familiarWithFreest2"], ShouldEqual, "localhost:1001")
+			})
+		})
+
+		Convey("When executors have same set of tag", func() {
+			nn := []*node.Node{
+				{Host: "localhost:1001", Executors: 1, Tag: map[string]string{"CustomTag": "hello"}},
+				{Host: "localhost:1002", Executors: 1, Tag: map[string]string{"CustomTag": "hello"}},
+				{Host: "localhost:1003", Executors: 1, Tag: map[string]string{"CustomTag": "hello"}},
+				{Host: "localhost:1004", Executors: 1, Tag: map[string]string{"CustomTag": "hello"}},
+			}
+
+			Convey("When an affinity rule is given with an LogicalPlanner", func() {
+				_, pp := Schedule(nn, []Plan{
+					{Partitioner: partitionerStub{[]Partition{
+						{ID: "p1", AssignmentAffinity: map[string]string{"CustomTag": "hello"}},
+						{ID: "p2", AssignmentAffinity: map[string]string{"CustomTag": "hello"}},
+						{ID: "p3", AssignmentAffinity: map[string]string{"CustomTag": "hello"}},
+						{ID: "p4", AssignmentAffinity: map[string]string{"CustomTag": "hello"}},
+					}}},
+					{ /* ignored */ },
+				}, WithoutShufflingNodes())
+
+				Convey("It should be distributed evenly", func() {
+					So(pp, ShouldHaveLength, 2)
+					So(pp[1], ShouldHaveLength, 4)
+
+					partitionsPerHost := pp[1].GroupIDsByHost()
+					So(partitionsPerHost["localhost:1001"], ShouldHaveLength, 1)
+					So(partitionsPerHost["localhost:1002"], ShouldHaveLength, 1)
+					So(partitionsPerHost["localhost:1003"], ShouldHaveLength, 1)
+					So(partitionsPerHost["localhost:1004"], ShouldHaveLength, 1)
+				})
 			})
 		})
 	})

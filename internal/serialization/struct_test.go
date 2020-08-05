@@ -32,6 +32,10 @@ func TestSerializeStruct(t *testing.T) {
 			Convey("It should be same after serialization", func() {
 				So(actual, ShouldResemble, expected)
 			})
+
+			Convey("Its instance should not be same after serialization", func() {
+				So(actual, ShouldNotEqual, expected)
+			})
 		})
 
 		Convey("On a struct slice", func() {
