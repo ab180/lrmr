@@ -52,16 +52,16 @@ func (w *Writer) Write(data ...*lrdd.Row) error {
 	return nil
 }
 
-func (w *Writer) Dispatch(taskID string, n int) ([]*lrdd.Row, error) {
-	o, ok := w.outputs[taskID]
-	if !ok {
-		return nil, errors.Errorf("unknown task %v", taskID)
-	}
-	if p, ok := o.(PullStream); ok {
-		return p.Dispatch(n), nil
-	}
-	return nil, nil
-}
+// func (w *Writer) Dispatch(taskID string, n int) ([]*lrdd.Row, error) {
+// 	o, ok := w.outputs[taskID]
+// 	if !ok {
+// 		return nil, errors.Errorf("unknown task %v", taskID)
+// 	}
+// 	if p, ok := o.(PullStream); ok {
+// 		return p.Dispatch(n), nil
+// 	}
+// 	return nil, nil
+// }
 
 func (w Writer) NumOutputs() int {
 	return len(w.outputs)
