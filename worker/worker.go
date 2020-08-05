@@ -129,7 +129,6 @@ func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	// log.Info("Create {}/{}/[{}] (Output {})", req.Job.Name, s.Name, strings.Join(req.PartitionIDs, ","))
 	return &empty.Empty{}, nil
 }
 
@@ -148,7 +147,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 	taskCtx := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(taskCtx, req.Job.Id, s, req.Output)
+	out, err := w.newOutputWriter(taskCtx, req.Job.Id, s, partitionID, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
@@ -169,22 +168,44 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage, o *lrmrpb.Output) (output.Output, error) {
+func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage, curPartitionID string, o *lrmrpb.Output) (output.Output, error) {
 	idToOutput := make(map[string]output.Output)
-	for id, host := range o.PartitionToHost {
+
+	// only connect local
+	if partitions.IsPreserved(cur.Output.Partitioner) {
+		taskID := path.Join(jobID, cur.Output.Stage, curPartitionID)
+		nextTask := w.getRunningTask(taskID)
+
+		idToOutput[curPartitionID] = NewLocalPipe(nextTask.Input)
+		return output.NewWriter(ctx, partitions.NewPreservePartitioner(), idToOutput), nil
+	}
+
+	var mu sync.Mutex
+	wg, wctx := errgroup.WithContext(ctx)
+	for i, h := range o.PartitionToHost {
+		id, host := i, h
+
 		taskID := path.Join(jobID, cur.Output.Stage, id)
 		if host == w.NodeManager.Self().Host {
-			t := w.getRunningTask(taskID)
-			if t != nil {
-				idToOutput[id] = NewLocalPipe(t.Input)
+			nextTask := w.getRunningTask(taskID)
+			if nextTask != nil {
+				idToOutput[id] = NewLocalPipe(nextTask.Input)
 				continue
 			}
 		}
-		out, err := output.NewPushStream(ctx, w.NodeManager, host, taskID)
-		if err != nil {
-			return nil, err
-		}
-		idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
+		wg.Go(func() error {
+			out, err := output.NewPushStream(wctx, w.NodeManager, host, taskID)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := wg.Wait(); err != nil {
+		return nil, err
 	}
 	return output.NewWriter(ctx, partitions.UnwrapPartitioner(cur.Output.Partitioner), idToOutput), nil
 }
@@ -227,6 +248,15 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
+	// for {
+	// 	req, err := stream.Recv()
+	// 	if err != nil {
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		return
+	// 	}
+	// }
 	panic("implement me")
 }
 

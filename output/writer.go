@@ -9,6 +9,7 @@ import (
 type Writer struct {
 	context     partitions.Context
 	partitioner partitions.Partitioner
+	isPreserved bool
 
 	// outputs is a mapping of partition ID to an output.
 	outputs map[string]Output
@@ -18,11 +19,15 @@ func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[strin
 	return &Writer{
 		context:     c,
 		partitioner: p,
+		isPreserved: partitions.IsPreserved(p),
 		outputs:     outputs,
 	}
 }
 
 func (w *Writer) Write(data ...*lrdd.Row) error {
+	if w.isPreserved {
+		return w.outputs[w.context.PartitionID()].Write(data...)
+	}
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {
 		id, err := w.partitioner.DeterminePartition(w.context, row, len(w.outputs))
@@ -45,6 +50,17 @@ func (w *Writer) Write(data ...*lrdd.Row) error {
 		}
 	}
 	return nil
+}
+
+func (w *Writer) Dispatch(taskID string, n int) ([]*lrdd.Row, error) {
+	o, ok := w.outputs[taskID]
+	if !ok {
+		return nil, errors.Errorf("unknown task %v", taskID)
+	}
+	if p, ok := o.(PullStream); ok {
+		return p.Dispatch(n), nil
+	}
+	return nil, nil
 }
 
 func (w Writer) NumOutputs() int {

@@ -141,8 +141,8 @@ func (p PreservePartitioner) DeterminePartition(c Context, _ *lrdd.Row, _ int) (
 	return c.PartitionID(), nil
 }
 
-func isPreserved(p Partitioner) bool {
-	_, ok := p.(*PreservePartitioner)
+func IsPreserved(p Partitioner) bool {
+	_, ok := UnwrapPartitioner(p).(*PreservePartitioner)
 	return ok
 }
 

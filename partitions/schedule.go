@@ -84,7 +84,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		var partitions []Partition
 		if i == 0 {
 			partitions = []Partition{{ID: InputPartitionID}}
-		} else if isPreserved(plans[i-1].Partitioner) && len(pp) > 0 {
+		} else if IsPreserved(plans[i-1].Partitioner) && len(pp) > 0 {
 			partitions = pp[i-1].Partitions
 		} else {
 			partitions = plans[i-1].Partitioner.PlanNext(numExecutors)
@@ -92,7 +92,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		pp = append(pp, New(plan.Partitioner, partitions))
 
 		if i > 0 {
-			if isPreserved(plans[i-1].Partitioner) && len(aa) > 0 {
+			if IsPreserved(plans[i-1].Partitioner) && len(aa) > 0 {
 				// ensure that adjacent preserved partitions have exact same assignments
 				aa = append(aa, aa[i-1])
 				continue
