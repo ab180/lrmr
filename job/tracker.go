@@ -19,8 +19,9 @@ type Tracker struct {
 	jobManager *Manager
 
 	subscriptions map[string][]chan *Status
+	subscribeLock sync.RWMutex
 
-	activeJobs        map[string]*Job
+	activeJobs        sync.Map
 	totalTasksOfStage map[string]int64
 	lock              sync.RWMutex
 
@@ -35,22 +36,22 @@ func NewJobTracker(crd coordinator.Coordinator, jm *Manager) *Tracker {
 		crd:               crd,
 		jobManager:        jm,
 		subscriptions:     make(map[string][]chan *Status),
-		activeJobs:        make(map[string]*Job),
 		totalTasksOfStage: make(map[string]int64),
 		log:               logger.New("lrmr/job.Tracker"),
 	}
 }
 
 func (t *Tracker) WaitForCompletion(jobID string) chan *Status {
+	t.subscribeLock.Lock()
+	defer t.subscribeLock.Unlock()
+
 	notifyCh := make(chan *Status)
 	t.subscriptions[jobID] = append(t.subscriptions[jobID], notifyCh)
 	return notifyCh
 }
 
 func (t *Tracker) AddJob(job *Job) {
-	t.lock.Lock()
-	t.activeJobs[job.ID] = job
-	t.lock.Unlock()
+	t.activeJobs.Store(job.ID, job)
 }
 
 // HandleJobCompletion watches various job events such as task finish,
@@ -75,10 +76,11 @@ func (t *Tracker) trackStage(e coordinator.WatchEvent) {
 		t.log.Warn("Found unknown stage status: {}", e.Item.Key)
 		return
 	}
-	job, ok := t.activeJobs[frags[2]]
+	j, ok := t.activeJobs.Load(frags[2])
 	if !ok {
 		return
 	}
+	job := j.(*Job)
 	stageID := frags[2] + "/" + frags[3]
 
 	if strings.HasSuffix(e.Item.Key, "totalTasks") && e.Type == coordinator.CounterEvent {
@@ -159,6 +161,9 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 			t.log.Info(" - Error #{}: {} (Caused by {})", i, errDesc.Message, errDesc.Task)
 		}
 	}
+	t.subscribeLock.RLock()
+	defer t.subscribeLock.RUnlock()
+
 	for i, notifyCh := range t.subscriptions[job.ID] {
 		select {
 		case notifyCh <- &js:
@@ -166,7 +171,7 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 			t.log.Verbose("Warning: subscription #{} seems too busy to receive result of job {}", i, job.ID)
 		}
 	}
-	delete(t.activeJobs, job.ID)
+	t.activeJobs.Delete(job.ID)
 	return nil
 }
 
