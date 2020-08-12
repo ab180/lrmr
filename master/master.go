@@ -19,6 +19,7 @@ import (
 	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
 	"github.com/therne/lrmr/worker"
+	"github.com/thoas/go-funk"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -92,10 +93,18 @@ func (m *Master) State() coordinator.KV {
 	return m.NodeManager.NodeStates()
 }
 
-func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage) ([]partitions.Assignments, *job.Job, error) {
+func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage, opt ...CreateJobOption) ([]partitions.Assignments, *job.Job, error) {
+	opts := buildCreateJobOptions(opt)
+
 	workers, err := m.NodeManager.List(ctx, node.Worker)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "list available workers")
+	}
+	if opts.NodeSelector != nil {
+		workers = funk.Filter(
+			workers,
+			func(n *node.Node) bool { return n.TagMatches(opts.NodeSelector) },
+		).([]*node.Node)
 	}
 	if len(workers) == 0 {
 		return nil, nil, ErrNoAvailableWorkers

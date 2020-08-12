@@ -25,3 +25,22 @@ func DefaultOptions() (o Options) {
 	}
 	return
 }
+
+type CreateJobOptions struct {
+	NodeSelector map[string]string
+}
+
+type CreateJobOption func(o *CreateJobOptions)
+
+func WithNodeSelector(ns map[string]string) CreateJobOption {
+	return func(o *CreateJobOptions) {
+		o.NodeSelector = ns
+	}
+}
+
+func buildCreateJobOptions(opts []CreateJobOption) (o CreateJobOptions) {
+	for _, optFn := range opts {
+		optFn(&o)
+	}
+	return o
+}

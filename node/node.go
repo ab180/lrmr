@@ -31,3 +31,12 @@ func New(host string, typ Type) *Node {
 		Executors: runtime.NumCPU(),
 	}
 }
+
+func (n *Node) TagMatches(selector map[string]string) bool {
+	for k, v := range selector {
+		if n.Tag[k] != v {
+			return false
+		}
+	}
+	return true
+}
