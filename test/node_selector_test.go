@@ -5,21 +5,21 @@ import (
 
 	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr"
 	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestNodeSelection(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
-
 		Convey("Running job with selecting particular nodes", func() {
-			ds := NodeSelection(sess, map[string]string{"No": "1"})
-			j, err := ds.Run()
-			So(err, ShouldBeNil)
+			sess, stop := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"No": "1"}))
+			defer stop()
 
 			Convey("It should be only ran on selected nodes", func() {
+				j, err := NodeSelection(sess).Run()
+				So(err, ShouldBeNil)
+
 				So(j.Wait(), ShouldBeNil)
 
 				m, err := j.Metrics()
@@ -31,10 +31,11 @@ func TestNodeSelection(t *testing.T) {
 		})
 
 		Convey("Running job with selector which doesn't match any nodes", func() {
-			ds := NodeSelection(sess, map[string]string{"going": "nowhere"})
+			sess, stop := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"going": "nowhere"}))
+			defer stop()
 
 			Convey("ErrNoAvailableWorkers should be raised", func() {
-				_, err := ds.Run()
+				_, err := NodeSelection(sess).Run()
 				So(errors.Cause(err), ShouldEqual, master.ErrNoAvailableWorkers)
 			})
 		})

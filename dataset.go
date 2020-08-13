@@ -6,7 +6,6 @@ import (
 	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
@@ -20,9 +19,8 @@ type Dataset struct {
 	stages []stage.Stage
 
 	// len(plans) == len(stages)+1 (because of input stage)
-	plans         []partitions.Plan
-	defaultPlan   partitions.Plan
-	createJobOpts []master.CreateJobOption
+	plans       []partitions.Plan
+	defaultPlan partitions.Plan
 
 	NumStages int
 }
@@ -108,11 +106,6 @@ func (d *Dataset) WithWorkerCount(n int) *Dataset {
 
 func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 	d.defaultPlan.ExecutorsPerNode = n
-	return d
-}
-
-func (d *Dataset) WithNodeSelector(selector map[string]string) *Dataset {
-	d.createJobOpts = append(d.createJobOpts, master.WithNodeSelector(selector))
 	return d
 }
 

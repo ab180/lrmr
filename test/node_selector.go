@@ -5,9 +5,8 @@ import (
 	"github.com/therne/lrmr/lrdd"
 )
 
-func NodeSelection(sess *lrmr.Session, selector map[string]string) *lrmr.Dataset {
+func NodeSelection(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.Parallelize([]int{}).
-		WithNodeSelector(selector).
 		Do(countNumPartitions{})
 }
 

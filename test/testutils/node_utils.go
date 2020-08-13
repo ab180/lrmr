@@ -12,7 +12,7 @@ import (
 	"github.com/therne/lrmr/worker"
 )
 
-func StartLocalCluster(c C, numWorkers int) (sess *lrmr.Session, stopper func()) {
+func StartLocalCluster(c C, numWorkers int, options ...lrmr.SessionOption) (sess *lrmr.Session, stopper func()) {
 	crd := coordinator.NewLocalMemory()
 
 	workers := make([]*worker.Worker, numWorkers)
@@ -43,7 +43,8 @@ func StartLocalCluster(c C, numWorkers int) (sess *lrmr.Session, stopper func())
 	So(err, ShouldBeNil)
 	m.Start()
 
-	return lrmr.NewSession(context.Background(), m, lrmr.WithTimeout(time.Minute)), func() {
+	options = append(options, lrmr.WithTimeout(30*time.Second))
+	return lrmr.NewSession(context.Background(), m, options...), func() {
 		for _, w := range workers {
 			c.So(w.Close(), ShouldBeNil)
 		}

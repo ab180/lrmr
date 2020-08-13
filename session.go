@@ -60,7 +60,11 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 		defer cancel()
 	}
 
-	assignments, j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages, ds.createJobOpts...)
+	var createJobOptions []master.CreateJobOption
+	if s.options.NodeSelector != nil {
+		createJobOptions = append(createJobOptions, master.WithNodeSelector(s.options.NodeSelector))
+	}
+	assignments, j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages, createJobOptions...)
 	if err != nil {
 		return nil, err
 	}
