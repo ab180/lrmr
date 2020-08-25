@@ -18,12 +18,13 @@ const (
 )
 
 type Etcd struct {
-	client  *clientv3.Client
-	kv      clientv3.KV
-	watcher clientv3.Watcher
-	lease   clientv3.Lease
-	log     logger.Logger
-	opts    []WriteOption
+	Client  *clientv3.Client
+	KV      clientv3.KV
+	Watcher clientv3.Watcher
+	Lease   clientv3.Lease
+
+	log  logger.Logger
+	opts []WriteOption
 }
 
 func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
@@ -35,16 +36,16 @@ func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 		return nil, err
 	}
 	return &Etcd{
-		client:  cli,
-		kv:      namespace.NewKV(cli, nsPrefix),
-		watcher: namespace.NewWatcher(cli, nsPrefix),
-		lease:   namespace.NewLease(cli, nsPrefix),
+		Client:  cli,
+		KV:      namespace.NewKV(cli, nsPrefix),
+		Watcher: namespace.NewWatcher(cli, nsPrefix),
+		Lease:   namespace.NewLease(cli, nsPrefix),
 		log:     logger.New("etcd"),
 	}, nil
 }
 
 func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error {
-	resp, err := e.kv.Get(ctx, key)
+	resp, err := e.KV.Get(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -55,7 +56,7 @@ func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error 
 }
 
 func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err error) {
-	resp, err := e.kv.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	resp, err := e.KV.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	if err != nil {
 		return
 	}
@@ -71,7 +72,7 @@ func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err 
 func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 	watchChan := make(chan WatchEvent)
 
-	wc := e.watcher.Watch(ctx, prefix, clientv3.WithPrefix())
+	wc := e.Watcher.Watch(ctx, prefix, clientv3.WithPrefix())
 	go func() {
 		for wr := range wc {
 			if err := wr.Err(); err != nil {
@@ -119,7 +120,7 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...W
 	if opt.Lease != clientv3.NoLease {
 		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
 	}
-	_, err = e.kv.Put(ctx, key, jsonVal, etcdOpts...)
+	_, err = e.KV.Put(ctx, key, jsonVal, etcdOpts...)
 	return err
 }
 
@@ -147,12 +148,12 @@ func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error 
 			txOps = append(txOps, clientv3.OpDelete(op.Key, clientv3.WithPrefix()))
 		}
 	}
-	_, err := e.kv.Txn(ctx).Then(txOps...).Commit()
+	_, err := e.KV.Txn(ctx).Then(txOps...).Commit()
 	return err
 }
 
 func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
-	lease, err := e.lease.Grant(ctx, int64(ttl.Seconds()))
+	lease, err := e.Lease.Grant(ctx, int64(ttl.Seconds()))
 	if err != nil {
 		return 0, err
 	}
@@ -160,13 +161,13 @@ func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.Leas
 }
 
 func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
-	_, err := e.lease.KeepAlive(ctx, lease)
+	_, err := e.Lease.KeepAlive(ctx, lease)
 	return err
 }
 
 func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64, err error) {
 	// uses version as a cheap atomic counter
-	result, err := e.kv.Put(ctx, key, counterMark, clientv3.WithPrevKV())
+	result, err := e.KV.Put(ctx, key, counterMark, clientv3.WithPrevKV())
 	if err != nil {
 		return
 	}
@@ -179,7 +180,7 @@ func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64,
 }
 
 func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err error) {
-	resp, err := e.kv.Get(ctx, key)
+	resp, err := e.KV.Get(ctx, key)
 	if err != nil {
 		return
 	}
@@ -196,7 +197,7 @@ func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err 
 }
 
 func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err error) {
-	resp, err := e.kv.Delete(ctx, prefix, clientv3.WithPrefix())
+	resp, err := e.KV.Delete(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return 0, err
 	}
@@ -205,15 +206,15 @@ func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err er
 
 func (e *Etcd) WithOptions(opt ...WriteOption) KV {
 	return &Etcd{
-		client:  e.client,
-		kv:      e.kv,
-		watcher: e.watcher,
-		lease:   e.lease,
+		Client:  e.Client,
+		KV:      e.KV,
+		Watcher: e.Watcher,
+		Lease:   e.Lease,
 		log:     logger.New("etcd"),
 		opts:    opt,
 	}
 }
 
 func (e *Etcd) Close() error {
-	return e.client.Close()
+	return e.Client.Close()
 }
