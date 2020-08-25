@@ -9,6 +9,7 @@ import (
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	jsoniter "github.com/json-iterator/go"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -29,7 +30,9 @@ type Etcd struct {
 
 func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 	cfg := clientv3.Config{
-		Endpoints: endpoints,
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	}
 	cli, err := clientv3.New(cfg)
 	if err != nil {
