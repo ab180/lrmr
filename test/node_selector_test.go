@@ -13,11 +13,11 @@ import (
 func TestNodeSelection(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
 		Convey("Running job with selecting particular nodes", func() {
-			sess, stop := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"No": "1"}))
-			defer stop()
+			cluster := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"No": "1"}))
+			defer cluster.Stop()
 
 			Convey("It should be only ran on selected nodes", func() {
-				j, err := NodeSelection(sess).Run()
+				j, err := NodeSelection(cluster.Session).Run()
 				So(err, ShouldBeNil)
 
 				So(j.Wait(), ShouldBeNil)
@@ -31,11 +31,11 @@ func TestNodeSelection(t *testing.T) {
 		})
 
 		Convey("Running job with selector which doesn't match any nodes", func() {
-			sess, stop := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"going": "nowhere"}))
-			defer stop()
+			cluster := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"going": "nowhere"}))
+			defer cluster.Stop()
 
 			Convey("ErrNoAvailableWorkers should be raised", func() {
-				_, err := NodeSelection(sess).Run()
+				_, err := NodeSelection(cluster.Session).Run()
 				So(errors.Cause(err), ShouldEqual, master.ErrNoAvailableWorkers)
 			})
 		})

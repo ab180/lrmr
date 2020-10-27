@@ -9,11 +9,11 @@ import (
 
 func TestMap(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When running Map", func() {
-			ds := Map(sess)
+			ds := Map(cluster.Session)
 
 			Convey("It should run without error", func() {
 				rows, err := ds.Collect()

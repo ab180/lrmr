@@ -10,11 +10,11 @@ import (
 
 func TestBasicGroupByKey(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKey(sess)
+			ds := BasicGroupByKey(cluster.Session)
 			j, err := ds.Run()
 			So(err, ShouldBeNil)
 
@@ -36,11 +36,11 @@ func TestBasicGroupByKey(t *testing.T) {
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKnownKeys(sess)
+			ds := BasicGroupByKnownKeys(cluster.Session)
 
 			Convey("It should run without error", func() {
 				rows, err := ds.Collect()
@@ -58,11 +58,11 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 
 func TestSimpleCount(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(sess)
+			ds := SimpleCount(cluster.Session)
 			j, err := ds.Run()
 			So(err, ShouldBeNil)
 
@@ -82,11 +82,11 @@ func TestSimpleCount(t *testing.T) {
 
 func TestSimpleCount_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(sess)
+			ds := SimpleCount(cluster.Session)
 
 			Convey("Calling Collect() should return results with no error", func() {
 				rows, err := ds.Collect()

@@ -10,11 +10,11 @@ import (
 
 func TestComplicatedQuery(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 8)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 8)
+		defer cluster.Stop()
 
 		Convey("When doing ComplicatedQuery", func() {
-			ds := ComplicatedQuery(sess)
+			ds := ComplicatedQuery(cluster.Session)
 			j, err := ds.Run()
 			So(err, ShouldBeNil)
 

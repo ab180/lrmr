@@ -9,11 +9,11 @@ import (
 
 func TestCustomPartitioner(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When running stage with custom partitioner", func() {
-			ds := PartitionerWithNodeAffinityTest(sess)
+			ds := PartitionerWithNodeAffinityTest(cluster.Session)
 
 			Convey("It should assign rows with its designated partitions and physical nodes", func() {
 				rows, err := ds.Collect()

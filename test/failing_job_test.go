@@ -9,10 +9,10 @@ import (
 
 func TestFailingJob(t *testing.T) {
 	Convey("Running a job that fails", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
-		ds := FailingJob(sess)
+		ds := FailingJob(cluster.Session)
 
 		Convey("It should handle errors gracefully on Wait", func() {
 			job, err := ds.Run()

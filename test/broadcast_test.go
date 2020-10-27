@@ -9,11 +9,11 @@ import (
 
 func TestBroadcast(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When running Map with broadcasts", func() {
-			ds := BroadcastTester(sess)
+			ds := BroadcastTester(cluster.Session)
 
 			Convey("It should run without preserving broadcast values from master", func() {
 				rows, err := ds.Collect()

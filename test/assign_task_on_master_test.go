@@ -9,11 +9,11 @@ import (
 
 func TestAssignTaskOnMaster(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When assigning task on master", func() {
-			ds := AssignTaskOnMaster(sess)
+			ds := AssignTaskOnMaster(cluster.Session)
 
 			Convey("It should be actually assigned on master without error", func() {
 				rows, err := ds.Collect()

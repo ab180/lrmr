@@ -9,11 +9,11 @@ import (
 
 func TestSort(t *testing.T) {
 	Convey("Given running nodes", t, func(c C) {
-		sess, stop := testutils.StartLocalCluster(c, 2)
-		defer stop()
+		cluster := testutils.StartLocalCluster(c, 2)
+		defer cluster.Stop()
 
 		Convey("When running Sort", func() {
-			ds := Sort(sess)
+			ds := Sort(cluster.Session)
 
 			Convey("It should sort given data", func() {
 				rows, err := ds.Collect()
