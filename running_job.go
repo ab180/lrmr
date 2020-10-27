@@ -1,6 +1,7 @@
 package lrmr
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,12 +38,30 @@ func (r *RunningJob) Wait() error {
 	sigTerm := make(chan os.Signal)
 	signal.Notify(sigTerm, os.Interrupt, os.Kill, syscall.SIGTERM)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		signal.Stop(sigTerm)
+		cancel()
+	}()
+
+	go func() {
+		select {
+		case sig := <-sigTerm:
+			log.Info("{} received during execution.", sig.String())
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return r.WaitWithContext(ctx)
+}
+
+func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 	select {
 	case r.finalStatus = <-r.master.JobTracker.WaitForCompletion(r.Job.ID):
 		if r.finalStatus.Status == job.Failed {
 			return r.finalStatus.Errors[0]
 		}
-	case <-sigTerm:
+	case <-ctx.Done():
 		log.Info("Canceling jobs")
 		return r.Abort()
 	}
