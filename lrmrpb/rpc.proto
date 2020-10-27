@@ -75,5 +75,4 @@ message PollDataResponse {
 message DataHeader {
     string taskID = 1;
     string fromHost = 2;
-    string fromNodeID = 3;
 }

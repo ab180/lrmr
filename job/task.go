@@ -9,13 +9,10 @@ import (
 )
 
 type Task struct {
-	JobID       string `json:"jobId"`
-	StageName   string `json:"stageId"`
-	PartitionID string `json:"id"`
-
-	NodeID   string `json:"nodeId"`
-	NodeHost string `json:"nodeHost"`
-
+	JobID       string    `json:"jobId"`
+	StageName   string    `json:"stageId"`
+	PartitionID string    `json:"id"`
+	NodeHost    string    `json:"nodeHost"`
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
@@ -24,7 +21,6 @@ func NewTask(partitionKey string, node *node.Node, jobID string, stage stage.Sta
 		PartitionID: partitionKey,
 		StageName:   stage.Name,
 		JobID:       jobID,
-		NodeID:      node.ID,
 		NodeHost:    node.Host,
 		SubmittedAt: time.Now(),
 	}

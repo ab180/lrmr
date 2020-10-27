@@ -14,5 +14,4 @@ type Output interface {
 
 type Node interface {
 	Host() string
-	NodeID() string
 }

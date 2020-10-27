@@ -159,9 +159,6 @@ func satisfiesAffinity(n *node.Node, rules map[string]string) bool {
 		if k == "Host" && v == n.Host {
 			return true
 		}
-		if k == "ID" && v == n.ID {
-			return true
-		}
 		for nk, nv := range n.Tag {
 			if k == nk && v == nv {
 				return true

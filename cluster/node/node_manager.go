@@ -96,11 +96,11 @@ func (m *manager) RegisterSelf(ctx context.Context, n *Node) error {
 		return errors.Wrap(err, "start liveness prove")
 	}
 	m.livenessLease = lease
-	if err := m.crd.Put(ctx, path.Join(nodeNs, n.ID), n, coordinator.WithLease(m.livenessLease)); err != nil {
+	if err := m.crd.Put(ctx, path.Join(nodeNs, n.Host), n, coordinator.WithLease(m.livenessLease)); err != nil {
 		return errors.Wrap(err, "register node info")
 	}
 	m.self = n
-	log.Info("{type} node {id} registered with", logger.Attrs{"type": n.Type, "id": n.ID, "host": n.Host})
+	log.Verbose("{} node registered as {}", n.Type, n.Host)
 	return nil
 }
 
@@ -160,7 +160,7 @@ func (m *manager) List(ctx context.Context, typ Type) (nn []*Node, err error) {
 }
 
 func (m *manager) UnregisterSelf() error {
-	if _, err := m.crd.Delete(context.Background(), path.Join(nodeNs, m.self.ID)); err != nil {
+	if _, err := m.crd.Delete(context.Background(), path.Join(nodeNs, m.self.Host)); err != nil {
 		return fmt.Errorf("failed to remove from etcd: %v", err)
 	}
 	m.self = nil

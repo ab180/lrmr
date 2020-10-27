@@ -156,7 +156,7 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 		// Put(path.Join(taskNs, task.ID()), task).
 		Put(path.Join(taskStatusNs, task.Reference().String()), status).
 		IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")).
-		IncrementCounter(path.Join(nodeStatusNs, task.NodeID, "totalTasks"))
+		IncrementCounter(path.Join(nodeStatusNs, task.NodeHost, "totalTasks"))
 
 	if err := m.crd.Commit(ctx, txn); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
