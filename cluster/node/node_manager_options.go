@@ -1,8 +1,9 @@
 package node
 
 import (
-	"github.com/creasty/defaults"
 	"time"
+
+	"github.com/creasty/defaults"
 )
 
 type ManagerOptions struct {

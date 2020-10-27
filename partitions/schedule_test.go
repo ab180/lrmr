@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/node"
 )
 
 func TestScheduler_AffinityRule(t *testing.T) {

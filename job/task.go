@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/stage"
 )
 

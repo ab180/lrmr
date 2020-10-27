@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/transformation"

@@ -1,13 +1,14 @@
 package lrmr
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/master"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 var (

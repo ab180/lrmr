@@ -2,13 +2,14 @@ package output
 
 import (
 	"context"
+	"io"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
-	"github.com/therne/lrmr/node"
 	"google.golang.org/grpc/metadata"
-	"io"
 )
 
 type PushStream struct {

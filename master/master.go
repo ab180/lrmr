@@ -8,12 +8,12 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/pbtypes"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
-	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"

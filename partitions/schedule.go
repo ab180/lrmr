@@ -4,7 +4,7 @@ import (
 	"sort"
 
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/thoas/go-funk"
 )
 

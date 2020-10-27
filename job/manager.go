@@ -3,14 +3,14 @@ package job
 import (
 	"context"
 	"fmt"
+	"path"
+
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/util"
-	"github.com/therne/lrmr/node"
 	"github.com/therne/lrmr/stage"
-
-	"path"
 )
 
 const (

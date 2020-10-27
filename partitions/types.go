@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/cluster/node"
 	"github.com/thoas/go-funk"
 )
 
