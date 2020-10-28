@@ -21,11 +21,18 @@ require (
 	go.etcd.io/etcd/api/v3 v3.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/v3 v3.0.0-20201026174226-7da5182f1d02
 	go.uber.org/atomic v1.6.0
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	google.golang.org/grpc v1.29.1
 )
 
 replace (
 	go.etcd.io/etcd/api/v3 => go.etcd.io/etcd/api/v3 v3.0.0-20201026174226-7da5182f1d02
 	go.etcd.io/etcd/pkg/v3 => go.etcd.io/etcd/pkg/v3 v3.0.0-20201026174226-7da5182f1d02
+	golang.org/x/lint => golang.org/x/lint v0.0.0-20200302205851-738671d3881b
+	golang.org/x/net => github.com/golang/net v0.0.0-20201027133719-8eef5233e2a1
+	golang.org/x/sync => github.com/golang/sync v0.0.0-20201020160332-67f06af15bc9
+	golang.org/x/sys => github.com/golang/sys v0.0.0-20201027140754-0fcbb8f4928c
+	golang.org/x/text => github.com/golang/text v0.3.4
+	golang.org/x/tools => golang.org/x/tools v0.0.0-20201028025901-8cd080b735b3
+	golang.org/x/xerrors => golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 )
