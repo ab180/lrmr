@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/airbloc/logger"
 	"github.com/goombaio/namegenerator"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/internal/serialization"
@@ -68,7 +67,6 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	if err != nil {
 		return nil, err
 	}
-	jobLog := log.WithAttrs(logger.Attrs{"id": j.ID, "job": j.Name})
 
 	broadcast, err := serialization.SerializeBroadcast(s.broadcasts)
 	if err != nil {
@@ -78,7 +76,6 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
-	jobLog.Verbose("Feeding input")
 	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, assignments[1], ds.plans[0].Partitioner)
 	if err != nil {
 		return nil, errors.WithMessage(err, "open input")
@@ -92,7 +89,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	timer.End("Job creation completed. Now running...")
 
 	return &RunningJob{
-		master: s.master,
+		Master: s.master,
 		Job:    j,
 	}, nil
 }
