@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/therne/lrmr/cluster/node"
 	"github.com/thoas/go-funk"
 )
 
@@ -34,56 +33,57 @@ func (p Plan) Equal(o Plan) bool {
 
 // Assignment is an physical assignment of the partition to an node.
 type Assignment struct {
-	Partition
-	Node *node.Node
+	PartitionID string `json:"partitionID"`
+	Host        string `json:"host"`
 }
 
+// Assignments is assignment of partitions in a stage.
 type Assignments []Assignment
 
 // ToMap converts a list of Assignment into mapping of partition key to hostname.
-func (pp Assignments) ToMap() map[string]string {
-	m := make(map[string]string, len(pp))
-	for _, p := range pp {
-		m[p.ID] = p.Node.Host
+func (as Assignments) ToMap() map[string]string {
+	m := make(map[string]string, len(as))
+	for _, a := range as {
+		m[a.PartitionID] = a.Host
 	}
 	return m
 }
 
-func (pp Assignments) GroupIDsByHost() map[string][]string {
+func (as Assignments) GroupIDsByHost() map[string][]string {
 	m := make(map[string][]string)
-	for _, p := range pp {
-		m[p.Node.Host] = append(m[p.Node.Host], p.ID)
+	for _, a := range as {
+		m[a.Host] = append(m[a.Host], a.PartitionID)
 	}
 	return m
 }
 
 // Keys returns an unordered list of partition keys.
-func (pp Assignments) Keys() (kk []string) {
-	for _, p := range pp {
-		kk = append(kk, p.ID)
+func (as Assignments) Keys() (kk []string) {
+	for _, a := range as {
+		kk = append(kk, a.PartitionID)
 	}
 	return
 }
 
 // Hostnames returns an unordered list of nodes' hostnames in the partition.
-func (pp Assignments) Hostnames() (nn []string) {
-	for _, p := range pp {
-		nn = append(nn, p.Node.Host)
+func (as Assignments) Hostnames() (nn []string) {
+	for _, p := range as {
+		nn = append(nn, p.Host)
 	}
 	return
 }
 
-func (pp Assignments) Pretty() (s string) {
+func (as Assignments) Pretty() (s string) {
 	groupsByHost := make(map[string]Assignments)
-	for _, p := range pp {
-		groupsByHost[p.Node.Host] = append(groupsByHost[p.Node.Host], p)
+	for _, a := range as {
+		groupsByHost[a.Host] = append(groupsByHost[a.Host], a)
 	}
 	hosts := funk.Keys(groupsByHost).([]string)
 	sort.Strings(hosts)
 	for _, host := range hosts {
 		var keys []string
-		for _, p := range groupsByHost[host] {
-			keys = append(keys, p.ID)
+		for _, a := range groupsByHost[host] {
+			keys = append(keys, a.PartitionID)
 		}
 		s += fmt.Sprintf("  %s: %s\n", host, strings.Join(ellipsis(keys, 50, 500), ", "))
 	}

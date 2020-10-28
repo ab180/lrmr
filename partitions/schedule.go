@@ -114,8 +114,8 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 			}
 			selected.currentTasks += 1
 			assignments[j] = Assignment{
-				Partition: p,
-				Node:      selected.Node,
+				PartitionID: p.ID,
+				Host:        selected.Node.Host,
 			}
 		}
 		aa = append(aa, assignments)

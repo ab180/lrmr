@@ -93,12 +93,12 @@ func (m *Master) State() coordinator.KV {
 	return m.NodeManager.NodeStates()
 }
 
-func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage, opt ...CreateJobOption) ([]partitions.Assignments, *job.Job, error) {
+func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage, opt ...CreateJobOption) (*job.Job, error) {
 	opts := buildCreateJobOptions(opt)
 
 	workers, err := m.NodeManager.List(ctx, node.Worker)
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "list available workers")
+		return nil, errors.WithMessage(err, "list available workers")
 	}
 	if opts.NodeSelector != nil {
 		workers = funk.Filter(
@@ -107,7 +107,7 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		).([]*node.Node)
 	}
 	if len(workers) == 0 {
-		return nil, nil, ErrNoAvailableWorkers
+		return nil, ErrNoAvailableWorkers
 	}
 
 	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.executor.NodeManager.Self()))
@@ -119,17 +119,17 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 			name, stages[i].Name, partitionerName, assignments[i].Pretty())
 	}
 
-	j, err := m.JobManager.CreateJob(ctx, name, stages)
+	j, err := m.JobManager.CreateJob(ctx, name, stages, assignments)
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "create job")
+		return nil, errors.WithMessage(err, "create job")
 	}
 	m.JobTracker.AddJob(j)
 
-	return assignments, j, nil
+	return j, nil
 }
 
 // StartTasks create tasks to the nodes with the plan.
-func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partitions.Assignments, broadcasts map[string][]byte) error {
+func (m *Master) StartJob(ctx context.Context, j *job.Job, broadcasts map[string][]byte) error {
 	prepareCollect(j.ID)
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
@@ -150,16 +150,15 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 			Broadcasts: broadcasts,
 		}
 		if i < len(j.Stages)-1 {
-			reqTmpl.Output.PartitionToHost = assignments[i+1].ToMap()
+			reqTmpl.Output.PartitionToHost = j.Partitions[i+1].ToMap()
 		} else {
 			reqTmpl.Output.PartitionToHost = make(map[string]string, 0)
 		}
 
 		t := log.Timer()
 		wg, wctx := errgroup.WithContext(ctx)
-		for h, ps := range assignments[i].GroupIDsByHost() {
-			host := h
-			partitionIDs := ps
+		for h, ps := range j.Partitions[i].GroupIDsByHost() {
+			host, partitionIDs := h, ps
 
 			wg.Go(func() error {
 				conn, err := m.NodeManager.Connect(wctx, host)
@@ -182,21 +181,22 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 	return nil
 }
 
-func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, targets partitions.Assignments, partitioner partitions.Partitioner) (output.Output, error) {
+func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, input partitions.Partitioner) (output.Output, error) {
+	targets := j.GetPartitionsOfStage(stageName)
 	outs := make(map[string]output.Output, len(targets))
 	var lock sync.Mutex
 
 	wg, reqCtx := errgroup.WithContext(ctx)
 	for _, t := range targets {
-		p := t
+		assigned := t
 		wg.Go(func() error {
-			taskID := path.Join(j.ID, stageName, p.ID)
-			out, err := output.NewPushStream(reqCtx, m.NodeManager, p.Node.Host, taskID)
+			taskID := path.Join(j.ID, stageName, assigned.PartitionID)
+			out, err := output.NewPushStream(reqCtx, m.NodeManager, assigned.Host, taskID)
 			if err != nil {
-				return errors.Wrapf(err, "connect %s", p.Node.Host)
+				return errors.Wrapf(err, "connect %s", assigned.Host)
 			}
 			lock.Lock()
-			outs[p.ID] = out
+			outs[assigned.PartitionID] = out
 			lock.Unlock()
 			return nil
 		})
@@ -204,7 +204,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	out := output.NewWriter(newContextForInput(ctx, len(targets)), partitioner, outs)
+	out := output.NewWriter(newContextForInput(ctx, len(targets)), input, outs)
 	return out, nil
 }
 

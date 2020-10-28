@@ -63,7 +63,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	if s.options.NodeSelector != nil {
 		createJobOptions = append(createJobOptions, master.WithNodeSelector(s.options.NodeSelector))
 	}
-	assignments, j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages, createJobOptions...)
+	j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages, createJobOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,11 +72,11 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "serialize broadcast")
 	}
-	if err := s.master.StartJob(ctx, j, assignments, broadcast); err != nil {
+	if err := s.master.StartJob(ctx, j, broadcast); err != nil {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
-	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, assignments[1], ds.plans[0].Partitioner)
+	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, ds.input)
 	if err != nil {
 		return nil, errors.WithMessage(err, "open input")
 	}

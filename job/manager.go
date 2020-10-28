@@ -10,6 +10,7 @@ import (
 	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/util"
+	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 )
 
@@ -38,12 +39,13 @@ func NewManager(nm node.Manager, crd coordinator.Coordinator) *Manager {
 	}
 }
 
-func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Stage) (*Job, error) {
+func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Stage, assignments []partitions.Assignments) (*Job, error) {
 	js := newStatus()
 	j := &Job{
 		ID:          util.GenerateID("J"),
 		Name:        name,
 		Stages:      stages,
+		Partitions:  assignments,
 		SubmittedAt: js.SubmittedAt,
 	}
 	txn := coordinator.NewTxn().
