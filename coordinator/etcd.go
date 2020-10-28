@@ -127,7 +127,7 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...W
 	return err
 }
 
-func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error {
+func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) ([]TxnResult, error) {
 	var etcdOpts []clientv3.OpOption
 	opt := buildWriteOption(append(e.opts, opts...))
 	if opt.Lease != clientv3.NoLease {
@@ -140,19 +140,43 @@ func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error 
 		case PutEvent:
 			jsonVal, err := jsoniter.MarshalToString(op.Value)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			txOps = append(txOps, clientv3.OpPut(op.Key, jsonVal, etcdOpts...))
 
 		case CounterEvent:
-			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark, etcdOpts...))
+			countOpts := append(etcdOpts, clientv3.WithPrevKV())
+			txOps = append(txOps, clientv3.OpPut(op.Key, counterMark, countOpts...))
 
 		case DeleteEvent:
 			txOps = append(txOps, clientv3.OpDelete(op.Key, clientv3.WithPrefix()))
 		}
 	}
-	_, err := e.KV.Txn(ctx).Then(txOps...).Commit()
-	return err
+	etcdTxnResults, err := e.KV.Txn(ctx).Then(txOps...).Commit()
+	if err != nil {
+		return nil, err
+	}
+	results := make([]TxnResult, len(etcdTxnResults.Responses))
+	for i, res := range etcdTxnResults.Responses {
+		results[i].Type = txn.Ops[i].Type
+
+		// fill transaction result by type
+		switch txn.Ops[i].Type {
+		case PutEvent:
+
+		case CounterEvent:
+			prevKv := res.GetResponsePut().PrevKv
+			if prevKv == nil {
+				results[i].Counter = 0
+			} else {
+				results[i].Counter = prevKv.Version + 1
+			}
+
+		case DeleteEvent:
+			results[i].Deleted = res.GetResponseDeleteRange().Deleted
+		}
+	}
+	return results, err
 }
 
 func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
@@ -200,7 +224,14 @@ func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err 
 }
 
 func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err error) {
-	resp, err := e.KV.Delete(ctx, prefix, clientv3.WithPrefix())
+	var opts []clientv3.OpOption
+	if prefix == "" {
+		prefix = "\x00"
+		opts = append(opts, clientv3.WithFromKey())
+	} else {
+		opts = append(opts, clientv3.WithPrefix())
+	}
+	resp, err := e.KV.Delete(ctx, prefix, opts...)
 	if err != nil {
 		return 0, err
 	}

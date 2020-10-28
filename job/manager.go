@@ -53,7 +53,7 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 	for _, s := range j.Stages {
 		txn.Put(path.Join(stageStatusNs, j.ID, s.Name), newStageStatus())
 	}
-	if err := m.crd.Commit(ctx, txn); err != nil {
+	if _, err := m.crd.Commit(ctx, txn); err != nil {
 		return nil, errors.Wrap(err, "etcd write")
 	}
 	m.log.Debug("Job created: {} ({})", j.Name, j.ID)
@@ -158,7 +158,7 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 		IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")).
 		IncrementCounter(path.Join(nodeStatusNs, task.NodeHost, "totalTasks"))
 
-	if err := m.crd.Commit(ctx, txn); err != nil {
+	if _, err := m.crd.Commit(ctx, txn); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
 	}
 	return status, nil

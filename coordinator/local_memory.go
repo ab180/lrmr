@@ -146,24 +146,26 @@ func (lmc *localMemoryCoordinator) ReadCounter(ctx context.Context, key string) 
 	return lmc.counter[key], nil
 }
 
-func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) error {
+func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) ([]TxnResult, error) {
 	if err := lmc.simulate(ctx); err != nil {
-		return err
+		return nil, err
 	}
-	for _, op := range txn.Ops {
+	results := make([]TxnResult, len(txn.Ops))
+	for i, op := range txn.Ops {
 		switch op.Type {
 		case PutEvent:
 			opt := buildWriteOption(opts)
 			if err := lmc.put(op.Key, op.Value, opt.Lease); err != nil {
-				return err
+				return nil, err
 			}
 		case CounterEvent:
-			lmc.incrementCounter(op.Key)
+			results[i].Counter = lmc.incrementCounter(op.Key)
 		case DeleteEvent:
-			lmc.delete(op.Key)
+			results[i].Deleted = lmc.delete(op.Key)
 		}
+		results[i].Type = op.Type
 	}
-	return nil
+	return results, nil
 }
 
 func (lmc *localMemoryCoordinator) Delete(ctx context.Context, prefix string) (deleted int64, err error) {

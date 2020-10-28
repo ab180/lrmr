@@ -8,6 +8,18 @@ type Txn struct {
 	Ops []BatchOp
 }
 
+// TxnResult returns transaction result.
+type TxnResult struct {
+	// Type represents the transaction operation type.
+	Type EventType
+
+	// Counter returns an incremented counter value if Type is CounterEvent.
+	Counter int64
+
+	// Deleted returns an number of deleted items if Type is DeleteEvent.
+	Deleted int64
+}
+
 // NewTxn returns a new transaction.
 func NewTxn() *Txn {
 	return &Txn{}

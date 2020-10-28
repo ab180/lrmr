@@ -113,7 +113,10 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 		IncrementCounter(stageStatusKey(ref, "failedTasks")).
 		Put(jobErrorKey(ref), errDesc)
 
-	return r.crd.Commit(context.TODO(), txn)
+	if _, err := r.crd.Commit(context.TODO(), txn); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *Reporter) ReportCancel(ref TaskReference) error {
@@ -127,7 +130,10 @@ func (r *Reporter) ReportCancel(ref TaskReference) error {
 		IncrementCounter(stageStatusKey(ref, "doneTasks")).
 		IncrementCounter(stageStatusKey(ref, "failedTasks"))
 
-	return r.crd.Commit(context.TODO(), txn)
+	if _, err := r.crd.Commit(context.TODO(), txn); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *Reporter) Start() {
@@ -171,7 +177,7 @@ func (r *Reporter) flushTaskStatus() error {
 		return true
 	})
 	if len(txn.Ops) > 0 {
-		if err := r.crd.Commit(r.ctx, txn); err != nil {
+		if _, err := r.crd.Commit(r.ctx, txn); err != nil {
 			return err
 		}
 		// clear all dirties

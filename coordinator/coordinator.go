@@ -46,7 +46,7 @@ type KV interface {
 
 	// Commit apply changes of the transaction.
 	// The transaction will be failed if one of the operation in the transaction fails.
-	Commit(ctx context.Context, t *Txn, opts ...WriteOption) error
+	Commit(ctx context.Context, t *Txn, opts ...WriteOption) ([]TxnResult, error)
 }
 
 type WriteOption func(o *WriteOptions)
