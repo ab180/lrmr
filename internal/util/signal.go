@@ -15,11 +15,6 @@ func ContextWithSignal(parent context.Context, sig ...os.Signal) (context.Contex
 	signal.Notify(sigChan, sig...)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer func() {
-		signal.Stop(sigChan)
-		cancel()
-	}()
-
 	go func() {
 		select {
 		case sig := <-sigChan:
@@ -29,5 +24,8 @@ func ContextWithSignal(parent context.Context, sig ...os.Signal) (context.Contex
 		}
 	}()
 
-	return ctx, cancel
+	return ctx, func() {
+		signal.Stop(sigChan)
+		cancel()
+	}
 }
