@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/airbloc/logger"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"

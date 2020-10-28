@@ -1,6 +1,6 @@
 package coordinator
 
-import "github.com/coreos/etcd/clientv3"
+import clientv3 "go.etcd.io/etcd/client/v3"
 
 // Txn performs batch operation to the coordinator.Coordinator.
 // To apply changes, Commit() must be called with the Txn on coordinator.

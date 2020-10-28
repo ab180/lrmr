@@ -1,8 +1,8 @@
 package coordinator
 
 import (
-	"github.com/coreos/etcd/clientv3"
 	jsoniter "github.com/json-iterator/go"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // EventType is the type of the events from watching keys.

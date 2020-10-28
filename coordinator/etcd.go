@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/airbloc/logger"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/clientv3/namespace"
-	"github.com/coreos/etcd/mvcc/mvccpb"
 	jsoniter "github.com/json-iterator/go"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/namespace"
 	"google.golang.org/grpc"
 )
 

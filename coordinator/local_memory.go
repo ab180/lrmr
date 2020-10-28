@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
 	jsoniter "github.com/json-iterator/go"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type localMemoryCoordinator struct {
