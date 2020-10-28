@@ -6,6 +6,7 @@ import (
 	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
+	"github.com/therne/lrmr/master"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/transformation"
@@ -110,6 +111,13 @@ func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 }
 
 func (d *Dataset) Collect() ([]*lrdd.Row, error) {
+	// add collect stage for the master
+	d.PartitionedBy(master.NewCollectPartitioner()).
+		Repartition(1).
+		WithWorkerCount(1).
+		WithConcurrencyPerWorker(1).
+		addStage(master.CollectStageName, &master.Collector{})
+
 	j, err := d.session.Run(d)
 	if err != nil {
 		return nil, err

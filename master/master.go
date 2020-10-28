@@ -110,17 +110,6 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 		return nil, nil, ErrNoAvailableWorkers
 	}
 
-	// plans collect stage to the master
-	plans[len(plans)-1].Partitioner = NewCollectPartitioner()
-	plans = append(plans, partitions.Plan{
-		DesiredCount:     1,
-		MaxNodes:         1,
-		ExecutorsPerNode: 1,
-	})
-	colStage := stage.New(CollectStageName, &Collector{})
-	stages[len(stages)-1].SetOutputTo(colStage)
-	stages = append(stages, colStage)
-
 	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.executor.NodeManager.Self()))
 	for i, p := range pp {
 		stages[i].Output.Partitioner = p.Partitioner
@@ -162,6 +151,8 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, assignments []partiti
 		}
 		if i < len(j.Stages)-1 {
 			reqTmpl.Output.PartitionToHost = assignments[i+1].ToMap()
+		} else {
+			reqTmpl.Output.PartitionToHost = make(map[string]string, 0)
 		}
 
 		t := log.Timer()

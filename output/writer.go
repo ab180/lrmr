@@ -26,7 +26,12 @@ func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[strin
 
 func (w *Writer) Write(data ...*lrdd.Row) error {
 	if w.isPreserved {
-		return w.outputs[w.context.PartitionID()].Write(data...)
+		output := w.outputs[w.context.PartitionID()]
+		if output == nil {
+			// probably the last stage
+			return nil
+		}
+		return output.Write(data...)
 	}
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {

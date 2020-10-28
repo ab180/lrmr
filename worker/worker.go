@@ -170,6 +170,10 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage, curPartitionID string, o *lrmrpb.Output) (output.Output, error) {
 	idToOutput := make(map[string]output.Output)
+	if cur.Output.Stage == "" {
+		// last stage
+		return output.NewWriter(ctx, partitions.NewPreservePartitioner(), idToOutput), nil
+	}
 
 	// only connect local
 	if partitions.IsPreserved(cur.Output.Partitioner) {
@@ -236,7 +240,10 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 		return err
 	}
 	exec.WaitForFinish()
-	return stream.SendAndClose(&empty.Empty{})
+
+	// upstream may have been closed, but that does not affect the task result
+	_ = stream.SendAndClose(&empty.Empty{})
+	return nil
 }
 
 func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
@@ -276,7 +283,7 @@ func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.Stream
 			return nil
 		}
 		if h, herr := lrmrpb.DataHeaderFromMetadata(ss); herr == nil {
-			log.Error("{} failed: {}\nBy {} (From {})", info.FullMethod, err, h.TaskID, h.FromHost)
+			log.Error("{} called by {} failed: {}", h.TaskID, h.FromHost, err)
 		}
 		return err
 	}

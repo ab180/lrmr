@@ -75,7 +75,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		if plan.Partitioner == nil {
 			// sets default partitioner: if adjacent partitions are equal,
 			// it can be preserved. otherwise, it needs to be shuffled.
-			if i > 0 && i < len(plans)-1 && plan.Equal(plans[i+1]) {
+			if i > 0 && (i == len(plans)-1 || plan.Equal(plans[i+1])) {
 				plan.Partitioner = NewPreservePartitioner()
 			} else {
 				plan.Partitioner = NewShuffledPartitioner()
