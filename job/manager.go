@@ -156,7 +156,7 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 	status := newTaskStatus()
 	txn := coordinator.NewTxn().
 		// Put(path.Join(taskNs, task.ID()), task).
-		Put(path.Join(taskStatusNs, task.Reference().String()), status).
+		Put(path.Join(taskStatusNs, task.ID().String()), status).
 		IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")).
 		IncrementCounter(path.Join(nodeStatusNs, task.NodeHost, "totalTasks"))
 
@@ -166,15 +166,15 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 	return status, nil
 }
 
-func (m *Manager) GetTask(ctx context.Context, ref TaskReference) (*Task, error) {
+func (m *Manager) GetTask(ctx context.Context, ref TaskID) (*Task, error) {
 	task := &Task{}
-	if err := m.crd.Get(ctx, path.Join(taskNs, ref.TaskID), task); err != nil {
+	if err := m.crd.Get(ctx, path.Join(taskNs, ref.PartitionID), task); err != nil {
 		return nil, errors.Wrap(err, "get task")
 	}
 	return task, nil
 }
 
-func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskReference) (*TaskStatus, error) {
+func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, error) {
 	status := &TaskStatus{}
 	if err := m.crd.Get(ctx, path.Join(taskStatusNs, ref.String()), status); err != nil {
 		return nil, errors.Wrap(err, "get task")

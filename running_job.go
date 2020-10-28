@@ -67,10 +67,10 @@ func (r *RunningJob) Abort() error {
 }
 
 func (r *RunningJob) AbortWithContext(ctx context.Context) error {
-	ref := job.TaskReference{
-		JobID:     r.Job.ID,
-		StageName: "__input",
-		TaskID:    "__master",
+	ref := job.TaskID{
+		JobID:       r.Job.ID,
+		StageName:   "__input",
+		PartitionID: "__master",
 	}
 	if err := r.Master.JobReporter.ReportFailure(ref, Aborted); err != nil {
 		return errors.Wrap(err, "abort")

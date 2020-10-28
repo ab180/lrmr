@@ -37,15 +37,17 @@ func NewJobReporter(crd coordinator.Coordinator) *Reporter {
 	}
 }
 
-func (r *Reporter) Add(task TaskReference, s *TaskStatus) {
-	r.statuses.Store(task, &taskStatusHolder{status: s})
+func (r *Reporter) Add(task TaskID, s *TaskStatus) {
+	r.statuses.Store(task, &taskStatusHolder{
+		status: s,
+	})
 }
 
-func (r *Reporter) Remove(task TaskReference) {
+func (r *Reporter) Remove(task TaskID) {
 	r.statuses.Delete(task)
 }
 
-func (r *Reporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)) {
+func (r *Reporter) UpdateStatus(ref TaskID, mutator func(*TaskStatus)) {
 	item, ok := r.statuses.Load(ref)
 	if !ok {
 		// tr.log.Warn("trying to update unknown task: {}", ref)
@@ -61,12 +63,12 @@ func (r *Reporter) UpdateStatus(ref TaskReference, mutator func(*TaskStatus)) {
 	}
 }
 
-func (r *Reporter) UpdateMetric(ref TaskReference, mutator func(Metrics)) {
+func (r *Reporter) UpdateMetric(ref TaskID, mutator func(Metrics)) {
 	// todo: save metrics on another etcd key
 	r.UpdateStatus(ref, func(ts *TaskStatus) { mutator(ts.Metrics) })
 }
 
-func (r *Reporter) ReportSuccess(ref TaskReference) error {
+func (r *Reporter) ReportSuccess(ref TaskID) error {
 	r.UpdateStatus(ref, func(ts *TaskStatus) {
 		ts.Complete(Succeeded)
 
@@ -84,7 +86,7 @@ func (r *Reporter) ReportSuccess(ref TaskReference) error {
 	return nil
 }
 
-func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
+func (r *Reporter) ReportFailure(ref TaskID, err error) error {
 	r.UpdateStatus(ref, func(ts *TaskStatus) {
 		ts.Complete(Failed)
 		ts.Error = err.Error()
@@ -119,7 +121,7 @@ func (r *Reporter) ReportFailure(ref TaskReference, err error) error {
 	return nil
 }
 
-func (r *Reporter) ReportCancel(ref TaskReference) error {
+func (r *Reporter) ReportCancel(ref TaskID) error {
 	r.UpdateStatus(ref, func(ts *TaskStatus) {
 		ts.Complete(Failed)
 	})
@@ -156,7 +158,7 @@ func (r *Reporter) Start() {
 func (r *Reporter) flushTaskStatus() error {
 	txn := coordinator.NewTxn()
 	r.dirty.Range(func(key, value interface{}) bool {
-		task := key.(TaskReference)
+		task := key.(TaskID)
 		isDirty := value.(bool)
 
 		if isDirty {
@@ -194,11 +196,11 @@ func (r *Reporter) Close() {
 }
 
 // stageStatusKey returns a key of stage summary entry with given name.
-func stageStatusKey(ref TaskReference, name string) string {
+func stageStatusKey(ref TaskID, name string) string {
 	return path.Join(stageStatusNs, ref.JobID, ref.StageName, name)
 }
 
 // jobErrorKey returns a key of job error entry with given name.
-func jobErrorKey(ref TaskReference) string {
+func jobErrorKey(ref TaskID) string {
 	return path.Join(jobErrorNs, ref.String())
 }

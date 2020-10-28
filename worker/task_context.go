@@ -46,13 +46,13 @@ func (c taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	c.worker.jobReporter.UpdateMetric(c.task.Reference(), func(metrics job.Metrics) {
+	c.worker.jobReporter.UpdateMetric(c.task.ID(), func(metrics job.Metrics) {
 		metrics[name] += int(delta)
 	})
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	c.worker.jobReporter.UpdateMetric(c.task.Reference(), func(metrics job.Metrics) {
+	c.worker.jobReporter.UpdateMetric(c.task.ID(), func(metrics job.Metrics) {
 		metrics[name] = val
 	})
 }

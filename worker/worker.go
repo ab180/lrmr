@@ -143,7 +143,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
-	w.jobReporter.Add(task.Reference(), ts)
+	w.jobReporter.Add(task.ID(), ts)
 
 	taskCtx := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
@@ -155,13 +155,13 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	exec, err := NewTaskExecutor(taskCtx, task, s.Function, in, out)
 	if err != nil {
 		err = errors.Wrap(err, "failed to start executor")
-		if reportErr := w.jobReporter.ReportFailure(task.Reference(), err); reportErr != nil {
+		if reportErr := w.jobReporter.ReportFailure(task.ID(), err); reportErr != nil {
 			return reportErr
 		}
 		return err
 	}
 	w.runningTasksMu.Lock()
-	w.runningTasks[task.Reference().String()] = exec
+	w.runningTasks[task.ID().String()] = exec
 	w.runningTasksMu.Unlock()
 
 	go exec.Run()

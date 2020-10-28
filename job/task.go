@@ -16,7 +16,7 @@ type Task struct {
 	SubmittedAt time.Time `json:"submittedAt"`
 }
 
-func NewTask(partitionKey string, node *node.Node, jobID string, stage stage.Stage) *Task {
+func NewTask(partitionKey string, node *node.Node, jobID string, stage *stage.Stage) *Task {
 	return &Task{
 		PartitionID: partitionKey,
 		StageName:   stage.Name,
@@ -26,26 +26,22 @@ func NewTask(partitionKey string, node *node.Node, jobID string, stage stage.Sta
 	}
 }
 
-func (t *Task) ID() string {
-	return t.PartitionID
-}
-
-func (t Task) Reference() TaskReference {
-	return TaskReference{
-		JobID:     t.JobID,
-		StageName: t.StageName,
-		TaskID:    t.ID(),
+func (t Task) ID() TaskID {
+	return TaskID{
+		JobID:       t.JobID,
+		StageName:   t.StageName,
+		PartitionID: t.PartitionID,
 	}
 }
 
-type TaskReference struct {
-	JobID     string
-	StageName string
-	TaskID    string
+type TaskID struct {
+	JobID       string
+	StageName   string
+	PartitionID string
 }
 
-func (tr TaskReference) String() string {
-	return fmt.Sprintf("%s/%s/%s", tr.JobID, tr.StageName, tr.TaskID)
+func (tid TaskID) String() string {
+	return fmt.Sprintf("%s/%s/%s", tid.JobID, tid.StageName, tid.PartitionID)
 }
 
 type TaskStatus struct {

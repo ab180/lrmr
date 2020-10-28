@@ -72,14 +72,14 @@ func (e *TaskExecutor) Run() {
 	}
 	e.finishChan <- true
 	e.context.cancel()
-	if err := e.reporter.ReportSuccess(e.task.Reference()); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.Reference(), err)
+	if err := e.reporter.ReportSuccess(e.task.ID()); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
 	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
-	reportErr := e.reporter.ReportFailure(e.task.Reference(), err)
+	reportErr := e.reporter.ReportFailure(e.task.ID(), err)
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
 	}
@@ -96,8 +96,8 @@ func (e *TaskExecutor) cancelOnJobAbort() {
 	defer e.guardPanic()
 	select {
 	case errDesc := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
-		log.Verbose("Task {} aborted with error caused by task {}.", e.task.Reference(), errDesc.Task)
-		if err := e.reporter.ReportCancel(e.task.Reference()); err != nil {
+		log.Verbose("Task {} aborted with error caused by task {}.", e.task.ID(), errDesc.Task)
+		if err := e.reporter.ReportCancel(e.task.ID()); err != nil {
 			log.Error("While reporting the cancellation, another error occurred", err)
 		}
 		e.stopExecutor()
@@ -115,7 +115,7 @@ func (e *TaskExecutor) stopExecutor() {
 
 // close frees occupied resources and memories.
 func (e *TaskExecutor) close() {
-	e.reporter.Remove(e.task.Reference())
+	e.reporter.Remove(e.task.ID())
 	e.function = nil
 }
 
