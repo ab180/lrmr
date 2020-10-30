@@ -72,7 +72,8 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		StageName:   "__input",
 		PartitionID: "__master",
 	}
-	if err := r.Master.JobReporter.ReportFailure(ref, Aborted); err != nil {
+	reporter := job.NewTaskReporter(ctx, r.Master.ClusterStates, r.Job, ref, job.NewTaskStatus())
+	if err := reporter.ReportFailure(Aborted); err != nil {
 		return errors.Wrap(err, "abort")
 	}
 

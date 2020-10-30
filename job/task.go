@@ -50,7 +50,7 @@ type TaskStatus struct {
 	Metrics Metrics `json:"metrics"`
 }
 
-func newTaskStatus() *TaskStatus {
+func NewTaskStatus() *TaskStatus {
 	return &TaskStatus{
 		baseStatus: newBaseStatus(),
 		Metrics:    make(Metrics),

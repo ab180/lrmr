@@ -13,8 +13,8 @@ service Node {
 }
 
 message CreateTasksRequest {
-    Job job = 1;
-    pbtypes.JSON stage = 2;
+    pbtypes.JSON job = 1;
+    string stage = 2;
     repeated string partitionIDs = 3;
 
     repeated Input input = 4;

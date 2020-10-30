@@ -3,56 +3,46 @@ package worker
 import (
 	"context"
 
-	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/transformation"
 )
 
 type taskContext struct {
 	context.Context
-	worker    *Worker
-	jobID     string
-	task      *job.Task
-	broadcast serialization.Broadcast
-	cancel    context.CancelFunc
+	executor *TaskExecutor
 }
 
-func newTaskContext(parent context.Context, w *Worker, jobID string, t *job.Task, b serialization.Broadcast) *taskContext {
-	ctx, cancel := context.WithCancel(parent)
+func newTaskContext(ctx context.Context, executor *TaskExecutor) *taskContext {
 	return &taskContext{
-		Context:   ctx,
-		worker:    w,
-		jobID:     jobID,
-		task:      t,
-		broadcast: b,
-		cancel:    cancel,
+		Context:  ctx,
+		executor: executor,
 	}
 }
 
 func (c taskContext) PartitionID() string {
-	return c.task.PartitionID
+	return c.executor.task.PartitionID
 }
 
 func (c taskContext) JobID() string {
-	return c.jobID
+	return c.executor.task.JobID
 }
 
 func (c taskContext) Broadcast(key string) interface{} {
-	return c.broadcast[key]
+	return c.executor.broadcast[key]
 }
 
 func (c taskContext) WorkerLocalOption(key string) interface{} {
-	return c.worker.workerLocalOpts[key]
+	return c.executor.localOptions[key]
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	c.worker.jobReporter.UpdateMetric(c.task.ID(), func(metrics job.Metrics) {
+	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
 		metrics[name] += int(delta)
 	})
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	c.worker.jobReporter.UpdateMetric(c.task.ID(), func(metrics job.Metrics) {
+	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
 		metrics[name] = val
 	})
 }

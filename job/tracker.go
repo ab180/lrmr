@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/airbloc/logger"
-	"github.com/pkg/errors"
 	"github.com/therne/lrmr/coordinator"
 )
 
@@ -33,11 +32,10 @@ type Tracker struct {
 
 func NewJobTracker(crd coordinator.Coordinator, jm *Manager) *Tracker {
 	return &Tracker{
-		crd:               crd,
-		jobManager:        jm,
-		subscriptions:     make(map[string][]chan *Status),
-		totalTasksOfStage: make(map[string]int64),
-		log:               logger.New("lrmr/job.Tracker"),
+		crd:           crd,
+		jobManager:    jm,
+		subscriptions: make(map[string][]chan *Status),
+		log:           logger.New("lrmr.jobTracker"),
 	}
 }
 
@@ -61,16 +59,18 @@ func (t *Tracker) HandleJobCompletion() {
 	t.stopTrack = cancel
 
 	t.log.Info("Start tracking...")
-	wc := t.crd.Watch(wctx, statusNs)
-	for event := range wc {
+	for event := range t.crd.Watch(wctx, statusNs) {
 		if strings.HasPrefix(event.Item.Key, stageStatusNs) {
-			t.trackStage(event)
+			t.trackStageStatus(event)
+		}
+		if strings.HasPrefix(event.Item.Key, jobStatusNs) {
+			t.trackJobStatus(event)
 		}
 	}
 	t.log.Info("Stop tracking...")
 }
 
-func (t *Tracker) trackStage(e coordinator.WatchEvent) {
+func (t *Tracker) trackStageStatus(e coordinator.WatchEvent) {
 	frags := strings.Split(e.Item.Key, "/")
 	if len(frags) < 4 {
 		t.log.Warn("Found unknown stage status: {}", e.Item.Key)
@@ -81,84 +81,60 @@ func (t *Tracker) trackStage(e coordinator.WatchEvent) {
 		return
 	}
 	job := j.(*Job)
-	stageID := frags[2] + "/" + frags[3]
+	stageName := frags[3]
 
-	if strings.HasSuffix(e.Item.Key, "totalTasks") && e.Type == coordinator.CounterEvent {
-		// just increase because we can't ensure the order of the events
-		t.lock.Lock()
-		t.totalTasksOfStage[stageID] += 1
-		t.lock.Unlock()
+	if len(frags) == 4 {
+		// stage status update
+		var st StageStatus
+		if err := e.Item.Unmarshal(&st); err != nil {
+			t.log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
+			return
+		}
+		t.log.Verbose("Stage {}/{} {}.", job.ID, stageName, st.Status)
 
-	} else if strings.HasSuffix(e.Item.Key, "doneTasks") && e.Type == coordinator.CounterEvent {
-		t.lock.RLock()
-		totalTasks := t.totalTasksOfStage[stageID]
-		t.lock.RUnlock()
+	} else if frags[4] == "doneTasks" && e.Type == coordinator.CounterEvent {
+		totalTasks := len(job.GetPartitionsOfStage(stageName))
+		t.log.Info("Task ({}/{}) finished of {}/{}", e.Counter, totalTasks, job.ID, stageName)
+	}
+}
 
-		// t.log.Info("Task ({}/{}) finished of {}", e.Counter, totalTasks, stageID)
-		if e.Counter == totalTasks {
-			err := t.finalizeStage(context.TODO(), job, stageID)
-			if err != nil {
-				t.log.Error("Failed to finalize stage", err)
-				return
-			}
+func (t *Tracker) trackJobStatus(e coordinator.WatchEvent) {
+	frags := strings.Split(e.Item.Key, "/")
+	if len(frags) < 3 {
+		t.log.Warn("Found unknown job status: {}", e.Item.Key)
+		return
+	}
+	j, ok := t.activeJobs.Load(frags[2])
+	if !ok {
+		return
+	}
+	job := j.(*Job)
+
+	if len(frags) == 3 && e.Type == coordinator.PutEvent {
+		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
+		defer cancel()
+
+		jobStatus, err := t.jobManager.GetJobStatus(ctx, job.ID)
+		if err != nil {
+			t.log.Error("Failed to get job status of {}", job.ID)
+			return
+		}
+		if jobStatus.Status == Succeeded || jobStatus.Status == Failed {
+			t.notifyJobCompletion(job, jobStatus)
 		}
 	}
 }
 
-func (t *Tracker) finalizeStage(ctx context.Context, job *Job, stageID string) error {
-	var s StageStatus
-	key := path.Join(stageStatusNs, stageID)
-	if err := t.crd.Get(context.TODO(), key, &s); err != nil {
-		return fmt.Errorf("read stage status: %w", err)
-	}
-	failedTasks, err := t.crd.ReadCounter(ctx, path.Join(key, "failedTasks"))
-	if err != nil {
-		return fmt.Errorf("read failed task counts: %w", err)
-	}
-
-	if failedTasks > 0 {
-		s.Complete(Failed)
-	} else {
-		s.Complete(Succeeded)
-	}
-	if err := t.crd.Put(ctx, key, s); err != nil {
-		return fmt.Errorf("update stage status: %w", err)
-	}
-
-	doneStagesKey := path.Join(jobStatusNs, job.ID, "doneStages")
-	doneStages, err := t.crd.IncrementCounter(ctx, doneStagesKey)
-	if err != nil {
-		return fmt.Errorf("increment done stage count: %w", err)
-	}
-	t.lock.Lock()
-	delete(t.totalTasksOfStage, stageID)
-	t.lock.Unlock()
-
-	totalStages := int64(len(job.Stages)) - 2
-	t.log.Verbose("Stage {} {}. ({}/{})", stageID, s.Status, doneStages, totalStages)
-
-	if s.Status == Failed {
-		return t.finalizeJob(ctx, job, Failed)
-
-	} else if doneStages == totalStages {
-		return t.finalizeJob(ctx, job, Succeeded)
-	}
-	return nil
-}
-
-func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) error {
-	js, err := t.jobManager.GetJobStatus(ctx, job.ID)
-	if err != nil {
-		return errors.Wrapf(err, "get status of job %s", job.ID)
-	}
-	js.Complete(s)
-	if err := t.jobManager.SetJobStatus(ctx, job.ID, js); err != nil {
-		return errors.Wrapf(err, "update status of job %s", job.ID)
-	}
-	t.log.Info("Job {} {}. Total elapsed {}", job.ID, s, time.Since(job.SubmittedAt).String())
-	if s == Failed {
-		for i, errDesc := range js.Errors {
-			t.log.Info(" - Error #{}: {} (Caused by {})", i, errDesc.Message, errDesc.Task)
+func (t *Tracker) notifyJobCompletion(job *Job, jobStatus Status) {
+	t.log.Info("Job {} {}. Total elapsed {}", job.ID, jobStatus.Status, time.Since(job.SubmittedAt).String())
+	if jobStatus.Status == Failed {
+		jobErrors, err := t.jobManager.GetJobErrors(context.TODO(), job.ID)
+		if err != nil {
+			t.log.Error("Failed to list error of {}", err, job.ID)
+			return
+		}
+		for i, errDesc := range jobErrors {
+			t.log.Info(" - Error #{} caused by {}: {}", i, errDesc.Task, errDesc.Message)
 		}
 	}
 	t.subscribeLock.RLock()
@@ -166,13 +142,12 @@ func (t *Tracker) finalizeJob(ctx context.Context, job *Job, s RunningState) err
 
 	for i, notifyCh := range t.subscriptions[job.ID] {
 		select {
-		case notifyCh <- &js:
+		case notifyCh <- &jobStatus:
 		default:
 			t.log.Verbose("Warning: subscription #{} seems too busy to receive result of job {}", i, job.ID)
 		}
 	}
 	t.activeJobs.Delete(job.ID)
-	return nil
 }
 
 func (t *Tracker) CollectMetric(j *Job) (Metrics, error) {

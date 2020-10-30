@@ -7,7 +7,6 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/partitions"
@@ -26,16 +25,14 @@ const (
 )
 
 type Manager struct {
-	nodeManager node.Manager
-	crd         coordinator.Coordinator
-	log         logger.Logger
+	crd coordinator.Coordinator
+	log logger.Logger
 }
 
-func NewManager(nm node.Manager, crd coordinator.Coordinator) *Manager {
+func NewManager(crd coordinator.Coordinator) *Manager {
 	return &Manager{
-		nodeManager: nm,
-		crd:         crd,
-		log:         logger.New("lrmr/job.Manager"),
+		crd: crd,
+		log: logger.New("lrmr/job.Manager"),
 	}
 }
 
@@ -110,6 +107,7 @@ func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
 			var e Error
 			if err := event.Item.Unmarshal(&e); err != nil {
 				m.log.Error("Failed to unmarshal error desc {}: {}", err, string(event.Item.Value))
+				continue
 			}
 			errChan <- e
 		}
@@ -153,14 +151,8 @@ func (m *Manager) ListTasks(ctx context.Context, prefixFormat string, args ...in
 }
 
 func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
-	status := newTaskStatus()
-	txn := coordinator.NewTxn().
-		// Put(path.Join(taskNs, task.ID()), task).
-		Put(path.Join(taskStatusNs, task.ID().String()), status).
-		IncrementCounter(path.Join(stageStatusNs, task.JobID, task.StageName, "totalTasks")).
-		IncrementCounter(path.Join(nodeStatusNs, task.NodeHost, "totalTasks"))
-
-	if _, err := m.crd.Commit(ctx, txn); err != nil {
+	status := NewTaskStatus()
+	if err := m.crd.Put(ctx, path.Join(taskStatusNs, task.ID().String()), status); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
 	}
 	return status, nil

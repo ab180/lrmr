@@ -17,7 +17,6 @@ import (
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
-	"github.com/therne/lrmr/transformation"
 	"github.com/therne/lrmr/worker"
 	"github.com/thoas/go-funk"
 	"golang.org/x/sync/errgroup"
@@ -33,7 +32,6 @@ type Master struct {
 	ClusterStates coordinator.Coordinator
 	JobManager    *job.Manager
 	JobTracker    *job.Tracker
-	JobReporter   *job.Reporter
 	NodeManager   node.Manager
 
 	opt Options
@@ -53,13 +51,12 @@ func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
 		return nil, errors.Wrap(err, "init master task executor")
 	}
 
-	jm := job.NewManager(w.NodeManager, crd)
+	jm := job.NewManager(crd)
 	return &Master{
 		executor:      w,
 		ClusterStates: crd,
 		JobManager:    jm,
 		JobTracker:    job.NewJobTracker(crd, jm),
-		JobReporter:   job.NewJobReporter(crd),
 		NodeManager:   w.NodeManager,
 		opt:           opt,
 	}, nil
@@ -131,16 +128,14 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 // StartTasks create tasks to the nodes with the plan.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, broadcasts map[string][]byte) error {
 	prepareCollect(j.ID)
+	marshalledJob := pbtypes.MustMarshalJSON(j)
 
 	// initialize tasks reversely, so that outputs can be connected with next stage
 	for i := len(j.Stages) - 1; i >= 1; i-- {
 		s := j.Stages[i]
 		reqTmpl := lrmrpb.CreateTasksRequest{
-			Job: &lrmrpb.Job{
-				Id:   j.ID,
-				Name: j.Name,
-			},
-			Stage: pbtypes.MustMarshalJSON(s),
+			Job:   marshalledJob,
+			Stage: s.Name,
 			Input: []*lrmrpb.Input{
 				{Type: lrmrpb.Input_PUSH},
 			},
@@ -204,7 +199,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	out := output.NewWriter(newContextForInput(ctx, len(targets)), input, outs)
+	out := output.NewWriter("0", input, outs)
 	return out, nil
 }
 
@@ -226,28 +221,8 @@ func (m *Master) CollectedResults(jobID string) ([]*lrdd.Row, error) {
 }
 
 func (m *Master) Stop() {
-	m.JobTracker.Close()
 	if err := m.executor.Close(); err != nil {
 		log.Error("failed to close worker")
 	}
+	m.JobTracker.Close()
 }
-
-type ctxForInput struct {
-	context.Context
-	numOutputs int
-}
-
-func newContextForInput(ctx context.Context, numOutputs int) transformation.Context {
-	return &ctxForInput{
-		Context:    ctx,
-		numOutputs: numOutputs,
-	}
-}
-
-func (i ctxForInput) Broadcast(key string) interface{}         { return nil }
-func (i ctxForInput) WorkerLocalOption(key string) interface{} { return nil }
-func (i ctxForInput) PartitionID() string                      { return "0" }
-func (i ctxForInput) JobID() string                            { return "" }
-func (i ctxForInput) NumOutputs() int                          { return i.numOutputs }
-func (i ctxForInput) AddMetric(name string, delta int)         {}
-func (i ctxForInput) SetMetric(name string, val int)           {}

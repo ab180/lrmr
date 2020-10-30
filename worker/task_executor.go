@@ -6,7 +6,9 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/input"
+	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/output"
@@ -15,26 +17,47 @@ import (
 
 type TaskExecutor struct {
 	context *taskContext
+	cancel  context.CancelFunc
 	task    *job.Task
 
 	Input    *input.Reader
 	function transformation.Transformation
 	Output   output.Output
 
-	finishChan chan bool
-	reporter   *job.Reporter
+	broadcast    serialization.Broadcast
+	localOptions map[string]interface{}
+
+	finishChan   chan struct{}
+	taskReporter *job.TaskReporter
+	jobManager   *job.Manager
 }
 
-func NewTaskExecutor(c *taskContext, task *job.Task, fn transformation.Transformation, in *input.Reader, out output.Output) (*TaskExecutor, error) {
-	return &TaskExecutor{
-		context:    c,
-		task:       task,
-		Input:      in,
-		function:   fn,
-		Output:     out,
-		reporter:   c.worker.jobReporter,
-		finishChan: make(chan bool, 1),
-	}, nil
+func NewTaskExecutor(
+	crd coordinator.Coordinator,
+	j *job.Job,
+	task *job.Task,
+	status *job.TaskStatus,
+	fn transformation.Transformation,
+	in *input.Reader,
+	out output.Output,
+	broadcast serialization.Broadcast,
+	localOptions map[string]interface{},
+) *TaskExecutor {
+	ctx, cancel := context.WithCancel(context.Background())
+	exec := &TaskExecutor{
+		task:         task,
+		Input:        in,
+		function:     fn,
+		Output:       out,
+		broadcast:    broadcast,
+		localOptions: localOptions,
+		finishChan:   make(chan struct{}, 1),
+		taskReporter: job.NewTaskReporter(ctx, crd, j, task.ID(), status),
+		jobManager:   job.NewManager(crd),
+	}
+	exec.context = newTaskContext(ctx, exec)
+	exec.cancel = cancel
+	return exec
 }
 
 func (e *TaskExecutor) Run() {
@@ -70,20 +93,20 @@ func (e *TaskExecutor) Run() {
 		e.Abort(errors.Wrap(err, "close output"))
 		return
 	}
-	e.finishChan <- true
-	e.context.cancel()
-	if err := e.reporter.ReportSuccess(e.task.ID()); err != nil {
+	if err := e.taskReporter.ReportSuccess(); err != nil {
 		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
 	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
-	reportErr := e.reporter.ReportFailure(e.task.ID(), err)
+	e.close()
+	_ = e.Output.Close()
+
+	reportErr := e.taskReporter.ReportFailure(err)
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", err)
 	}
-	e.stopExecutor()
 }
 
 func (e *TaskExecutor) guardPanic() {
@@ -95,30 +118,23 @@ func (e *TaskExecutor) guardPanic() {
 func (e *TaskExecutor) cancelOnJobAbort() {
 	defer e.guardPanic()
 	select {
-	case errDesc := <-e.context.worker.jobManager.WatchJobErrors(e.context, e.task.JobID):
-		log.Verbose("Task {} aborted with error caused by task {}.", e.task.ID(), errDesc.Task)
-		if err := e.reporter.ReportCancel(e.task.ID()); err != nil {
-			log.Error("While reporting the cancellation, another error occurred", err)
+	case errDesc, ok := <-e.jobManager.WatchJobErrors(e.context, e.task.JobID):
+		if !ok {
+			return
 		}
-		e.stopExecutor()
+		log.Verbose("Task {} aborted with error caused by task {}.", e.task.ID(), errDesc.Task)
+		e.Abort(nil)
 	case <-e.context.Done():
 		return
 	}
 }
 
-// stopExecutor stops TaskExecutor immediately.
-func (e *TaskExecutor) stopExecutor() {
-	e.context.cancel()
-	_ = e.Output.Close()
-	e.close()
-}
-
 // close frees occupied resources and memories.
 func (e *TaskExecutor) close() {
-	e.reporter.Remove(e.task.ID())
+	e.cancel()
 	e.function = nil
 }
 
 func (e *TaskExecutor) WaitForFinish() {
-	<-e.finishChan
+	<-e.context.Done()
 }

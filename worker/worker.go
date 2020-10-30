@@ -21,7 +21,6 @@ import (
 	"github.com/therne/lrmr/lrmrpb"
 	"github.com/therne/lrmr/output"
 	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/stage"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -34,7 +33,6 @@ type Worker struct {
 	ClusterState coordinator.Coordinator
 	NodeManager  node.Manager
 	jobManager   *job.Manager
-	jobReporter  *job.Reporter
 
 	RPCServer *grpc.Server
 	serverLis net.Listener
@@ -62,8 +60,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	w := &Worker{
 		ClusterState:    crd,
 		NodeManager:     nm,
-		jobReporter:     job.NewJobReporter(crd),
-		jobManager:      job.NewManager(nm, crd),
+		jobManager:      job.NewManager(crd),
 		RPCServer:       srv,
 		runningTasks:    make(map[string]*TaskExecutor),
 		workerLocalOpts: make(map[string]interface{}),
@@ -103,7 +100,6 @@ func (w *Worker) register() error {
 }
 
 func (w *Worker) Start() error {
-	w.jobReporter.Start()
 	return w.RPCServer.Serve(w.serverLis)
 }
 
@@ -133,33 +129,25 @@ func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest
 }
 
 func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest, partitionID string, broadcasts serialization.Broadcast) error {
-	var s stage.Stage
-	if err := req.Stage.UnmarshalJSON(&s); err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid stage JSON: %v", err)
+	j := new(job.Job)
+	if err := req.Job.UnmarshalJSON(j); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
 	}
+	s := j.GetStage(req.Stage)
 
-	task := job.NewTask(partitionID, w.NodeManager.Self(), req.Job.Id, s)
+	task := job.NewTask(partitionID, w.NodeManager.Self(), j.ID, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
-	w.jobReporter.Add(task.ID(), ts)
 
-	taskCtx := newTaskContext(context.Background(), w, req.Job.Id, task, broadcasts)
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(taskCtx, req.Job.Id, s, partitionID, req.Output)
+	out, err := w.newOutputWriter(ctx, j, s.Name, partitionID, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec, err := NewTaskExecutor(taskCtx, task, s.Function, in, out)
-	if err != nil {
-		err = errors.Wrap(err, "failed to start executor")
-		if reportErr := w.jobReporter.ReportFailure(task.ID(), err); reportErr != nil {
-			return reportErr
-		}
-		return err
-	}
+	exec := NewTaskExecutor(w.ClusterState, j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
 	w.runningTasksMu.Lock()
 	w.runningTasks[task.ID().String()] = exec
 	w.runningTasksMu.Unlock()
@@ -168,20 +156,21 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage, curPartitionID string, o *lrmrpb.Output) (output.Output, error) {
+func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (output.Output, error) {
 	idToOutput := make(map[string]output.Output)
+	cur := j.GetStage(stageName)
 	if cur.Output.Stage == "" {
 		// last stage
-		return output.NewWriter(ctx, partitions.NewPreservePartitioner(), idToOutput), nil
+		return output.NewWriter(curPartitionID, partitions.NewPreservePartitioner(), idToOutput), nil
 	}
 
 	// only connect local
 	if partitions.IsPreserved(cur.Output.Partitioner) {
-		taskID := path.Join(jobID, cur.Output.Stage, curPartitionID)
+		taskID := path.Join(j.ID, cur.Output.Stage, curPartitionID)
 		nextTask := w.getRunningTask(taskID)
 
 		idToOutput[curPartitionID] = NewLocalPipe(nextTask.Input)
-		return output.NewWriter(ctx, partitions.NewPreservePartitioner(), idToOutput), nil
+		return output.NewWriter(curPartitionID, partitions.NewPreservePartitioner(), idToOutput), nil
 	}
 
 	var mu sync.Mutex
@@ -189,7 +178,7 @@ func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage
 	for i, h := range o.PartitionToHost {
 		id, host := i, h
 
-		taskID := path.Join(jobID, cur.Output.Stage, id)
+		taskID := path.Join(j.ID, cur.Output.Stage, id)
 		if host == w.NodeManager.Self().Host {
 			nextTask := w.getRunningTask(taskID)
 			if nextTask != nil {
@@ -211,7 +200,7 @@ func (w *Worker) newOutputWriter(ctx *taskContext, jobID string, cur stage.Stage
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	return output.NewWriter(ctx, partitions.UnwrapPartitioner(cur.Output.Partitioner), idToOutput), nil
+	return output.NewWriter(curPartitionID, partitions.UnwrapPartitioner(cur.Output.Partitioner), idToOutput), nil
 }
 
 func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
@@ -241,7 +230,7 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	}
 	exec.WaitForFinish()
 
-	// upstream may have been closed, but that does not affect the task result
+	// upstream may have been closed, but that should not affect the task result
 	_ = stream.SendAndClose(&empty.Empty{})
 	return nil
 }
@@ -269,7 +258,6 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 
 func (w *Worker) Close() error {
 	w.RPCServer.Stop()
-	w.jobReporter.Close()
 	if err := w.NodeManager.UnregisterSelf(); err != nil {
 		return errors.Wrap(err, "unregister node")
 	}
