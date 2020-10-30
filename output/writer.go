@@ -15,9 +15,9 @@ type Writer struct {
 	outputs map[string]Output
 }
 
-func NewWriter(c partitions.Context, p partitions.Partitioner, outputs map[string]Output) *Writer {
+func NewWriter(partitionID string, p partitions.Partitioner, outputs map[string]Output) *Writer {
 	return &Writer{
-		context:     c,
+		context:     partitions.NewContext(partitionID),
 		partitioner: p,
 		isPreserved: partitions.IsPreserved(p),
 		outputs:     outputs,

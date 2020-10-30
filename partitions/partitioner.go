@@ -14,10 +14,6 @@ import (
 // corresponding partition found with the key of given row.
 var ErrNoOutput = errors.New("no output")
 
-type Context interface {
-	PartitionID() string
-}
-
 type Partitioner interface {
 	PlanNext(numExecutors int) []Partition
 	DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error)
