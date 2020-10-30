@@ -15,6 +15,7 @@ import (
 type LocalCluster struct {
 	Session *lrmr.Session
 
+	crd     coordinator.Coordinator
 	master  *master.Master
 	workers []*worker.Worker
 	testCtx C
@@ -56,10 +57,31 @@ func StartLocalCluster(c C, numWorkers int, options ...lrmr.SessionOption) *Loca
 
 	return &LocalCluster{
 		Session: sess,
+		crd:     crd,
 		master:  m,
 		workers: workers,
 		testCtx: c,
 	}
+}
+
+func (lc *LocalCluster) EmulateMasterFailure(old *lrmr.RunningJob) (new *lrmr.RunningJob) {
+	lc.master.Stop()
+
+	opt := master.DefaultOptions()
+	opt.ListenHost = "127.0.0.1:"
+	opt.AdvertisedHost = "127.0.0.1:"
+	newMaster, err := master.New(lc.crd, opt)
+	lc.testCtx.So(err, ShouldBeNil)
+
+	newMaster.Start()
+	newJob := &lrmr.RunningJob{
+		Job:    old.Job,
+		Master: newMaster,
+	}
+	newMaster.JobTracker.AddJob(old.Job)
+	lc.master = newMaster
+
+	return newJob
 }
 
 func (lc *LocalCluster) Stop() {
