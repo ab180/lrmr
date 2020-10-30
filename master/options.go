@@ -2,7 +2,7 @@ package master
 
 import (
 	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/cluster/node"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/output"
 )
 
@@ -12,7 +12,7 @@ type Options struct {
 
 	CollectQueueSize int `default:"1000"`
 
-	RPC   node.ManagerOptions
+	RPC   cluster.Options
 	Input struct {
 		MaxRecvSize int `default:"67108864"`
 	}

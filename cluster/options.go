@@ -1,12 +1,13 @@
-package node
+package cluster
 
 import (
 	"time"
 
 	"github.com/creasty/defaults"
+	"github.com/therne/lrmr/cluster/node"
 )
 
-type ManagerOptions struct {
+type Options struct {
 	ConnectTimeout time.Duration `default:"3s"`
 
 	// LivenessProbeInterval specifies interval for notifying this node's liveness to other nodes.
@@ -17,9 +18,14 @@ type ManagerOptions struct {
 	TLSCertServerName string
 }
 
-func DefaultManagerOptions() (o ManagerOptions) {
+func DefaultOptions() (o Options) {
 	if err := defaults.Set(&o); err != nil {
 		panic(err)
 	}
 	return
+}
+
+type ListOption struct {
+	Type node.Type
+	Tag  map[string]string
 }

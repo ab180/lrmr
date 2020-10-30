@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/node"
+	"github.com/therne/lrmr/cluster/node"
 )
 
 func TestSerializeStruct(t *testing.T) {
@@ -12,7 +12,6 @@ func TestSerializeStruct(t *testing.T) {
 
 		Convey("On a plain struct", func() {
 			expected := node.Node{
-				ID:   "hello",
 				Host: "world",
 				Type: "foo",
 			}
@@ -24,7 +23,6 @@ func TestSerializeStruct(t *testing.T) {
 
 		Convey("On a struct pointer", func() {
 			expected := &node.Node{
-				ID:   "hello",
 				Host: "world",
 				Type: "foo",
 			}
@@ -40,8 +38,8 @@ func TestSerializeStruct(t *testing.T) {
 
 		Convey("On a struct slice", func() {
 			expected := []node.Node{
-				{ID: "fun", Host: "hello"},
-				{ID: "sad", Host: "world"},
+				{Host: "hello"},
+				{Host: "world"},
 			}
 			actual := serializeAndDeserialize(expected)
 			Convey("It should be same after serialization", func() {
@@ -51,8 +49,8 @@ func TestSerializeStruct(t *testing.T) {
 
 		Convey("On a struct pointer slice", func() {
 			expected := []*node.Node{
-				{ID: "fun", Host: "hello"},
-				{ID: "sad", Host: "world"},
+				{Host: "hello"},
+				{Host: "world"},
 			}
 			actual := serializeAndDeserialize(expected)
 			Convey("It should be same after serialization", func() {

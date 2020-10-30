@@ -6,6 +6,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/lrdd"
 	"github.com/therne/lrmr/lrmrpb"
@@ -17,8 +18,8 @@ type PushStream struct {
 	conn   io.Closer
 }
 
-func NewPushStream(ctx context.Context, nm node.Manager, host, taskID string) (*PushStream, error) {
-	conn, err := nm.Connect(ctx, host)
+func OpenPushStream(ctx context.Context, cluster cluster.Cluster, n *node.Node, host, taskID string) (*PushStream, error) {
+	conn, err := cluster.Connect(ctx, host)
 	if err != nil {
 		return nil, errors.Wrapf(err, "connect %s", host)
 	}
@@ -26,8 +27,8 @@ func NewPushStream(ctx context.Context, nm node.Manager, host, taskID string) (*
 	header := &lrmrpb.DataHeader{
 		TaskID: taskID,
 	}
-	if nm.Self() != nil {
-		header.FromHost = nm.Self().Host
+	if n != nil {
+		header.FromHost = n.Host
 	} else {
 		header.FromHost = "master"
 	}

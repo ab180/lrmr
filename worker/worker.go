@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/input"
@@ -30,22 +31,20 @@ import (
 var log = logger.New("lrmr")
 
 type Worker struct {
-	ClusterState coordinator.Coordinator
-	NodeManager  node.Manager
-	jobManager   *job.Manager
-
+	Cluster   cluster.Cluster
+	Node      node.Registration
 	RPCServer *grpc.Server
-	serverLis net.Listener
 
-	runningTasksMu  sync.RWMutex
-	runningTasks    map[string]*TaskExecutor
+	serverLis       net.Listener
+	jobManager      *job.Manager
+	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
 
 	opt Options
 }
 
 func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
-	nm, err := node.NewManager(crd, node.DefaultManagerOptions())
+	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +57,9 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		)),
 	)
 	w := &Worker{
-		ClusterState:    crd,
-		NodeManager:     nm,
+		Cluster:         c,
 		jobManager:      job.NewManager(crd),
 		RPCServer:       srv,
-		runningTasks:    make(map[string]*TaskExecutor),
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
 	}
@@ -96,7 +93,12 @@ func (w *Worker) register() error {
 	n.Tag = w.opt.NodeTags
 	n.Executors = w.opt.Concurrency
 
-	return w.NodeManager.RegisterSelf(ctx, n)
+	nr, err := w.Cluster.Register(ctx, n)
+	if err != nil {
+		return err
+	}
+	w.Node = nr
+	return nil
 }
 
 func (w *Worker) Start() error {
@@ -107,8 +109,8 @@ func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }
 
-func (w *Worker) State() coordinator.KV {
-	return w.NodeManager.NodeStates()
+func (w *Worker) State() node.State {
+	return w.Node.States()
 }
 
 func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
@@ -135,7 +137,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	}
 	s := j.GetStage(req.Stage)
 
-	task := job.NewTask(partitionID, w.NodeManager.Self(), j.ID, s)
+	task := job.NewTask(partitionID, w.Node.Info(), j.ID, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
@@ -147,10 +149,8 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec := NewTaskExecutor(w.ClusterState, j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
-	w.runningTasksMu.Lock()
-	w.runningTasks[task.ID().String()] = exec
-	w.runningTasksMu.Unlock()
+	exec := NewTaskExecutor(w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
+	w.runningTasks.Store(task.ID().String(), exec)
 
 	go exec.Run()
 	return nil
@@ -179,7 +179,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 		id, host := i, h
 
 		taskID := path.Join(j.ID, cur.Output.Stage, id)
-		if host == w.NodeManager.Self().Host {
+		if host == w.Node.Info().Host {
 			nextTask := w.getRunningTask(taskID)
 			if nextTask != nil {
 				idToOutput[id] = NewLocalPipe(nextTask.Input)
@@ -187,7 +187,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 			}
 		}
 		wg.Go(func() error {
-			out, err := output.NewPushStream(wctx, w.NodeManager, host, taskID)
+			out, err := output.OpenPushStream(wctx, w.Cluster, w.Node.Info(), host, taskID)
 			if err != nil {
 				return err
 			}
@@ -204,9 +204,8 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 }
 
 func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
-	w.runningTasksMu.RLock()
-	defer w.runningTasksMu.RUnlock()
-	return w.runningTasks[taskID]
+	task, _ := w.runningTasks.Load(taskID)
+	return task.(*TaskExecutor)
 }
 
 func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
@@ -218,11 +217,7 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
-	defer func() {
-		w.runningTasksMu.Lock()
-		delete(w.runningTasks, h.TaskID)
-		w.runningTasksMu.Unlock()
-	}()
+	defer w.runningTasks.Delete(h.TaskID)
 
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(exec.context); err != nil {
@@ -258,10 +253,8 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 
 func (w *Worker) Close() error {
 	w.RPCServer.Stop()
-	if err := w.NodeManager.UnregisterSelf(); err != nil {
-		return errors.Wrap(err, "unregister node")
-	}
-	return w.NodeManager.Close()
+	w.Node.Unregister()
+	return w.Cluster.Close()
 }
 
 func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {

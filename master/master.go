@@ -8,6 +8,7 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/pbtypes"
@@ -18,7 +19,6 @@ import (
 	"github.com/therne/lrmr/partitions"
 	"github.com/therne/lrmr/stage"
 	"github.com/therne/lrmr/worker"
-	"github.com/thoas/go-funk"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -29,15 +29,20 @@ var log = logger.New("lrmr")
 type Master struct {
 	executor *worker.Worker
 
-	ClusterStates coordinator.Coordinator
-	JobManager    *job.Manager
-	JobTracker    *job.Tracker
-	NodeManager   node.Manager
+	Node       *node.Node
+	Cluster    cluster.Cluster
+	JobManager *job.Manager
+	JobTracker *job.Tracker
 
 	opt Options
 }
 
 func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
+	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
+	if err != nil {
+		return nil, err
+	}
+
 	// create task executor by running worker
 	wopt := worker.DefaultOptions()
 	wopt.NodeType = node.Master
@@ -53,12 +58,11 @@ func New(crd coordinator.Coordinator, opt Options) (*Master, error) {
 
 	jm := job.NewManager(crd)
 	return &Master{
-		executor:      w,
-		ClusterStates: crd,
-		JobManager:    jm,
-		JobTracker:    job.NewJobTracker(crd, jm),
-		NodeManager:   w.NodeManager,
-		opt:           opt,
+		executor:   w,
+		Cluster:    c,
+		JobManager: jm,
+		JobTracker: job.NewJobTracker(crd, jm),
+		opt:        opt,
 	}, nil
 }
 
@@ -72,42 +76,36 @@ func (m *Master) Start() {
 }
 
 func (m *Master) Workers() ([]WorkerHolder, error) {
-	workers, err := m.NodeManager.List(context.TODO(), node.Worker)
+	workers, err := m.Cluster.List(context.TODO(), cluster.ListOption{Type: node.Worker})
 	if err != nil {
 		return nil, errors.WithMessage(err, "list available workers")
 	}
 	wh := make([]WorkerHolder, len(workers))
 	for i, w := range workers {
 		wh[i] = WorkerHolder{
-			Node: w,
-			nm:   m.NodeManager,
+			Node:    w,
+			cluster: m.Cluster,
 		}
 	}
 	return wh, nil
 }
 
-func (m *Master) State() coordinator.KV {
-	return m.NodeManager.NodeStates()
-}
-
 func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage, opt ...CreateJobOption) (*job.Job, error) {
 	opts := buildCreateJobOptions(opt)
 
-	workers, err := m.NodeManager.List(ctx, node.Worker)
+	listOpts := cluster.ListOption{Type: node.Worker}
+	if opts.NodeSelector != nil {
+		listOpts.Tag = opts.NodeSelector
+	}
+	workers, err := m.Cluster.List(ctx, listOpts)
 	if err != nil {
 		return nil, errors.WithMessage(err, "list available workers")
-	}
-	if opts.NodeSelector != nil {
-		workers = funk.Filter(
-			workers,
-			func(n *node.Node) bool { return n.TagMatches(opts.NodeSelector) },
-		).([]*node.Node)
 	}
 	if len(workers) == 0 {
 		return nil, ErrNoAvailableWorkers
 	}
 
-	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.executor.NodeManager.Self()))
+	pp, assignments := partitions.Schedule(workers, plans, partitions.WithMaster(m.executor.Node.Info()))
 	for i, p := range pp {
 		stages[i].Output.Partitioner = p.Partitioner
 
@@ -156,7 +154,7 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, broadcasts map[string
 			host, partitionIDs := h, ps
 
 			wg.Go(func() error {
-				conn, err := m.NodeManager.Connect(wctx, host)
+				conn, err := m.Cluster.Connect(wctx, host)
 				if err != nil {
 					return errors.Wrapf(err, "dial %s for stage %s", host, s.Name)
 				}
@@ -186,7 +184,7 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 		assigned := t
 		wg.Go(func() error {
 			taskID := path.Join(j.ID, stageName, assigned.PartitionID)
-			out, err := output.NewPushStream(reqCtx, m.NodeManager, assigned.Host, taskID)
+			out, err := output.OpenPushStream(reqCtx, m.Cluster, m.Node, assigned.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", assigned.Host)
 			}
