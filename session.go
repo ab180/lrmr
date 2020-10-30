@@ -76,7 +76,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
-	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, ds.input)
+	iw, err := s.master.OpenInputWriter(ctx, j, j.Stages[1].Name, ds.plans[0].Partitioner)
 	if err != nil {
 		return nil, errors.WithMessage(err, "open input")
 	}
