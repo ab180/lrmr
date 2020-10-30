@@ -243,11 +243,25 @@ func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) cha
 	lmc.subsLock.Lock()
 	defer lmc.subsLock.Unlock()
 
-	eventsChan := make(chan WatchEvent)
+	eventsChan := make(chan WatchEvent, 100)
 	lmc.subscriptions = append(lmc.subscriptions, subscription{
 		prefix: prefix,
 		events: eventsChan,
 	})
+	go func() {
+		select {
+		case <-ctx.Done():
+			lmc.subsLock.Lock()
+			for i, sub := range lmc.subscriptions {
+				if sub.events == eventsChan {
+					lmc.subscriptions = append(lmc.subscriptions[:i], lmc.subscriptions[i+1:]...)
+					break
+				}
+			}
+			close(eventsChan)
+			lmc.subsLock.Unlock()
+		}
+	}()
 	return eventsChan
 }
 
