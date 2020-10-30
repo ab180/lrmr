@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/airbloc/logger"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/coordinator"
 )
 
 // JobTracker tracks and updates jobs and their tasks' status.
 type Tracker struct {
-	crd        coordinator.Coordinator
-	jobManager *Manager
+	clusterState cluster.State
+	jobManager   *Manager
 
 	subscriptions map[string][]chan *Status
 	subscribeLock sync.RWMutex
@@ -30,9 +31,9 @@ type Tracker struct {
 	log logger.Logger
 }
 
-func NewJobTracker(crd coordinator.Coordinator, jm *Manager) *Tracker {
+func NewJobTracker(cs cluster.State, jm *Manager) *Tracker {
 	return &Tracker{
-		crd:           crd,
+		clusterState:  cs,
 		jobManager:    jm,
 		subscriptions: make(map[string][]chan *Status),
 		log:           logger.New("lrmr.jobTracker"),
@@ -59,7 +60,7 @@ func (t *Tracker) HandleJobCompletion() {
 	t.stopTrack = cancel
 
 	t.log.Info("Start tracking...")
-	for event := range t.crd.Watch(wctx, statusNs) {
+	for event := range t.clusterState.Watch(wctx, statusNs) {
 		if strings.HasPrefix(event.Item.Key, stageStatusNs) {
 			t.trackStageStatus(event)
 		}
@@ -154,7 +155,7 @@ func (t *Tracker) CollectMetric(j *Job) (Metrics, error) {
 	total := make(Metrics)
 	for _, stage := range j.Stages {
 		prefix := path.Join(taskStatusNs, j.ID, stage.Name)
-		items, err := t.crd.Scan(context.TODO(), prefix)
+		items, err := t.clusterState.Scan(context.TODO(), prefix)
 		if err != nil {
 			return nil, fmt.Errorf("scan task statuses in stage: %w", err)
 		}

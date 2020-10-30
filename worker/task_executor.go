@@ -6,7 +6,7 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/coordinator"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/input"
 	"github.com/therne/lrmr/internal/serialization"
 	"github.com/therne/lrmr/job"
@@ -33,7 +33,7 @@ type TaskExecutor struct {
 }
 
 func NewTaskExecutor(
-	crd coordinator.Coordinator,
+	cs cluster.State,
 	j *job.Job,
 	task *job.Task,
 	status *job.TaskStatus,
@@ -52,8 +52,8 @@ func NewTaskExecutor(
 		broadcast:    broadcast,
 		localOptions: localOptions,
 		finishChan:   make(chan struct{}, 1),
-		taskReporter: job.NewTaskReporter(ctx, crd, j, task.ID(), status),
-		jobManager:   job.NewManager(crd),
+		taskReporter: job.NewTaskReporter(ctx, cs, j, task.ID(), status),
+		jobManager:   job.NewManager(cs),
 	}
 	exec.context = newTaskContext(ctx, exec)
 	exec.cancel = cancel

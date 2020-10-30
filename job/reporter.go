@@ -9,12 +9,13 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/coordinator"
 	"go.uber.org/atomic"
 )
 
 type TaskReporter struct {
-	crd coordinator.Coordinator
+	clusterState cluster.State
 
 	task    TaskID
 	job     *Job
@@ -27,16 +28,16 @@ type TaskReporter struct {
 	log    logger.Logger
 }
 
-func NewTaskReporter(ctx context.Context, crd coordinator.Coordinator, j *Job, task TaskID, s *TaskStatus) *TaskReporter {
+func NewTaskReporter(ctx context.Context, cs cluster.State, j *Job, task TaskID, s *TaskStatus) *TaskReporter {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TaskReporter{
-		crd:    crd,
-		task:   task,
-		job:    j,
-		status: s,
-		ctx:    ctx,
-		cancel: cancel,
-		log:    logger.New("lrmr.jobReporter"),
+		clusterState: cs,
+		task:         task,
+		job:          j,
+		status:       s,
+		ctx:          ctx,
+		cancel:       cancel,
+		log:          logger.New("lrmr.jobReporter"),
 	}
 }
 
@@ -62,7 +63,7 @@ func (r *TaskReporter) ReportSuccess() error {
 		return errors.Wrap(err, "update task status")
 	}
 
-	doneTasks, err := r.crd.IncrementCounter(r.ctx, stageStatusKey(r.task, "doneTasks"))
+	doneTasks, err := r.clusterState.IncrementCounter(r.ctx, stageStatusKey(r.task, "doneTasks"))
 	if err != nil {
 		return errors.Wrap(err, "increase done task count")
 	}
@@ -104,7 +105,7 @@ func (r *TaskReporter) ReportFailure(err error) error {
 		}
 		txn = txn.Put(jobErrorKey(r.task), errDesc)
 	}
-	res, err := r.crd.Commit(context.TODO(), txn)
+	res, err := r.clusterState.Commit(context.TODO(), txn)
 	if err != nil {
 		return err
 	}
@@ -122,7 +123,7 @@ func (r *TaskReporter) checkForStageCompletion(currentDoneTasks, currentFailedTa
 	}
 	totalTasks := len(r.job.GetPartitionsOfStage(r.task.StageName))
 	if currentDoneTasks == totalTasks {
-		failedTasks, err := r.crd.ReadCounter(r.ctx, stageStatusKey(r.task, "failedTasks"))
+		failedTasks, err := r.clusterState.ReadCounter(r.ctx, stageStatusKey(r.task, "failedTasks"))
 		if err != nil {
 			r.log.Error("Failed to get count of failed stages of {}/{}", err, r.task.JobID, r.task.StageName)
 			return
@@ -140,11 +141,11 @@ func (r *TaskReporter) reportStageCompletion(status RunningState) error {
 	r.log.Verbose("Reporting {} stage {}/{} (by {})", status, r.job.ID, r.task.StageName, r.task)
 
 	var s StageStatus
-	if err := r.crd.Get(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), &s); err != nil {
+	if err := r.clusterState.Get(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), &s); err != nil {
 		return errors.Wrap(err, "read stage status")
 	}
 	s.Complete(status)
-	if err := r.crd.Put(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), s); err != nil {
+	if err := r.clusterState.Put(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), s); err != nil {
 		return errors.Wrap(err, "update stage status")
 	}
 	if status == Failed {
@@ -152,7 +153,7 @@ func (r *TaskReporter) reportStageCompletion(status RunningState) error {
 	}
 
 	doneStagesKey := path.Join(jobStatusNs, r.job.ID, "doneStages")
-	doneStages, err := r.crd.IncrementCounter(r.ctx, doneStagesKey)
+	doneStages, err := r.clusterState.IncrementCounter(r.ctx, doneStagesKey)
 	if err != nil {
 		return errors.Wrap(err, "increment done stage count")
 	}
@@ -165,7 +166,7 @@ func (r *TaskReporter) reportStageCompletion(status RunningState) error {
 
 func (r *TaskReporter) reportJobCompletion(status RunningState) error {
 	var js Status
-	if err := r.crd.Get(r.ctx, path.Join(jobStatusNs, r.job.ID), &js); err != nil {
+	if err := r.clusterState.Get(r.ctx, path.Join(jobStatusNs, r.job.ID), &js); err != nil {
 		return errors.Wrapf(err, "get status of job %s", r.job.ID)
 	}
 	if js.Status == status {
@@ -174,7 +175,7 @@ func (r *TaskReporter) reportJobCompletion(status RunningState) error {
 
 	r.log.Verbose("Reporting {} job {} (by {})", status, r.job.ID, r.task)
 	js.Complete(status)
-	if err := r.crd.Put(r.ctx, path.Join(jobStatusNs, r.job.ID), js); err != nil {
+	if err := r.clusterState.Put(r.ctx, path.Join(jobStatusNs, r.job.ID), js); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
 	}
 	return nil
@@ -206,7 +207,7 @@ func (r *TaskReporter) flushTaskStatus() error {
 	status := r.status.Clone()
 	r.flushMu.Unlock()
 
-	return r.crd.Put(r.ctx, path.Join(taskStatusNs, r.task.String()), status)
+	return r.clusterState.Put(r.ctx, path.Join(taskStatusNs, r.task.String()), status)
 }
 
 func (r *TaskReporter) Close() {

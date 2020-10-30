@@ -7,6 +7,7 @@ import (
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/coordinator"
 	"github.com/therne/lrmr/internal/util"
 	"github.com/therne/lrmr/partitions"
@@ -25,14 +26,14 @@ const (
 )
 
 type Manager struct {
-	crd coordinator.Coordinator
-	log logger.Logger
+	clusterState cluster.State
+	log          logger.Logger
 }
 
-func NewManager(crd coordinator.Coordinator) *Manager {
+func NewManager(cs cluster.State) *Manager {
 	return &Manager{
-		crd: crd,
-		log: logger.New("lrmr/job.Manager"),
+		clusterState: cs,
+		log:          logger.New("lrmr/job.Manager"),
 	}
 }
 
@@ -52,7 +53,7 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 	for _, s := range j.Stages {
 		txn.Put(path.Join(stageStatusNs, j.ID, s.Name), newStageStatus())
 	}
-	if _, err := m.crd.Commit(ctx, txn); err != nil {
+	if _, err := m.clusterState.Commit(ctx, txn); err != nil {
 		return nil, errors.Wrap(err, "etcd write")
 	}
 	m.log.Debug("Job created: {} ({})", j.Name, j.ID)
@@ -61,7 +62,7 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 
 func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	job := &Job{}
-	if err := m.crd.Get(ctx, path.Join(jobNs, jobID), job); err != nil {
+	if err := m.clusterState.Get(ctx, path.Join(jobNs, jobID), job); err != nil {
 		return nil, err
 	}
 	return job, nil
@@ -69,7 +70,7 @@ func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 
 func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error) {
 	var js Status
-	if err := m.crd.Get(ctx, path.Join(jobStatusNs, jobID), &js); err != nil {
+	if err := m.clusterState.Get(ctx, path.Join(jobStatusNs, jobID), &js); err != nil {
 		return Status{}, err
 	}
 	errs, err := m.GetJobErrors(ctx, jobID)
@@ -83,11 +84,11 @@ func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error
 func (m *Manager) SetJobStatus(ctx context.Context, jobID string, js Status) error {
 	// errors are stored in separate namespace. omit it on /job/status/:jobID
 	js.Errors = nil
-	return m.crd.Put(ctx, path.Join(jobStatusNs, jobID), &js)
+	return m.clusterState.Put(ctx, path.Join(jobStatusNs, jobID), &js)
 }
 
 func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, error) {
-	items, err := m.crd.Scan(ctx, path.Join(jobErrorNs, jobID))
+	items, err := m.clusterState.Scan(ctx, path.Join(jobErrorNs, jobID))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,7 @@ func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, erro
 func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
 	errChan := make(chan Error)
 	go func() {
-		for event := range m.crd.Watch(ctx, path.Join(jobErrorNs, jobID)) {
+		for event := range m.clusterState.Watch(ctx, path.Join(jobErrorNs, jobID)) {
 			var e Error
 			if err := event.Item.Unmarshal(&e); err != nil {
 				m.log.Error("Failed to unmarshal error desc {}: {}", err, string(event.Item.Value))
@@ -118,7 +119,7 @@ func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
 
 func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {
 	keyPrefix := path.Join(jobNs, fmt.Sprintf(prefixFormat, args...))
-	results, err := m.crd.Scan(ctx, keyPrefix)
+	results, err := m.clusterState.Scan(ctx, keyPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...int
 
 func (m *Manager) ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error) {
 	keyPrefix := path.Join(taskNs, fmt.Sprintf(prefixFormat, args...))
-	results, err := m.crd.Scan(ctx, keyPrefix)
+	results, err := m.clusterState.Scan(ctx, keyPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func (m *Manager) ListTasks(ctx context.Context, prefixFormat string, args ...in
 
 func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	status := NewTaskStatus()
-	if err := m.crd.Put(ctx, path.Join(taskStatusNs, task.ID().String()), status); err != nil {
+	if err := m.clusterState.Put(ctx, path.Join(taskStatusNs, task.ID().String()), status); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
 	}
 	return status, nil
@@ -160,7 +161,7 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 
 func (m *Manager) GetTask(ctx context.Context, ref TaskID) (*Task, error) {
 	task := &Task{}
-	if err := m.crd.Get(ctx, path.Join(taskNs, ref.PartitionID), task); err != nil {
+	if err := m.clusterState.Get(ctx, path.Join(taskNs, ref.PartitionID), task); err != nil {
 		return nil, errors.Wrap(err, "get task")
 	}
 	return task, nil
@@ -168,7 +169,7 @@ func (m *Manager) GetTask(ctx context.Context, ref TaskID) (*Task, error) {
 
 func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, error) {
 	status := &TaskStatus{}
-	if err := m.crd.Get(ctx, path.Join(taskStatusNs, ref.String()), status); err != nil {
+	if err := m.clusterState.Get(ctx, path.Join(taskStatusNs, ref.String()), status); err != nil {
 		return nil, errors.Wrap(err, "get task")
 	}
 	return status, nil
