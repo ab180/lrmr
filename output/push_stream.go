@@ -33,7 +33,7 @@ func OpenPushStream(ctx context.Context, cluster cluster.Cluster, n *node.Node, 
 		header.FromHost = "master"
 	}
 	rawHead, _ := jsoniter.MarshalToString(header)
-	runCtx := metadata.AppendToOutgoingContext(context.Background(), "dataHeader", rawHead)
+	runCtx := metadata.AppendToOutgoingContext(ctx, "dataHeader", rawHead)
 
 	worker := lrmrpb.NewNodeClient(conn)
 	stream, err := worker.PushData(runCtx)

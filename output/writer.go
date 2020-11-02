@@ -72,10 +72,10 @@ func (w Writer) NumOutputs() int {
 	return len(w.outputs)
 }
 
-func (w *Writer) Close() error {
+func (w *Writer) Close() (err error) {
 	for _, out := range w.outputs {
-		if err := out.Close(); err != nil {
-			return err
+		if e := out.Close(); e == nil {
+			err = e
 		}
 	}
 	w.outputs = nil

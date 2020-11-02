@@ -190,12 +190,17 @@ func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName stri
 	outs := make(map[string]output.Output, len(targets))
 	var lock sync.Mutex
 
-	wg, reqCtx := errgroup.WithContext(ctx)
+	jobCtx, cancelJobCtx := context.WithCancel(context.Background())
+	m.JobTracker.OnJobCompletion(j, func(*job.Job, *job.Status) {
+		cancelJobCtx()
+	})
+
+	var wg errgroup.Group
 	for _, t := range targets {
 		assigned := t
 		wg.Go(func() error {
 			taskID := path.Join(j.ID, stageName, assigned.PartitionID)
-			out, err := output.OpenPushStream(reqCtx, m.Cluster, m.Node, assigned.Host, taskID)
+			out, err := output.OpenPushStream(jobCtx, m.Cluster, m.Node, assigned.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", assigned.Host)
 			}
@@ -234,4 +239,7 @@ func (m *Master) Stop() {
 		log.Error("failed to close worker")
 	}
 	m.JobTracker.Close()
+	if err := m.Cluster.Close(); err != nil {
+		log.Error("Failed to close connections to cluster", err)
+	}
 }

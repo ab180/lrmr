@@ -140,21 +140,33 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	}
 	s := j.GetStage(req.Stage)
 
+	// jobCtx will be disposed after the job completes
+	jobCtx, cancelJobCtx := context.WithCancel(context.Background())
+
 	task := job.NewTask(partitionID, w.Node.Info(), j.ID, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
-
 	in := input.NewReader(w.opt.Input.QueueLength)
-	out, err := w.newOutputWriter(ctx, j, s.Name, partitionID, req.Output)
+
+	// after job finishes, remaining connections should be closed
+	out, err := w.newOutputWriter(jobCtx, j, s.Name, partitionID, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec := NewTaskExecutor(w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
+	exec := NewTaskExecutor(jobCtx, w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
 	w.runningTasks.Store(task.ID().String(), exec)
 
+	w.jobTracker.OnJobCompletion(j, func(j *job.Job, stat *job.Status) {
+		if len(stat.Errors) > 0 {
+			err := stat.Errors[0]
+			log.Verbose("Task {} aborted with error caused by task {}.", task.ID(), err.Task)
+			exec.Abort(nil)
+		}
+		cancelJobCtx()
+	})
 	go exec.Run()
 	return nil
 }
@@ -177,7 +189,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 	}
 
 	var mu sync.Mutex
-	wg, wctx := errgroup.WithContext(ctx)
+	var wg errgroup.Group
 	for i, h := range o.PartitionToHost {
 		id, host := i, h
 
@@ -190,7 +202,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 			}
 		}
 		wg.Go(func() error {
-			out, err := output.OpenPushStream(wctx, w.Cluster, w.Node.Info(), host, taskID)
+			out, err := output.OpenPushStream(ctx, w.Cluster, w.Node.Info(), host, taskID)
 			if err != nil {
 				return err
 			}

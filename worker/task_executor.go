@@ -33,6 +33,7 @@ type TaskExecutor struct {
 }
 
 func NewTaskExecutor(
+	parentCtx context.Context,
 	cs cluster.State,
 	j *job.Job,
 	task *job.Task,
@@ -43,7 +44,7 @@ func NewTaskExecutor(
 	broadcast serialization.Broadcast,
 	localOptions map[string]interface{},
 ) *TaskExecutor {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parentCtx)
 	exec := &TaskExecutor{
 		task:         task,
 		Input:        in,
@@ -62,7 +63,6 @@ func NewTaskExecutor(
 
 func (e *TaskExecutor) Run() {
 	defer e.guardPanic()
-	go e.cancelOnJobAbort()
 
 	// pipe input.Reader.C to function input channel
 	inputChan := make(chan *lrdd.Row, 100)
@@ -112,20 +112,6 @@ func (e *TaskExecutor) Abort(err error) {
 func (e *TaskExecutor) guardPanic() {
 	if err := logger.WrapRecover(recover()); err != nil {
 		e.Abort(err)
-	}
-}
-
-func (e *TaskExecutor) cancelOnJobAbort() {
-	defer e.guardPanic()
-	select {
-	case errDesc, ok := <-e.jobManager.WatchJobErrors(e.context, e.task.JobID):
-		if !ok {
-			return
-		}
-		log.Verbose("Task {} aborted with error caused by task {}.", e.task.ID(), errDesc.Task)
-		e.Abort(nil)
-	case <-e.context.Done():
-		return
 	}
 }
 
