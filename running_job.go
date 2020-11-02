@@ -3,6 +3,7 @@ package lrmr
 import (
 	"context"
 	"os"
+	"sync"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -21,9 +22,13 @@ type RunningJob struct {
 	Master *master.Master
 
 	finalStatus *job.Status
+	statusMu    sync.RWMutex
 }
 
 func (r *RunningJob) Status() job.RunningState {
+	r.statusMu.RLock()
+	defer r.statusMu.RUnlock()
+
 	if r.finalStatus == nil {
 		return job.Running
 	}
@@ -51,9 +56,18 @@ func (r *RunningJob) Wait() error {
 }
 
 func (r *RunningJob) WaitWithContext(ctx context.Context) error {
+	jobWaitChan := make(chan struct{}, 1)
+	r.Master.JobTracker.OnJobCompletion(r.Job, func(j *job.Job, status *job.Status) {
+		r.statusMu.Lock()
+		r.finalStatus = status
+		r.statusMu.Unlock()
+
+		jobWaitChan <- struct{}{}
+	})
+
 	select {
-	case r.finalStatus = <-r.Master.JobTracker.WaitForCompletion(r.Job.ID):
-		if r.finalStatus.Status == job.Failed {
+	case <-jobWaitChan:
+		if r.Status() == job.Failed {
 			return r.finalStatus.Errors[0]
 		}
 	case <-ctx.Done():
@@ -86,12 +100,11 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		return errors.Wrap(err, "abort")
 	}
 
-	select {
-	case <-r.Master.JobTracker.WaitForCompletion(r.Job.ID):
-		log.Info("Cancelled!")
-		break
-	case <-ctx.Done():
-		log.Error("Terminated")
-	}
+	jobWaitCtx, cancel := context.WithCancel(ctx)
+	r.Master.JobTracker.OnJobCompletion(r.Job, func(*job.Job, *job.Status) {
+		log.Info("Aborted {} successfully.", r.Job.ID)
+		cancel()
+	})
+	<-jobWaitCtx.Done()
 	return Aborted
 }

@@ -37,6 +37,7 @@ type Worker struct {
 
 	serverLis       net.Listener
 	jobManager      *job.Manager
+	jobTracker      *job.Tracker
 	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
 
@@ -56,9 +57,11 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
+	jm := job.NewManager(c.States())
 	w := &Worker{
 		Cluster:         c,
-		jobManager:      job.NewManager(crd),
+		jobManager:      jm,
+		jobTracker:      job.NewJobTracker(c.States(), jm),
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
@@ -254,6 +257,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 func (w *Worker) Close() error {
 	w.RPCServer.Stop()
 	w.Node.Unregister()
+	w.jobTracker.Close()
 	return w.Cluster.Close()
 }
 

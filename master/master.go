@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
@@ -72,7 +73,6 @@ func (m *Master) Start() {
 			log.Error("Failed to start master task executor", err)
 		}
 	}()
-	go m.JobTracker.HandleJobCompletion()
 }
 
 func (m *Master) Workers() ([]WorkerHolder, error) {
@@ -118,8 +118,19 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 	if err != nil {
 		return nil, errors.WithMessage(err, "create job")
 	}
-	m.JobTracker.AddJob(j)
-
+	m.JobTracker.OnTaskCompletion(j, func(j *job.Job, stageName string, doneCountInStage int) {
+		totalTasks := len(j.GetPartitionsOfStage(stageName))
+		log.Verbose("Task ({}/{}) finished of {}/{}", doneCountInStage, totalTasks, j.ID, stageName)
+	})
+	m.JobTracker.OnStageCompletion(j, func(j *job.Job, stageName string, stageStatus *job.StageStatus) {
+		log.Verbose("Stage {}/{} {}.", j.ID, stageName, stageStatus.Status)
+	})
+	m.JobTracker.OnJobCompletion(j, func(j *job.Job, status *job.Status) {
+		log.Info("Job {} {}. Total elapsed {}", j.ID, status.Status, time.Since(j.SubmittedAt))
+		for i, errDesc := range status.Errors {
+			log.Info(" - Error #{} caused by {}: {}", i, errDesc.Task, errDesc.Message)
+		}
+	})
 	return j, nil
 }
 

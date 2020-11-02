@@ -2,8 +2,6 @@ package job
 
 import (
 	"context"
-	"fmt"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -15,51 +13,76 @@ import (
 
 // JobTracker tracks and updates jobs and their tasks' status.
 type Tracker struct {
-	clusterState cluster.State
-	jobManager   *Manager
-
-	subscriptions map[string][]chan *Status
-	subscribeLock sync.RWMutex
-
-	activeJobs        sync.Map
-	totalTasksOfStage map[string]int64
-	lock              sync.RWMutex
-
-	// stopTrack closes watcher channel.
-	stopTrack context.CancelFunc
+	clusterState  cluster.State
+	jobManager    *Manager
+	subscriptions sync.Map
+	activeJobs    sync.Map
+	stopTrack     context.CancelFunc
 
 	log logger.Logger
 }
 
-func NewJobTracker(cs cluster.State, jm *Manager) *Tracker {
-	return &Tracker{
-		clusterState:  cs,
-		jobManager:    jm,
-		subscriptions: make(map[string][]chan *Status),
-		log:           logger.New("lrmr.jobTracker"),
-	}
+type subscriptionHolder struct {
+	jobs   []func(*Job, *Status)
+	stages []func(j *Job, stageName string, stageStatus *StageStatus)
+	tasks  []func(j *Job, stageName string, doneCountInStage int)
+	mu     sync.RWMutex
 }
 
-func (t *Tracker) WaitForCompletion(jobID string) chan *Status {
-	t.subscribeLock.Lock()
-	defer t.subscribeLock.Unlock()
+func NewJobTracker(cs cluster.State, jm *Manager) *Tracker {
+	t := &Tracker{
+		clusterState: cs,
+		jobManager:   jm,
+		log:          logger.New("lrmr.jobTracker"),
+	}
+	go t.watch()
+	return t
+}
 
-	notifyCh := make(chan *Status)
-	t.subscriptions[jobID] = append(t.subscriptions[jobID], notifyCh)
-	return notifyCh
+// OnJobCompletion registers callback for completion events of given job.
+func (t *Tracker) OnJobCompletion(job *Job, callback func(*Job, *Status)) {
+	t.AddJob(job)
+	entry, _ := t.subscriptions.LoadOrStore(job.ID, &subscriptionHolder{})
+	sub := entry.(*subscriptionHolder)
+
+	sub.mu.Lock()
+	sub.jobs = append(sub.jobs, callback)
+	sub.mu.Unlock()
+}
+
+// OnStageCompletion registers callback for stage completion events in given job ID.
+func (t *Tracker) OnStageCompletion(job *Job, callback func(j *Job, stageName string, stageStatus *StageStatus)) {
+	t.AddJob(job)
+	entry, _ := t.subscriptions.LoadOrStore(job.ID, &subscriptionHolder{})
+	sub := entry.(*subscriptionHolder)
+
+	sub.mu.Lock()
+	sub.stages = append(sub.stages, callback)
+	sub.mu.Unlock()
+}
+
+// OnTaskCompletion registers callback for task completion events in given job ID.
+// For performance, only the number of currently finished tasks in its stage is given to the callback.
+func (t *Tracker) OnTaskCompletion(job *Job, callback func(job *Job, stageName string, doneCountInStage int)) {
+	t.AddJob(job)
+	entry, _ := t.subscriptions.LoadOrStore(job.ID, &subscriptionHolder{})
+	sub := entry.(*subscriptionHolder)
+
+	sub.mu.Lock()
+	sub.tasks = append(sub.tasks, callback)
+	sub.mu.Unlock()
 }
 
 func (t *Tracker) AddJob(job *Job) {
 	t.activeJobs.Store(job.ID, job)
 }
 
-// HandleJobCompletion watches various job events such as task finish,
-// and changes stage or job status.
-func (t *Tracker) HandleJobCompletion() {
+func (t *Tracker) watch() {
+	defer t.log.Recover()
+
 	wctx, cancel := context.WithCancel(context.Background())
 	t.stopTrack = cancel
 
-	t.log.Info("Start tracking...")
 	for event := range t.clusterState.Watch(wctx, statusNs) {
 		if strings.HasPrefix(event.Item.Key, stageStatusNs) {
 			t.trackStageStatus(event)
@@ -68,7 +91,6 @@ func (t *Tracker) HandleJobCompletion() {
 			t.trackJobStatus(event)
 		}
 	}
-	t.log.Info("Stop tracking...")
 }
 
 func (t *Tracker) trackStageStatus(e coordinator.WatchEvent) {
@@ -86,16 +108,25 @@ func (t *Tracker) trackStageStatus(e coordinator.WatchEvent) {
 
 	if len(frags) == 4 {
 		// stage status update
-		var st StageStatus
-		if err := e.Item.Unmarshal(&st); err != nil {
+		st := new(StageStatus)
+		if err := e.Item.Unmarshal(st); err != nil {
 			t.log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
 			return
 		}
-		t.log.Verbose("Stage {}/{} {}.", job.ID, stageName, st.Status)
+		sub, release := t.getSubscription(job.ID)
+		defer release()
+
+		for _, callback := range sub.stages {
+			callback(job, stageName, st)
+		}
 
 	} else if frags[4] == "doneTasks" && e.Type == coordinator.CounterEvent {
-		totalTasks := len(job.GetPartitionsOfStage(stageName))
-		t.log.Info("Task ({}/{}) finished of {}/{}", e.Counter, totalTasks, job.ID, stageName)
+		sub, release := t.getSubscription(job.ID)
+		defer release()
+
+		for _, callback := range sub.tasks {
+			callback(job, stageName, int(e.Counter))
+		}
 	}
 }
 
@@ -112,6 +143,7 @@ func (t *Tracker) trackJobStatus(e coordinator.WatchEvent) {
 	job := j.(*Job)
 
 	if len(frags) == 3 && e.Type == coordinator.PutEvent {
+		// job status update
 		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
 		defer cancel()
 
@@ -121,60 +153,34 @@ func (t *Tracker) trackJobStatus(e coordinator.WatchEvent) {
 			return
 		}
 		if jobStatus.Status == Succeeded || jobStatus.Status == Failed {
-			t.notifyJobCompletion(job, jobStatus)
-		}
-	}
-}
+			sub, release := t.getSubscription(job.ID)
+			defer release()
 
-func (t *Tracker) notifyJobCompletion(job *Job, jobStatus Status) {
-	t.log.Info("Job {} {}. Total elapsed {}", job.ID, jobStatus.Status, time.Since(job.SubmittedAt).String())
-	if jobStatus.Status == Failed {
-		jobErrors, err := t.jobManager.GetJobErrors(context.TODO(), job.ID)
-		if err != nil {
-			t.log.Error("Failed to list error of {}", err, job.ID)
-			return
-		}
-		for i, errDesc := range jobErrors {
-			t.log.Info(" - Error #{} caused by {}: {}", i, errDesc.Task, errDesc.Message)
-		}
-	}
-	t.subscribeLock.RLock()
-	defer t.subscribeLock.RUnlock()
-
-	for i, notifyCh := range t.subscriptions[job.ID] {
-		select {
-		case notifyCh <- &jobStatus:
-		default:
-			t.log.Verbose("Warning: subscription #{} seems too busy to receive result of job {}", i, job.ID)
-		}
-	}
-	t.activeJobs.Delete(job.ID)
-}
-
-func (t *Tracker) CollectMetric(j *Job) (Metrics, error) {
-	total := make(Metrics)
-	for _, stage := range j.Stages {
-		prefix := path.Join(taskStatusNs, j.ID, stage.Name)
-		items, err := t.clusterState.Scan(context.TODO(), prefix)
-		if err != nil {
-			return nil, fmt.Errorf("scan task statuses in stage: %w", err)
-		}
-
-		metric := make(Metrics)
-		for _, item := range items {
-			var ts TaskStatus
-			if err := item.Unmarshal(&ts); err != nil {
-				return nil, fmt.Errorf("unmarshal task status of %s: %w", item.Key, err)
+			for _, callback := range sub.jobs {
+				callback(job, &jobStatus)
 			}
-			metric = metric.Sum(ts.Metrics)
+			t.activeJobs.Delete(job.ID)
 		}
-		total = total.Assign(metric.AddPrefix(stage.Name + "/"))
 	}
-	return total, nil
+}
+
+func (t *Tracker) getSubscription(jobID string) (sub *subscriptionHolder, release func()) {
+	entry, ok := t.subscriptions.Load(jobID)
+	if !ok {
+		return
+	}
+	sub = entry.(*subscriptionHolder)
+
+	sub.mu.RLock()
+	release = func() {
+		sub.mu.RUnlock()
+		if err := logger.WrapRecover(recover()); err != nil {
+			t.log.Error("Panic occurred during the calling of callbacks for job {}", err, jobID)
+		}
+	}
+	return sub, release
 }
 
 func (t *Tracker) Close() {
-	if t.stopTrack != nil {
-		t.stopTrack()
-	}
+	t.stopTrack()
 }
