@@ -9,6 +9,7 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -38,6 +39,7 @@ func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 	if err != nil {
 		return nil, err
 	}
+	cli.WithLogger(zap.NewNop())
 	return &Etcd{
 		Client:  cli,
 		KV:      namespace.NewKV(cli, nsPrefix),
@@ -77,6 +79,7 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 
 	wc := e.Watcher.Watch(ctx, prefix, clientv3.WithPrefix())
 	go func() {
+		defer close(watchChan)
 		for wr := range wc {
 			if err := wr.Err(); err != nil {
 				e.log.Error("watch error", err)
