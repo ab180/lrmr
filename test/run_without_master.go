@@ -12,7 +12,7 @@ var _ = lrmr.RegisterTypes(HaltForMasterFailure{})
 type HaltForMasterFailure struct{}
 
 func (f HaltForMasterFailure) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 	for range in {
 		ctx.AddMetric("Input", 1)
 	}

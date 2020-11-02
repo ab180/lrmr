@@ -13,9 +13,9 @@ type FailingStage struct{}
 
 func (f FailingStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
 	for range in {
-		time.Sleep(1 * time.Second)
-		panic("station")
 	}
+	time.Sleep(1 * time.Second)
+	panic("station")
 	return nil
 }
 

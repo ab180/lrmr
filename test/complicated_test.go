@@ -5,14 +5,11 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/test/testutils"
+	"github.com/therne/lrmr/test/integration"
 )
 
 func TestComplicatedQuery(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 8)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing ComplicatedQuery", func() {
 			ds := ComplicatedQuery(cluster.Session)
 			j, err := ds.Run()
@@ -31,5 +28,5 @@ func TestComplicatedQuery(t *testing.T) {
 				})
 			})
 		})
-	})
+	}))
 }

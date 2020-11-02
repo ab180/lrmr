@@ -4,14 +4,11 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/test/testutils"
+	"github.com/therne/lrmr/test/integration"
 )
 
 func TestFailingJob(t *testing.T) {
-	Convey("Running a job that fails", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Running a job that fails", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		ds := FailingJob(cluster.Session)
 
 		Convey("It should handle errors gracefully on Wait", func() {
@@ -25,5 +22,5 @@ func TestFailingJob(t *testing.T) {
 			_, err := ds.Collect()
 			So(err, ShouldNotBeNil)
 		})
-	})
+	}))
 }

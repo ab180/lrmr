@@ -4,14 +4,11 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/test/testutils"
+	"github.com/therne/lrmr/test/integration"
 )
 
 func TestAssignTaskOnMaster(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When assigning task on master", func() {
 			ds := AssignTaskOnMaster(cluster.Session)
 
@@ -25,5 +22,5 @@ func TestAssignTaskOnMaster(t *testing.T) {
 				So(tags, ShouldResemble, []string{"worker", "master"})
 			})
 		})
-	})
+	}))
 }

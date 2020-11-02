@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/test/integration"
 	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestSort(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running Sort", func() {
 			ds := Sort(cluster.Session)
 
@@ -31,5 +29,5 @@ func TestSort(t *testing.T) {
 				So(testutils.StringValue(res["baz"][0]), ShouldEqual, "1359")
 			})
 		})
-	})
+	}))
 }

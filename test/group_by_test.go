@@ -5,14 +5,12 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/therne/lrmr/job"
+	"github.com/therne/lrmr/test/integration"
 	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestBasicGroupByKey(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing GroupBy", func() {
 			ds := BasicGroupByKey(cluster.Session)
 			j, err := ds.Run()
@@ -31,14 +29,11 @@ func TestBasicGroupByKey(t *testing.T) {
 				})
 			})
 		})
-	})
+	}))
 }
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing GroupBy", func() {
 			ds := BasicGroupByKnownKeys(cluster.Session)
 
@@ -53,14 +48,11 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 				})
 			})
 		})
-	})
+	}))
 }
 
 func TestSimpleCount(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing Count operations", func() {
 			ds := SimpleCount(cluster.Session)
 			j, err := ds.Run()
@@ -77,14 +69,11 @@ func TestSimpleCount(t *testing.T) {
 				})
 			})
 		})
-	})
+	}))
 }
 
 func TestSimpleCount_WithCollect(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing Count operations", func() {
 			ds := SimpleCount(cluster.Session)
 
@@ -101,5 +90,5 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 				So(testutils.IntValue(res["bar"][0]), ShouldEqual, 1)
 			})
 		})
-	})
+	}))
 }

@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/test/integration"
 	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestMap(t *testing.T) {
-	Convey("Given running nodes", t, func(c C) {
-		cluster := testutils.StartLocalCluster(c, 2)
-		defer cluster.Stop()
-
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running Map", func() {
 			ds := Map(cluster.Session)
 
@@ -30,5 +28,5 @@ func TestMap(t *testing.T) {
 				So(max, ShouldEqual, 8000)
 			})
 		})
-	})
+	}))
 }
