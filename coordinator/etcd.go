@@ -167,7 +167,7 @@ func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) ([]Txn
 		case CounterEvent:
 			prevKv := res.GetResponsePut().PrevKv
 			if prevKv == nil {
-				results[i].Counter = 0
+				results[i].Counter = 1
 			} else {
 				results[i].Counter = prevKv.Version + 1
 			}
