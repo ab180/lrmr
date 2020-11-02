@@ -89,24 +89,23 @@ func (e *TaskExecutor) Run() {
 	} else if e.context.Err() != nil {
 		return
 	}
+	if err := e.taskReporter.ReportSuccess(); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
+	}
 	if err := e.Output.Close(); err != nil {
 		e.Abort(errors.Wrap(err, "close output"))
 		return
-	}
-	if err := e.taskReporter.ReportSuccess(); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
 	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
-	e.close()
-	_ = e.Output.Close()
-
 	reportErr := e.taskReporter.ReportFailure(err)
 	if reportErr != nil {
-		log.Error("While reporting the error, another error occurred", err)
+		log.Error("While reporting the error, another error occurred", reportErr)
 	}
+	e.close()
+	_ = e.Output.Close()
 }
 
 func (e *TaskExecutor) guardPanic() {
