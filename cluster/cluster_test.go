@@ -1,4 +1,4 @@
-package cluster
+package cluster_test
 
 import (
 	"context"
@@ -8,8 +8,11 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/therne/lrmr/cluster"
 	"github.com/therne/lrmr/cluster/node"
 	"github.com/therne/lrmr/test/integration"
+	"go.uber.org/goleak"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 )
@@ -21,16 +24,16 @@ const (
 )
 
 func TestCluster_List(t *testing.T) {
-	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, cluster Cluster) {
-		Convey("Calling List()", WithTestNodes(cluster, func(nodes []node.Registration) {
+	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
+		Convey("Calling List()", WithTestNodes(c, func(nodes []node.Registration) {
 			Convey("should return a list of discovered nodes", func() {
-				listedNodes, err := cluster.List(ctx)
+				listedNodes, err := c.List(ctx)
 				So(err, ShouldBeNil)
 				So(listedNodes, ShouldHaveLength, len(nodes))
 			})
 
 			Convey("With filter, should return nodes with specific type", func() {
-				listedNodes, err := cluster.List(ctx, ListOption{Type: node.Worker})
+				listedNodes, err := c.List(ctx, cluster.ListOption{Type: node.Worker})
 				So(err, ShouldBeNil)
 				So(listedNodes, ShouldHaveLength, len(nodes)-1)
 				for _, n := range listedNodes {
@@ -39,7 +42,7 @@ func TestCluster_List(t *testing.T) {
 			})
 
 			Convey("With selector, should match nodes by a tag", func() {
-				listedNodes, err := cluster.List(ctx, ListOption{Tag: map[string]string{"No": "2"}})
+				listedNodes, err := c.List(ctx, cluster.ListOption{Tag: map[string]string{"No": "2"}})
 				So(err, ShouldBeNil)
 				So(listedNodes, ShouldHaveLength, 1)
 				So(listedNodes[0].Host, ShouldEqual, nodes[2].Info().Host)
@@ -49,9 +52,9 @@ func TestCluster_List(t *testing.T) {
 }
 
 func TestCluster_Register(t *testing.T) {
-	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, cluster Cluster) {
+	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
 		Convey("Node information should be registered", func() {
-			_, err := cluster.Register(ctx, &node.Node{
+			_, err := c.Register(ctx, &node.Node{
 				Host: "test",
 				Type: node.Worker,
 			})
@@ -59,7 +62,7 @@ func TestCluster_Register(t *testing.T) {
 		})
 
 		Convey("Registered node information should be removed after unregister", func() {
-			nr, err := cluster.Register(ctx, &node.Node{
+			nr, err := c.Register(ctx, &node.Node{
 				Host: "test",
 				Type: node.Worker,
 			})
@@ -68,18 +71,18 @@ func TestCluster_Register(t *testing.T) {
 			nr.Unregister()
 			time.Sleep(tick)
 
-			_, err = cluster.Get(ctx, "test")
-			So(err, ShouldBeError, ErrNotFound)
+			_, err = c.Get(ctx, "test")
+			So(err, ShouldBeError, cluster.ErrNotFound)
 		})
 	}))
 }
 
 func TestCluster_Connect(t *testing.T) {
-	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, cluster Cluster) {
-		Convey("With connectable nodes", WithTestNodes(cluster, func(nodes []node.Registration) {
+	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
+		Convey("With connectable nodes", WithTestNodes(c, func(nodes []node.Registration) {
 			Convey("It should be connected without error", func() {
 				for i := 0; i < numNodes; i++ {
-					cli, err := cluster.Connect(ctx, nodes[i].Info().Host)
+					cli, err := c.Connect(ctx, nodes[i].Info().Host)
 					So(err, ShouldBeNil)
 					So(cli.GetState(), ShouldEqual, connectivity.Ready)
 				}
@@ -87,39 +90,52 @@ func TestCluster_Connect(t *testing.T) {
 
 			Convey("Connection should be maintained and cached", func() {
 				for i := 0; i < numNodes; i++ {
-					initial, err := cluster.Connect(ctx, nodes[i].Info().Host)
+					initial, err := c.Connect(ctx, nodes[i].Info().Host)
 					So(err, ShouldBeNil)
 
-					after, err := cluster.Connect(ctx, nodes[i].Info().Host)
+					after, err := c.Connect(ctx, nodes[i].Info().Host)
 					So(err, ShouldBeNil)
 
 					So(initial, ShouldEqual, after)
 				}
 			})
+
+			Convey("Should not leak when connecting in a race condition", func() {
+				var wg errgroup.Group
+				for i := 0; i < 10; i++ {
+					wg.Go(func() error {
+						_, err := c.Connect(ctx, nodes[0].Info().Host)
+						return err
+					})
+				}
+				So(wg.Wait(), ShouldBeNil)
+				// leak is detected within WithCluster HoF
+			})
 		}))
 	}))
 }
 
-func WithCluster(fn func(context.Context, Cluster)) func(c C) {
-	return func(c C) {
+func WithCluster(fn func(context.Context, cluster.Cluster)) func() {
+	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 
-		opt := DefaultOptions()
+		opt := cluster.DefaultOptions()
 		opt.LivenessProbeInterval = tick
-		cluster, err := OpenRemote(integration.ProvideEtcd(), opt)
+		c, err := cluster.OpenRemote(integration.ProvideEtcd(), opt)
 		So(err, ShouldBeNil)
 
 		Reset(func() {
-			err = cluster.Close()
+			err = c.Close()
 			So(err, ShouldBeNil)
 			cancel()
+			So(goleak.Find(), ShouldBeNil)
 		})
 
-		fn(ctx, cluster)
+		fn(ctx, c)
 	}
 }
 
-func WithTestNodes(cluster Cluster, fn func(nodes []node.Registration)) func(c C) {
+func WithTestNodes(cluster cluster.Cluster, fn func(nodes []node.Registration)) func(c C) {
 	return func(c C) {
 		servers := make([]*grpc.Server, numNodes)
 		nodes := make([]node.Registration, numNodes)

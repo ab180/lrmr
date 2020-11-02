@@ -55,7 +55,8 @@ type cluster struct {
 
 	clusterState State
 	grpcOptions  []grpc.DialOption
-	grpcConns    sync.Map
+	grpcConns    map[string]*grpc.ClientConn
+	grpcConnsMu  sync.Mutex
 	options      Options
 }
 
@@ -78,6 +79,7 @@ func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, err
 		ctx:          ctx,
 		cancel:       cancel,
 		grpcOptions:  grpcOpts,
+		grpcConns:    make(map[string]*grpc.ClientConn),
 		clusterState: clusterState,
 		options:      opt,
 	}, nil
@@ -115,25 +117,31 @@ func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 	dialCtx, cancel := context.WithTimeout(ctx, c.options.ConnectTimeout)
 	defer cancel()
 
-	item, ok := c.grpcConns.Load(host)
+	c.grpcConnsMu.Lock()
+	defer c.grpcConnsMu.Unlock()
+
+	conn, ok := c.grpcConns[host]
 	if !ok {
 		return c.establishNewConnection(dialCtx, host)
 	}
-	conn := item.(*grpc.ClientConn)
 	if conn.GetState() == connectivity.TransientFailure {
 		// TODO: retry limit
-		c.grpcConns.Delete(host)
+		delete(c.grpcConns, host)
 		return c.establishNewConnection(dialCtx, host)
 	}
 	return conn, nil
 }
 
+// establishNewConnection creates a new connection to given host. the context is only used for
+// dialing the host, and cancelling the context after the method return does not affect the connection.
+//
+// this method is not race-protected; you need to acquire lock before calling the method.
 func (c *cluster) establishNewConnection(ctx context.Context, host string) (*grpc.ClientConn, error) {
 	conn, err := grpc.DialContext(ctx, host, c.grpcOptions...)
 	if err != nil {
 		return nil, err
 	}
-	c.grpcConns.Store(host, conn)
+	c.grpcConns[host] = conn
 	return conn, nil
 }
 
@@ -186,10 +194,14 @@ func (c *cluster) States() State {
 // Close unregisters registered nodes and closes all connections.
 func (c *cluster) Close() (err error) {
 	c.cancel()
-	c.grpcConns.Range(func(k, v interface{}) bool {
-		err = v.(*grpc.ClientConn).Close()
-		return err == nil
-	})
+	c.grpcConnsMu.Lock()
+	defer c.grpcConnsMu.Unlock()
+
+	for host, conn := range c.grpcConns {
+		if closeErr := conn.Close(); err == nil {
+			err = errors.Wrapf(closeErr, "close connection to %s", host)
+		}
+	}
 	return err
 }
 
