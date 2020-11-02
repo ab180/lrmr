@@ -29,7 +29,7 @@ func TestRunWithoutMaster(t *testing.T) {
 			Convey("Stopping master should not affect metric collection", func() {
 				m, err := newJob.Metrics()
 				So(err, ShouldBeNil)
-				So(m["HaltForMasterFailure0/Input"], ShouldEqual, 5)
+				So(m["Input"], ShouldEqual, 5)
 			})
 		})
 

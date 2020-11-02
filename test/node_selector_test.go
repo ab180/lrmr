@@ -26,9 +26,9 @@ func TestNodeSelection(t *testing.T) {
 				So(err, ShouldBeNil)
 
 				// NumPartitions = (number of nodes) * 2 (=default concurrency in StartLocalCluster)
-				So(m["countNumPartitions0/NumPartitions"], ShouldEqual, 2)
+				So(m["NumPartitions"], ShouldEqual, 2)
 			})
-		})
+		}, lrmr.WithNodeSelector(map[string]string{"No": "1"})))
 
 		Convey("Running job with selector which doesn't match any nodes", func() {
 			cluster := testutils.StartLocalCluster(c, 2, lrmr.WithNodeSelector(map[string]string{"going": "nowhere"}))

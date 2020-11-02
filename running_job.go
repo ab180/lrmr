@@ -31,7 +31,16 @@ func (r *RunningJob) Status() job.RunningState {
 }
 
 func (r *RunningJob) Metrics() (job.Metrics, error) {
-	return r.Master.JobTracker.CollectMetric(r.Job)
+	statuses, err := r.Master.JobManager.ListTaskStatusesInJob(context.TODO(), r.Job.ID)
+	if err != nil {
+		return nil, errors.Wrap(err, "list task status")
+	}
+
+	metric := make(job.Metrics)
+	for _, status := range statuses {
+		metric = metric.Sum(status.Metrics)
+	}
+	return metric, nil
 }
 
 func (r *RunningJob) Wait() error {

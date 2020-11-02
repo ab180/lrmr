@@ -25,8 +25,8 @@ func TestBasicGroupByKey(t *testing.T) {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
 					So(m, ShouldResemble, job.Metrics{
-						"jsonDecoder0/Files": 55,
-						"counter1/Events":    647437,
+						"Files":  55,
+						"Events": 647437,
 					})
 				})
 			})
@@ -72,8 +72,8 @@ func TestSimpleCount(t *testing.T) {
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
-					So(m, ShouldContainKey, "counter0/Events")
-					So(m["counter0/Events"], ShouldEqual, 3)
+					So(m, ShouldContainKey, "Events")
+					So(m["Events"], ShouldEqual, 3)
 				})
 			})
 		})

@@ -25,8 +25,8 @@ func TestComplicatedQuery(t *testing.T) {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
 					So(m, ShouldResemble, job.Metrics{
-						"jsonDecoder0/Files": 55,
-						"counter2/Events":    647437,
+						"Files":  55,
+						"Events": 647437,
 					})
 				})
 			})

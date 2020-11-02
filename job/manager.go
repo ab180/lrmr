@@ -134,23 +134,6 @@ func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...int
 	return jobs, nil
 }
 
-func (m *Manager) ListTasks(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Task, error) {
-	keyPrefix := path.Join(taskNs, fmt.Sprintf(prefixFormat, args...))
-	results, err := m.clusterState.Scan(ctx, keyPrefix)
-	if err != nil {
-		return nil, err
-	}
-	tasks := make([]*Task, len(results))
-	for i, item := range results {
-		task := &Task{}
-		if err := item.Unmarshal(task); err != nil {
-			return nil, fmt.Errorf("unmarshal %s: %w", item.Key, err)
-		}
-		tasks[i] = task
-	}
-	return tasks, nil
-}
-
 func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	status := NewTaskStatus()
 	if err := m.clusterState.Put(ctx, path.Join(taskStatusNs, task.ID().String()), status); err != nil {
@@ -173,4 +156,19 @@ func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, e
 		return nil, errors.Wrap(err, "get task")
 	}
 	return status, nil
+}
+
+func (m *Manager) ListTaskStatusesInJob(ctx context.Context, jobID string) ([]*TaskStatus, error) {
+	items, err := m.clusterState.Scan(ctx, path.Join(taskStatusNs, jobID))
+	if err != nil {
+		return nil, errors.Wrap(err, "get task")
+	}
+	statuses := make([]*TaskStatus, len(items))
+	for i, item := range items {
+		statuses[i] = new(TaskStatus)
+		if err := item.Unmarshal(statuses[i]); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal task status %s", item.Key)
+		}
+	}
+	return statuses, nil
 }
