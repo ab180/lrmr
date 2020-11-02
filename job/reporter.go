@@ -23,20 +23,17 @@ type TaskReporter struct {
 	flushMu sync.Mutex
 	dirty   atomic.Bool
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	log    logger.Logger
+	ctx context.Context
+	log logger.Logger
 }
 
 func NewTaskReporter(ctx context.Context, cs cluster.State, j *Job, task TaskID, s *TaskStatus) *TaskReporter {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &TaskReporter{
 		clusterState: cs,
 		task:         task,
 		job:          j,
 		status:       s,
 		ctx:          ctx,
-		cancel:       cancel,
 		log:          logger.New("lrmr.jobReporter"),
 	}
 }
@@ -53,47 +50,39 @@ func (r *TaskReporter) UpdateMetric(mutator func(Metrics)) {
 }
 
 func (r *TaskReporter) ReportSuccess() error {
-	r.UpdateStatus(func(ts *TaskStatus) {
-		ts.Complete(Succeeded)
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
 
-		elapsed := ts.CompletedAt.Sub(ts.SubmittedAt)
-		r.log.Verbose("Task {} succeeded after {}", r.task, elapsed)
-	})
-	if err := r.flushTaskStatus(); err != nil {
-		return errors.Wrap(err, "update task status")
-	}
+	r.status.Complete(Succeeded)
 
-	doneTasks, err := r.clusterState.IncrementCounter(r.ctx, stageStatusKey(r.task, "doneTasks"))
+	txn := coordinator.NewTxn().
+		Put(path.Join(taskStatusNs, r.task.String()), r.status).
+		IncrementCounter(stageStatusKey(r.task, "doneTasks"))
+
+	res, err := r.clusterState.Commit(r.ctx, txn)
 	if err != nil {
-		return errors.Wrap(err, "increase done task count")
+		return errors.Wrap(err, "write etcd")
 	}
-	r.checkForStageCompletion(int(doneTasks), 0)
+	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
+	r.log.Verbose("Task {} succeeded after {}", r.task, elapsed)
+
+	r.checkForStageCompletion(int(res[1].Counter), 0)
 	return nil
 }
 
 // ReportFailure marks the task as failed. If the error is non-nil, it's added to the error list of the job.
 // Passing nil in error will only cancel the task.
 func (r *TaskReporter) ReportFailure(err error) error {
-	r.UpdateStatus(func(ts *TaskStatus) {
-		ts.Complete(Failed)
-		if err != nil {
-			ts.Error = err.Error()
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
 
-			elapsed := ts.CompletedAt.Sub(ts.SubmittedAt)
-			switch err.(type) {
-			case *logger.PanicError:
-				panicErr := err.(*logger.PanicError)
-				r.log.Error("Task {} failed after {} with {}", r.task, elapsed, panicErr.Pretty())
-			default:
-				r.log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
-			}
-		}
-	})
-	if err := r.flushTaskStatus(); err != nil {
-		return fmt.Errorf("update task status: %w", err)
+	r.status.Complete(Failed)
+	if err != nil {
+		r.status.Error = err.Error()
 	}
 
 	txn := coordinator.NewTxn().
+		Put(path.Join(taskStatusNs, r.task.String()), r.status).
 		IncrementCounter(stageStatusKey(r.task, "doneTasks")).
 		IncrementCounter(stageStatusKey(r.task, "failedTasks"))
 
@@ -105,11 +94,20 @@ func (r *TaskReporter) ReportFailure(err error) error {
 		}
 		txn = txn.Put(jobErrorKey(r.task), errDesc)
 	}
-	res, err := r.clusterState.Commit(context.TODO(), txn)
-	if err != nil {
-		return err
+	res, etcdErr := r.clusterState.Commit(r.ctx, txn)
+	if etcdErr != nil {
+		return errors.Wrap(etcdErr, "write etcd")
 	}
-	r.checkForStageCompletion(int(res[0].Counter), int(res[1].Counter))
+	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
+	switch err.(type) {
+	case *logger.PanicError:
+		panicErr := err.(*logger.PanicError)
+		r.log.Error("Task {} failed after {} with {}", r.task, elapsed, panicErr.Pretty())
+	default:
+		r.log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
+	}
+
+	r.checkForStageCompletion(int(res[1].Counter), int(res[2].Counter))
 	return nil
 }
 
@@ -208,10 +206,6 @@ func (r *TaskReporter) flushTaskStatus() error {
 	r.flushMu.Unlock()
 
 	return r.clusterState.Put(r.ctx, path.Join(taskStatusNs, r.task.String()), status)
-}
-
-func (r *TaskReporter) Close() {
-	r.cancel()
 }
 
 // stageStatusKey returns a key of stage summary entry with given name.
