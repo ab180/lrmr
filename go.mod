@@ -18,7 +18,7 @@ require (
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/thoas/go-funk v0.5.0
 	github.com/vmihailenco/msgpack/v5 v5.0.0-beta.1
-	go.etcd.io/etcd/api/v3 v3.0.0-00010101000000-000000000000
+	go.etcd.io/etcd/api/v3 v3.0.0-20201026174226-7da5182f1d02
 	go.etcd.io/etcd/client/v3 v3.0.0-20201026174226-7da5182f1d02
 	go.uber.org/atomic v1.6.0
 	go.uber.org/goleak v1.1.10
