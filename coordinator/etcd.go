@@ -9,7 +9,6 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -39,7 +38,6 @@ func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli.WithLogger(zap.NewNop())
 	return &Etcd{
 		Client:  cli,
 		KV:      namespace.NewKV(cli, nsPrefix),
@@ -191,7 +189,12 @@ func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.Leas
 }
 
 func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
-	_, err := e.Lease.KeepAlive(ctx, lease)
+	resp, err := e.Lease.KeepAlive(ctx, lease)
+	go func() {
+		for range resp {
+			// drain KeepAlive response channel
+		}
+	}()
 	return err
 }
 

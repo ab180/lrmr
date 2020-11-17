@@ -22,7 +22,6 @@ require (
 	go.etcd.io/etcd/client/v3 v3.0.0-20201026174226-7da5182f1d02
 	go.uber.org/atomic v1.6.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.16.0
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	google.golang.org/grpc v1.29.1
 )
