@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/airbloc/logger"
@@ -22,7 +23,7 @@ type TaskExecutor struct {
 
 	Input    *input.Reader
 	function transformation.Transformation
-	Output   output.Output
+	Output   *output.Writer
 
 	broadcast    serialization.Broadcast
 	localOptions map[string]interface{}
@@ -40,7 +41,7 @@ func NewTaskExecutor(
 	status *job.TaskStatus,
 	fn transformation.Transformation,
 	in *input.Reader,
-	out output.Output,
+	out *output.Writer,
 	broadcast serialization.Broadcast,
 	localOptions map[string]interface{},
 ) *TaskExecutor {
@@ -53,7 +54,7 @@ func NewTaskExecutor(
 		broadcast:    broadcast,
 		localOptions: localOptions,
 		finishChan:   make(chan struct{}, 1),
-		taskReporter: job.NewTaskReporter(ctx, cs, j, task.ID(), status),
+		taskReporter: job.NewTaskReporter(parentCtx, cs, j, task.ID(), status),
 		jobManager:   job.NewManager(cs),
 	}
 	exec.context = newTaskContext(ctx, exec)
@@ -63,6 +64,7 @@ func NewTaskExecutor(
 
 func (e *TaskExecutor) Run() {
 	defer e.guardPanic()
+	totalRows := 0
 
 	// pipe input.Reader.C to function input channel
 	inputChan := make(chan *lrdd.Row, 100)
@@ -76,6 +78,7 @@ func (e *TaskExecutor) Run() {
 				}
 				inputChan <- r
 			}
+			totalRows += len(rows)
 		}
 	}()
 
@@ -89,6 +92,9 @@ func (e *TaskExecutor) Run() {
 	} else if e.context.Err() != nil {
 		return
 	}
+	e.close()
+	e.context.AddMetric(fmt.Sprintf("%s/%s/InputRows", e.task.StageName, e.task.PartitionID), totalRows)
+
 	if err := e.taskReporter.ReportSuccess(); err != nil {
 		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
@@ -96,15 +102,14 @@ func (e *TaskExecutor) Run() {
 		e.Abort(errors.Wrap(err, "close output"))
 		return
 	}
-	e.close()
 }
 
 func (e *TaskExecutor) Abort(err error) {
+	e.close()
 	reportErr := e.taskReporter.ReportFailure(err)
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", reportErr)
 	}
-	e.close()
 	_ = e.Output.Close()
 }
 

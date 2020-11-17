@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/job"
 	"github.com/therne/lrmr/test/integration"
 	"go.uber.org/goleak"
 )
@@ -12,7 +11,7 @@ import (
 func TestComplicatedQuery(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+	Convey("Given running nodes", t, integration.WithLocalCluster(4, func(cluster *integration.LocalCluster) {
 		Convey("When doing ComplicatedQuery", func() {
 			ds := ComplicatedQuery(cluster.Session)
 			j, err := ds.Run()
@@ -24,10 +23,10 @@ func TestComplicatedQuery(t *testing.T) {
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
-					So(m, ShouldResemble, job.Metrics{
-						"Files":  55,
-						"Events": 647437,
-					})
+
+					t.Logf("Metrics collected:\n%s", m.String())
+					So(m["Files"], ShouldEqual, 55)
+					So(m["Events"], ShouldEqual, 647437)
 				})
 			})
 		})
