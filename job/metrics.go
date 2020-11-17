@@ -1,5 +1,12 @@
 package job
 
+import (
+	"fmt"
+	"sort"
+
+	"github.com/thoas/go-funk"
+)
+
 type Metrics map[string]int
 
 // Sum merges two metrics. When a key collides, it sums two key.
@@ -34,4 +41,15 @@ func (m Metrics) AddPrefix(p string) (prefixed Metrics) {
 		prefixed[p+k] = v
 	}
 	return
+}
+
+func (m Metrics) String() string {
+	keys := funk.Keys(m).([]string)
+	sort.Strings(keys)
+
+	metricLogs := ""
+	for _, key := range keys {
+		metricLogs += fmt.Sprintf(" - %s: %d\n", key, m[key])
+	}
+	return metricLogs
 }
