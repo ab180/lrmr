@@ -15,7 +15,7 @@ type InputProvider interface {
 }
 
 type localInput struct {
-	partitions.ShuffledPartitioner
+	partitions.RoundRobbinPartitioner
 	Path string
 }
 
@@ -29,7 +29,7 @@ func (l localInput) FeedInput(out output.Output) error {
 }
 
 type parallelizedInput struct {
-	partitions.ShuffledPartitioner
+	partitions.RoundRobbinPartitioner
 	data []*lrdd.Row
 }
 

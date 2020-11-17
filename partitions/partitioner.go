@@ -123,6 +123,21 @@ func (f *ShuffledPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutp
 	return strconv.Itoa(slot), nil
 }
 
+// RoundRobbinPartitioner distributes input evenly. Not safe for currency.
+type RoundRobbinPartitioner struct {
+	currentSlot int
+}
+
+func (f *RoundRobbinPartitioner) PlanNext(numExecutors int) []Partition {
+	return PlanForNumberOf(numExecutors)
+}
+
+func (f *RoundRobbinPartitioner) DeterminePartition(c Context, r *lrdd.Row, numOutputs int) (id string, err error) {
+	slot := strconv.Itoa(f.currentSlot % numOutputs)
+	f.currentSlot++
+	return slot, nil
+}
+
 type PreservePartitioner struct{}
 
 func NewPreservePartitioner() Partitioner {

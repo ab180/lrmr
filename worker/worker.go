@@ -171,7 +171,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (output.Output, error) {
+func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (*output.Writer, error) {
 	idToOutput := make(map[string]output.Output)
 	cur := j.GetStage(stageName)
 	if cur.Output.Stage == "" {
