@@ -5,7 +5,7 @@ import (
 )
 
 type Options struct {
-	BufferLength   int `default:"1000"`
+	BufferLength   int `default:"10000"`
 	MaxSendMsgSize int `default:"2147483647"`
 }
 

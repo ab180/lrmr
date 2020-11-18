@@ -3,14 +3,12 @@ package output
 import (
 	"github.com/pkg/errors"
 	"github.com/therne/lrmr/lrdd"
-	"sync"
 )
 
 // BufferedOutput wraps Output with buffering.
 type BufferedOutput struct {
 	buf    []*lrdd.Row
 	offset int
-	lock   sync.RWMutex
 	output Output
 }
 
@@ -25,15 +23,12 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 }
 
 func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
 	// log.Verbose("Start write {} rows (Offset: {}/{})", len(d), b.offset, len(b.buf))
 	for len(d) > 0 {
 		writeLen := min(len(d), len(b.buf)-b.offset)
 		b.offset += copy(b.buf[b.offset:], d[:writeLen])
 		if b.offset == len(b.buf) {
-			err := b.flush()
+			err := b.Flush()
 			if err != nil {
 				return err
 			}
@@ -45,18 +40,12 @@ func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
 	return nil
 }
 
-func (b *BufferedOutput) flush() (err error) {
-	if err = b.output.Write(b.buf[:b.offset]...); err != nil {
-		return
+func (b *BufferedOutput) Flush() error {
+	if err := b.output.Write(b.buf[:b.offset]...); err != nil {
+		return err
 	}
 	b.offset = 0
-	return
-}
-
-func (b *BufferedOutput) Flush() error {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	return b.flush()
+	return nil
 }
 
 func (b *BufferedOutput) Close() error {
