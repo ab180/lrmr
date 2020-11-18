@@ -56,8 +56,6 @@ func (r *RunningJob) Wait() error {
 }
 
 func (r *RunningJob) WaitWithContext(ctx context.Context) error {
-	defer r.dumpMetricsOnBackground()
-
 	jobWaitChan := make(chan struct{}, 1)
 	r.Master.JobTracker.OnJobCompletion(r.Job, func(j *job.Job, status *job.Status) {
 		r.statusMu.Lock()
@@ -65,6 +63,7 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 		r.statusMu.Unlock()
 
 		jobWaitChan <- struct{}{}
+		r.logMetrics()
 	})
 
 	select {
@@ -81,7 +80,9 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 }
 
 func (r *RunningJob) Collect() ([]*lrdd.Row, error) {
-	defer r.dumpMetricsOnBackground()
+	r.Master.JobTracker.OnJobCompletion(r.Job, func(j *job.Job, status *job.Status) {
+		r.logMetrics()
+	})
 	return r.Master.CollectedResults(r.Job.ID)
 }
 
@@ -112,13 +113,11 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 	return Aborted
 }
 
-func (r *RunningJob) dumpMetricsOnBackground() {
-	go func() {
-		metrics, err := r.Metrics()
-		if err != nil {
-			log.Warn("Collecting metric of job {} failed: {}", r.Job.ID, err)
-			return
-		}
-		log.Verbose("Metrics collected:\n{}", metrics)
-	}()
+func (r *RunningJob) logMetrics() {
+	metrics, err := r.Metrics()
+	if err != nil {
+		log.Warn("Collecting metric of job {} failed: {}", r.Job.ID, err)
+		return
+	}
+	log.Verbose("Metrics collected:\n{}", metrics)
 }

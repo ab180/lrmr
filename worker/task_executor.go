@@ -95,12 +95,12 @@ func (e *TaskExecutor) Run() {
 	e.close()
 	e.context.AddMetric(fmt.Sprintf("%s/%s/InputRows", e.task.StageName, e.task.PartitionID), totalRows)
 
-	if err := e.taskReporter.ReportSuccess(); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
-	}
 	if err := e.Output.Close(); err != nil {
 		e.Abort(errors.Wrap(err, "close output"))
 		return
+	}
+	if err := e.taskReporter.ReportSuccess(); err != nil {
+		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
 }
 
