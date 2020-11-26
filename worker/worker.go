@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"io"
 	"net"
 	"path"
 	"strings"
@@ -254,15 +255,23 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
-	// for {
-	// 	req, err := stream.Recv()
-	// 	if err != nil {
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 		return
-	// 	}
-	// }
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		rows, err := exec.Output.Dispatch(h.TaskID, int(req.N))
+		if err != nil {
+			return err
+		}
+		resp := &lrmrpb.PollDataResponse{Data: rows}
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
 	panic("implement me")
 }
 

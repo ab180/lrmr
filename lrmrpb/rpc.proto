@@ -70,6 +70,7 @@ message PollDataRequest {
 
 message PollDataResponse {
     repeated lrdd.Row data = 1;
+    bool isEOF = 2;
 }
 
 message DataHeader {
