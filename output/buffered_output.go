@@ -1,8 +1,8 @@
 package output
 
 import (
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/lrdd"
 )
 
 // BufferedOutput wraps Output with buffering.

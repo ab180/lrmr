@@ -1,8 +1,8 @@
 package output
 
 import (
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/lrdd"
 )
 
 var log = logger.New("output")

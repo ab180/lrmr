@@ -1,9 +1,9 @@
 package lrmr
 
 import (
+	"github.com/ab180/lrmr/master"
+	"github.com/ab180/lrmr/worker"
 	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/worker"
 )
 
 type Option func(op *Options)

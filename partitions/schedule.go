@@ -3,8 +3,8 @@ package partitions
 import (
 	"sort"
 
+	"github.com/ab180/lrmr/cluster/node"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/cluster/node"
 	"github.com/thoas/go-funk"
 )
 

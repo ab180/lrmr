@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/test/integration"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/cluster"
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/test/integration"
 	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"

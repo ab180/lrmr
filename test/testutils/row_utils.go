@@ -1,6 +1,6 @@
 package testutils
 
-import "github.com/therne/lrmr/lrdd"
+import "github.com/ab180/lrmr/lrdd"
 
 func StringValue(row *lrdd.Row) (s string) {
 	row.UnmarshalValue(&s)

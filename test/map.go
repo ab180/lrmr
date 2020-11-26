@@ -1,9 +1,9 @@
 package test
 
 import (
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/test/testutils"
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/test/testutils"
 )
 
 var _ = lrmr.RegisterTypes(&Multiply{})

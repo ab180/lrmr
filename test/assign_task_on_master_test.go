@@ -3,8 +3,8 @@ package test
 import (
 	"testing"
 
+	"github.com/ab180/lrmr/test/integration"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/test/integration"
 )
 
 func TestAssignTaskOnMaster(t *testing.T) {

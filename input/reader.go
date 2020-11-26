@@ -1,7 +1,7 @@
 package input
 
 import (
-	"github.com/therne/lrmr/lrdd"
+	"github.com/ab180/lrmr/lrdd"
 	"go.uber.org/atomic"
 
 	"sync"

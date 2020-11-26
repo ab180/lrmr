@@ -3,8 +3,8 @@ package serialization
 import (
 	"testing"
 
+	"github.com/ab180/lrmr/cluster/node"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/cluster/node"
 )
 
 func TestSerializeStruct(t *testing.T) {

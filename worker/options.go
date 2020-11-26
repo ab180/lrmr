@@ -3,9 +3,9 @@ package worker
 import (
 	"runtime"
 
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/output"
 	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/output"
 )
 
 type Options struct {

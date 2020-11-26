@@ -1,6 +1,6 @@
 package input
 
-import "github.com/therne/lrmr/job"
+import "github.com/ab180/lrmr/job"
 
 type Input interface {
 	CloseWithStatus(s job.Status) error

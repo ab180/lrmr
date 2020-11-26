@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/coordinator"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr/cluster"
-	"github.com/therne/lrmr/coordinator"
 )
 
 // JobTracker tracks and updates jobs and their tasks' status.

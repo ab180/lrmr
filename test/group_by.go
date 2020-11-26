@@ -1,18 +1,19 @@
 package test
 
 import (
-	"github.com/therne/lrmr"
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/test/testdata"
 )
 
 func BasicGroupByKey(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.FromFile("/Users/vista/testdata/").
+	return sess.FromFile(testdata.Path()).
 		FlatMap(DecodeJSON()).
 		GroupByKey().
 		Reduce(Count())
 }
 
 func BasicGroupByKnownKeys(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.FromFile("/Users/vista/testdata/").
+	return sess.FromFile(testdata.Path()).
 		FlatMap(DecodeJSON()).
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
 		Reduce(Count())

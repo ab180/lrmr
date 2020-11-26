@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/partitions"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/output"
+	"github.com/ab180/lrmr/partitions"
 )
 
 type InputProvider interface {

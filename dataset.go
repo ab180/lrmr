@@ -3,13 +3,13 @@ package lrmr
 import (
 	"fmt"
 
-	"github.com/therne/lrmr/internal/util"
-	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/stage"
-	"github.com/therne/lrmr/transformation"
+	"github.com/ab180/lrmr/internal/util"
+	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/master"
+	"github.com/ab180/lrmr/partitions"
+	"github.com/ab180/lrmr/stage"
+	"github.com/ab180/lrmr/transformation"
 )
 
 // Dataset is less-resilient distributed dataset

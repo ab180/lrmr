@@ -5,10 +5,10 @@ import (
 	"path"
 	"sync"
 
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/coordinator"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/coordinator"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

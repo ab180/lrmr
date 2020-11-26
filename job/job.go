@@ -3,8 +3,8 @@ package job
 import (
 	"time"
 
-	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/stage"
+	"github.com/ab180/lrmr/partitions"
+	"github.com/ab180/lrmr/stage"
 )
 
 type Job struct {

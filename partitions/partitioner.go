@@ -4,9 +4,9 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/ab180/lrmr/internal/serialization"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/segmentio/fasthash/fnv1a"
-	"github.com/therne/lrmr/internal/serialization"
-	"github.com/therne/lrmr/lrdd"
 )
 
 // ErrNoOutput is returned by Partitioner.DeterminePartition when there's no

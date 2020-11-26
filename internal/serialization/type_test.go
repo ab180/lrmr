@@ -45,10 +45,10 @@ func TestTypeFromString(t *testing.T) {
 
 		Convey("With alias of primitives", func() {
 			tt := TypeOf(AliasInt(0))
-			So(tt.String(), ShouldEqual, "github.com/therne/lrmr/internal/serialization.AliasInt")
+			So(tt.String(), ShouldEqual, "github.com/ab180/lrmr/internal/serialization.AliasInt")
 
 			Convey("It should not raise any error", func() {
-				t, err := TypeFromString("[]github.com/therne/lrmr/internal/serialization.AliasInt")
+				t, err := TypeFromString("[]github.com/ab180/lrmr/internal/serialization.AliasInt")
 				So(err, ShouldBeNil)
 				So(t.IsSameType([]AliasInt{0}), ShouldBeTrue)
 			})

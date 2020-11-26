@@ -1,9 +1,9 @@
 package output
 
 import (
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/partitions"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/partitions"
 )
 
 type Writer struct {

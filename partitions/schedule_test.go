@@ -3,9 +3,9 @@ package partitions
 import (
 	"testing"
 
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/lrdd"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/lrdd"
 )
 
 func TestScheduler_AffinityRule(t *testing.T) {

@@ -1,9 +1,9 @@
 package master
 
 import (
+	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/output"
 	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/cluster"
-	"github.com/therne/lrmr/output"
 )
 
 type Options struct {

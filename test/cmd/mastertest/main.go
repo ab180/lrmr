@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/test"
+	"github.com/ab180/lrmr/test/testdata"
 	"github.com/airbloc/logger"
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/test"
 )
 
 var log = logger.New("master")
@@ -21,7 +22,7 @@ func main() {
 
 	sess := lrmr.NewSession(context.TODO(), m, lrmr.WithName("GroupByApp"))
 
-	ds := sess.FromFile("/Users/vista/testdata/").
+	ds := sess.FromFile(testdata.Path()).
 		WithWorkerCount(8).
 		FlatMap(test.DecodeJSON()).
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).

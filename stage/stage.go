@@ -1,9 +1,9 @@
 package stage
 
 import (
-	"github.com/therne/lrmr/internal/serialization"
-	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/transformation"
+	"github.com/ab180/lrmr/internal/serialization"
+	"github.com/ab180/lrmr/partitions"
+	"github.com/ab180/lrmr/transformation"
 )
 
 type Stage struct {

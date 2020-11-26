@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/therne/lrmr"
-	_ "github.com/therne/lrmr/test"
+	"github.com/ab180/lrmr"
+	_ "github.com/ab180/lrmr/test"
 )
 
 func main() {

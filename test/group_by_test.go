@@ -3,10 +3,10 @@ package test
 import (
 	"testing"
 
+	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/test/integration"
-	"github.com/therne/lrmr/test/testutils"
 )
 
 func TestBasicGroupByKey(t *testing.T) {

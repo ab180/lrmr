@@ -3,7 +3,7 @@ package node
 import (
 	"runtime"
 
-	"github.com/therne/lrmr/coordinator"
+	"github.com/ab180/lrmr/coordinator"
 )
 
 type Type string

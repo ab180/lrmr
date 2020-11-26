@@ -3,11 +3,11 @@ package test
 import (
 	"testing"
 
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/master"
+	"github.com/ab180/lrmr/test/integration"
 	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/test/integration"
 )
 
 func TestNodeSelection(t *testing.T) {

@@ -1,6 +1,6 @@
 package output
 
-import "github.com/therne/lrmr/lrdd"
+import "github.com/ab180/lrmr/lrdd"
 
 type outputMock struct {
 	Rows []*lrdd.Row

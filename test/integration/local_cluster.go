@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/master"
+	"github.com/ab180/lrmr/worker"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/master"
-	"github.com/therne/lrmr/worker"
 )
 
 type LocalCluster struct {

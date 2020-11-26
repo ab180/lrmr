@@ -1,11 +1,12 @@
 package test
 
 import (
-	"github.com/therne/lrmr"
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/test/testdata"
 )
 
 func ComplicatedQuery(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.FromFile("/Users/vista/testdata/").
+	return sess.FromFile(testdata.Path()).
 		FlatMap(DecodeJSON()).
 		Map(NopMapper()).
 		GroupByKey().

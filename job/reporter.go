@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/coordinator"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/cluster"
-	"github.com/therne/lrmr/coordinator"
 	"go.uber.org/atomic"
 )
 

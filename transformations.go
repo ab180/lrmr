@@ -5,12 +5,12 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/ab180/lrmr/internal/serialization"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/output"
+	"github.com/ab180/lrmr/transformation"
 	"github.com/jinzhu/copier"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/internal/serialization"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/transformation"
 )
 
 func RegisterTypes(tfs ...interface{}) interface{} {
@@ -187,6 +187,70 @@ func (s *sortTransformation) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	s.sorter = sorter.(Sorter)
+	return nil
+}
+
+type Combiner interface {
+	MapValueToAccumulator(value *lrdd.Row) (acc interface{})
+	MergeValue(ctx Context, prevAcc interface{}, curValue *lrdd.Row) (nextAcc interface{}, err error)
+	MergeAccumulator(ctx Context, prevAcc, curAcc interface{})
+}
+
+type combinerTransformation struct {
+	combinerPrototype Combiner
+}
+
+func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
+	combiners := make(map[string]Combiner)
+	state := make(map[string]interface{})
+
+	for row := range in {
+		ctx := replacePartitionKey(c, row.Key)
+
+		combiner := combiners[row.Key]
+		if combiner == nil {
+			combiner = f.instantiateCombiner()
+			initialState := combiner.MapValueToAccumulator(row)
+
+			combiners[row.Key] = combiner
+			state[row.Key] = initialState
+			continue
+		}
+		next, err := combiner.MergeValue(ctx, state[row.Key], row)
+		if err != nil {
+			return err
+		}
+		state[row.Key] = next
+	}
+
+	i := 0
+	rows := make([]*lrdd.Row, len(state))
+	for key, finalVal := range state {
+		rows[i] = lrdd.KeyValue(key, finalVal)
+		i++
+	}
+	return out.Write(rows...)
+}
+
+func (f *combinerTransformation) instantiateCombiner() Combiner {
+	// clone combiner object from prototype
+	c := reflect.New(reflect.TypeOf(f.combinerPrototype).Elem()).Interface()
+	if err := copier.Copy(c, f.combinerPrototype); err != nil {
+		panic("failed to instantiate combiner: " + err.Error())
+	}
+	return c.(Combiner)
+}
+
+func (f *combinerTransformation) MarshalJSON() ([]byte, error) {
+	return serialization.SerializeStruct(f.combinerPrototype)
+}
+
+func (f *combinerTransformation) UnmarshalJSON(data []byte) error {
+	v, err := serialization.DeserializeStruct(data)
+	if err != nil {
+		return err
+	}
+	f.combinerPrototype = v.(Combiner)
 	return nil
 }
 

@@ -1,9 +1,9 @@
 package worker
 
 import (
-	"github.com/therne/lrmr/input"
-	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/lrdd"
+	"github.com/ab180/lrmr/input"
+	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/lrdd"
 )
 
 type LocalPipe struct {

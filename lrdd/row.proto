@@ -1,7 +1,7 @@
 syntax = "proto3";
 package lrdd;
 
-option go_package = "github.com/therne/lrmr/lrdd";
+option go_package = "github.com/ab180/lrmr/lrdd";
 
 message Row {
     string key = 1;

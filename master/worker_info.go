@@ -3,8 +3,8 @@ package master
 import (
 	"context"
 
-	"github.com/therne/lrmr/cluster"
-	"github.com/therne/lrmr/cluster/node"
+	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/cluster/node"
 	"google.golang.org/grpc"
 )
 

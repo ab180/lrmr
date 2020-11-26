@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/stage"
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/stage"
 )
 
 type Task struct {

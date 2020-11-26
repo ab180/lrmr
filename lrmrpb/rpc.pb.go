@@ -6,11 +6,11 @@ package lrmrpb
 import (
 	context "context"
 	fmt "fmt"
+	pbtypes "github.com/ab180/lrmr/internal/pbtypes"
+	lrdd "github.com/ab180/lrmr/lrdd"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
-	pbtypes "github.com/therne/lrmr/internal/pbtypes"
-	lrdd "github.com/therne/lrmr/lrdd"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

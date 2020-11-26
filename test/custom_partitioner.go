@@ -3,9 +3,9 @@ package test
 import (
 	"strconv"
 
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/lrdd"
-	partitions "github.com/therne/lrmr/partitions"
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/lrdd"
+	partitions "github.com/ab180/lrmr/partitions"
 )
 
 var _ = lrmr.RegisterTypes(&dummyMapper{}, &nodeAffinityTester{})

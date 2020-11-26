@@ -3,8 +3,8 @@ package test
 import (
 	"time"
 
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/lrdd"
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/lrdd"
 )
 
 var _ = lrmr.RegisterTypes(FailingStage{})

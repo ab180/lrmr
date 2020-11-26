@@ -1,8 +1,8 @@
 package output
 
 import (
+	"github.com/ab180/lrmr/lrdd"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/lrdd"
 	"strconv"
 	"testing"
 )

@@ -1,4 +1,4 @@
-module github.com/therne/lrmr
+module github.com/ab180/lrmr
 
 go 1.14
 

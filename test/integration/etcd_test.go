@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/therne/lrmr/coordinator"
-	"github.com/therne/lrmr/test/testutils"
 	"github.com/thoas/go-funk"
 	"golang.org/x/sync/errgroup"
 )

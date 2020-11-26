@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/ab180/lrmr/internal/serialization"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/master"
 	"github.com/goombaio/namegenerator"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/internal/serialization"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/master"
 )
 
 type Session struct {

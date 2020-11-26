@@ -3,8 +3,8 @@ package worker
 import (
 	"context"
 
-	"github.com/therne/lrmr/job"
-	"github.com/therne/lrmr/transformation"
+	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/transformation"
 )
 
 type taskContext struct {

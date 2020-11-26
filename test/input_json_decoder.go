@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr"
-	"github.com/therne/lrmr/lrdd"
 )
 
 type jsonDecoder struct{}
@@ -46,9 +46,7 @@ func (l *jsonDecoder) FlatMap(ctx lrmr.Context, in *lrdd.Row) (result []*lrdd.Ro
 		if err := jsoniter.Unmarshal(line, &msg); err != nil {
 			return nil, err
 		}
-		data := msg["data"].(map[string]interface{})
-		app := data["app"].(map[string]interface{})
-		appID := strconv.Itoa(int(app["appID"].(float64)))
+		appID := strconv.Itoa(int(msg["appID"].(float64)))
 		result = append(result, lrdd.KeyValue(appID, msg))
 	}
 	return result, file.Close()

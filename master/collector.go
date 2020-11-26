@@ -3,12 +3,12 @@ package master
 import (
 	"sync"
 
+	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/output"
+	"github.com/ab180/lrmr/partitions"
+	"github.com/ab180/lrmr/transformation"
 	"github.com/pkg/errors"
-	"github.com/therne/lrmr/cluster/node"
-	"github.com/therne/lrmr/lrdd"
-	"github.com/therne/lrmr/output"
-	"github.com/therne/lrmr/partitions"
-	"github.com/therne/lrmr/transformation"
 )
 
 const CollectStageName = "_collect"

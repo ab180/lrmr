@@ -3,8 +3,8 @@ package cluster
 import (
 	"time"
 
+	"github.com/ab180/lrmr/cluster/node"
 	"github.com/creasty/defaults"
-	"github.com/therne/lrmr/cluster/node"
 )
 
 type Options struct {
