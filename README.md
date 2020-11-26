@@ -1,9 +1,9 @@
 lrmr
 ========
 
-Less-Resilient MapReduce for Go.
+Online MapReduce framework for Go, which is capable for jobs in sub-second.
 
- * Fast job scheduling
+ * Sacrificing resilience for fast performance
  * Easily scalable onto distributed clusters
  * Easily embeddable to existing applications
  * Uses **etcd** for cluster management / coordination
@@ -12,10 +12,10 @@ Less-Resilient MapReduce for Go.
 package main
 
 import (
-	"context"
+    "context"
     "fmt"
-	"github.com/therne/lrmr"
-	. "github.com/therne/lrmr/playground"
+    "github.com/ab180/lrmr"
+    . "github.com/ab180/lrmr/test"
 )
 
 func main() {
@@ -26,17 +26,17 @@ func main() {
     m.Start()
     defer m.Stop()
 
-    dataset := lrmr.TextFile("./test-jsons/", m).
+    result, err := lrmr.NewSession(context.TODO(), m).
+        FromFile("./testdata/").
         FlatMap(DecodeJSON()).
         GroupByKey().
-        Reduce(Count())
+        Reduce(Count()).
+        Collect()
 
-    job, err := dataset.Run(context.Background(), "GroupByApp")
     if err != nil {
         panic(err)
     }
-    _ = job.Wait()
-    fmt.Println("Done!", job.Metrics())
+    fmt.Println("Done!", result)
 }
 ```
 
