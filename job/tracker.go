@@ -117,7 +117,7 @@ func (t *Tracker) trackStageStatus(e coordinator.WatchEvent) {
 		defer release()
 
 		for _, callback := range sub.stages {
-			callback(job, stageName, st)
+			go callback(job, stageName, st)
 		}
 
 	} else if frags[4] == "doneTasks" && e.Type == coordinator.CounterEvent {
@@ -125,7 +125,7 @@ func (t *Tracker) trackStageStatus(e coordinator.WatchEvent) {
 		defer release()
 
 		for _, callback := range sub.tasks {
-			callback(job, stageName, int(e.Counter))
+			go callback(job, stageName, int(e.Counter))
 		}
 	}
 }
@@ -157,7 +157,7 @@ func (t *Tracker) trackJobStatus(e coordinator.WatchEvent) {
 			defer release()
 
 			for _, callback := range sub.jobs {
-				callback(job, &jobStatus)
+				go callback(job, &jobStatus)
 			}
 			t.activeJobs.Delete(job.ID)
 		}
