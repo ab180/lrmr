@@ -130,18 +130,7 @@ func (d *Dataset) Collect() ([]*lrdd.Row, error) {
 		}
 		return nil, err
 	}
-	log.Verbose("Successfully collected {} results.", len(res))
-	go func() {
-		m, err := j.Metrics()
-		if err != nil {
-			log.Warn("Unable to get metric of job {} ({}): {}", j.Name, j.ID, err)
-			return
-		}
-		log.Verbose("Collected {} metrics from {} ({}):", len(m), j.Name, j.ID)
-		for key, val := range m {
-			log.Verbose(" - {}: {}", key, val)
-		}
-	}()
+	log.Info("Successfully collected {} results for job {}.", len(res), j.ID)
 	return res, nil
 }
 

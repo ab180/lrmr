@@ -118,10 +118,10 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 	if err != nil {
 		return nil, errors.WithMessage(err, "create job")
 	}
-	m.JobTracker.OnTaskCompletion(j, func(j *job.Job, stageName string, doneCountInStage int) {
-		totalTasks := len(j.GetPartitionsOfStage(stageName))
-		log.Verbose("Task ({}/{}) finished of {}/{}", doneCountInStage, totalTasks, j.ID, stageName)
-	})
+	// m.JobTracker.OnTaskCompletion(j, func(j *job.Job, stageName string, doneCountInStage int) {
+	// 	totalTasks := len(j.GetPartitionsOfStage(stageName))
+	// 	log.Verbose("Task ({}/{}) finished of {}/{}", doneCountInStage, totalTasks, j.ID, stageName)
+	// })
 	m.JobTracker.OnStageCompletion(j, func(j *job.Job, stageName string, stageStatus *job.StageStatus) {
 		log.Verbose("Stage {}/{} {}.", j.ID, stageName, stageStatus.Status)
 	})
