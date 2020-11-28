@@ -26,7 +26,7 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 	p.reader.Add(p)
 	defer p.reader.Done()
 
-	errChan := make(chan error)
+	errChan := make(chan error, 1)
 	go func() {
 		defer func() {
 			if err := logger.WrapRecover(recover()); err != nil {
@@ -36,6 +36,9 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 		for {
 			req, err := p.stream.Recv()
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				errChan <- err
 				return
 			}
