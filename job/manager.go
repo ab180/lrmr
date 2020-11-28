@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
@@ -15,14 +16,12 @@ import (
 )
 
 const (
-	jobNs         = "jobs/"
-	taskNs        = "tasks/"
-	statusNs      = "status/"
-	nodeStatusNs  = "status/node/"
-	stageStatusNs = "status/stages/"
-	taskStatusNs  = "status/tasks/"
-	jobStatusNs   = "status/jobs"
-	jobErrorNs    = "errors/jobs"
+	jobNs          = "jobs/"
+	taskNs         = "tasks/"
+	stageStatusFmt = "status/jobs/%s/stages/%s"
+	taskStatusFmt  = "status/jobs/%s/tasks/%s/%s"
+	jobStatusFmt   = "status/jobs/%s"
+	jobErrorNs     = "errors/jobs"
 )
 
 type Manager struct {
@@ -48,10 +47,10 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 	}
 	txn := coordinator.NewTxn().
 		Put(path.Join(jobNs, j.ID), j).
-		Put(path.Join(jobStatusNs, j.ID), js)
+		Put(jobStatusKey(j.ID), js)
 
 	for _, s := range j.Stages {
-		txn.Put(path.Join(stageStatusNs, j.ID, s.Name), newStageStatus())
+		txn.Put(stageStatusKey(j.ID, s.Name), newStageStatus())
 	}
 	if _, err := m.clusterState.Commit(ctx, txn); err != nil {
 		return nil, errors.Wrap(err, "etcd write")
@@ -70,7 +69,7 @@ func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
 
 func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error) {
 	var js Status
-	if err := m.clusterState.Get(ctx, path.Join(jobStatusNs, jobID), &js); err != nil {
+	if err := m.clusterState.Get(ctx, jobStatusKey(jobID), &js); err != nil {
 		return Status{}, err
 	}
 	errs, err := m.GetJobErrors(ctx, jobID)
@@ -84,7 +83,7 @@ func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error
 func (m *Manager) SetJobStatus(ctx context.Context, jobID string, js Status) error {
 	// errors are stored in separate namespace. omit it on /job/status/:jobID
 	js.Errors = nil
-	return m.clusterState.Put(ctx, path.Join(jobStatusNs, jobID), &js)
+	return m.clusterState.Put(ctx, jobStatusKey(jobID), &js)
 }
 
 func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, error) {
@@ -136,7 +135,7 @@ func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...int
 
 func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
 	status := NewTaskStatus()
-	if err := m.clusterState.Put(ctx, path.Join(taskStatusNs, task.ID().String()), status); err != nil {
+	if err := m.clusterState.Put(ctx, taskStatusKey(task.ID()), status); err != nil {
 		return nil, fmt.Errorf("task write: %w", err)
 	}
 	return status, nil
@@ -152,14 +151,14 @@ func (m *Manager) GetTask(ctx context.Context, ref TaskID) (*Task, error) {
 
 func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, error) {
 	status := &TaskStatus{}
-	if err := m.clusterState.Get(ctx, path.Join(taskStatusNs, ref.String()), status); err != nil {
+	if err := m.clusterState.Get(ctx, taskStatusKey(ref), status); err != nil {
 		return nil, errors.Wrap(err, "get task")
 	}
 	return status, nil
 }
 
 func (m *Manager) ListTaskStatusesInJob(ctx context.Context, jobID string) ([]*TaskStatus, error) {
-	items, err := m.clusterState.Scan(ctx, path.Join(taskStatusNs, jobID))
+	items, err := m.clusterState.Scan(ctx, jobStatusKey(jobID, "tasks"))
 	if err != nil {
 		return nil, errors.Wrap(err, "get task")
 	}
@@ -171,4 +170,56 @@ func (m *Manager) ListTaskStatusesInJob(ctx context.Context, jobID string) ([]*T
 		}
 	}
 	return statuses, nil
+}
+
+func (m *Manager) Track(ctx context.Context, j *Job) *Tracker {
+	return newJobTracker(ctx, m, j)
+}
+
+func jobStatusKey(jobID string, extra ...string) string {
+	base := fmt.Sprintf(jobStatusFmt, jobID)
+	return path.Join(append([]string{base}, extra...)...)
+}
+
+// stageStatusKey returns a key of stage summary entry with given name.
+func stageStatusKey(jobID, stageName string, extra ...string) string {
+	base := fmt.Sprintf(stageStatusFmt, jobID, stageName)
+	return path.Join(append([]string{base}, extra...)...)
+}
+
+func stageNameFromStageStatusKey(stageStatusKey string) (string, error) {
+	pathFrags := strings.Split(stageStatusKey, "/")
+	if len(pathFrags) < 5 {
+		return "", errors.Errorf("invalid stage status key format: %s", stageStatusKey)
+	}
+	return pathFrags[4], nil
+}
+
+// taskStatusKey returns a key of task status entry with given name.
+func taskStatusKey(id TaskID, extra ...string) string {
+	base := fmt.Sprintf(taskStatusFmt, id.JobID, id.StageName, id.PartitionID)
+	return path.Join(append([]string{base}, extra...)...)
+}
+
+// jobErrorKey returns a key of job error entry with given name.
+func jobErrorKey(ref TaskID) string {
+	return path.Join(jobErrorNs, ref.String())
+}
+
+const (
+	doneTasksSuffix   = "doneTasks"
+	failedTasksSuffix = "failedTasks"
+	doneStagesSuffix  = "doneStages"
+)
+
+func doneTasksInStageKey(t TaskID) string {
+	return stageStatusKey(t.JobID, t.StageName, "doneTasks")
+}
+
+func failedTasksInStageKey(t TaskID) string {
+	return stageStatusKey(t.JobID, t.StageName, "failedTasks")
+}
+
+func doneStagesKey(jobID string) string {
+	return jobStatusKey(jobID, "doneStages")
 }

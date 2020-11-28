@@ -3,7 +3,6 @@ package job
 import (
 	"context"
 	"fmt"
-	"path"
 	"sync"
 	"time"
 
@@ -56,8 +55,8 @@ func (r *TaskReporter) ReportSuccess() error {
 	r.status.Complete(Succeeded)
 
 	txn := coordinator.NewTxn().
-		Put(path.Join(taskStatusNs, r.task.String()), r.status).
-		IncrementCounter(stageStatusKey(r.task, "doneTasks"))
+		Put(taskStatusKey(r.task), r.status).
+		IncrementCounter(doneTasksInStageKey(r.task))
 
 	res, err := r.clusterState.Commit(r.ctx, txn)
 	if err != nil {
@@ -82,9 +81,9 @@ func (r *TaskReporter) ReportFailure(err error) error {
 	}
 
 	txn := coordinator.NewTxn().
-		Put(path.Join(taskStatusNs, r.task.String()), r.status).
-		IncrementCounter(stageStatusKey(r.task, "doneTasks")).
-		IncrementCounter(stageStatusKey(r.task, "failedTasks"))
+		Put(taskStatusKey(r.task), r.status).
+		IncrementCounter(doneTasksInStageKey(r.task)).
+		IncrementCounter(failedTasksInStageKey(r.task))
 
 	if err != nil {
 		errDesc := Error{
@@ -121,7 +120,7 @@ func (r *TaskReporter) checkForStageCompletion(currentDoneTasks, currentFailedTa
 	}
 	totalTasks := len(r.job.GetPartitionsOfStage(r.task.StageName))
 	if currentDoneTasks == totalTasks {
-		failedTasks, err := r.clusterState.ReadCounter(r.ctx, stageStatusKey(r.task, "failedTasks"))
+		failedTasks, err := r.clusterState.ReadCounter(r.ctx, failedTasksInStageKey(r.task))
 		if err != nil {
 			r.log.Error("Failed to get count of failed stages of {}/{}", err, r.task.JobID, r.task.StageName)
 			return
@@ -139,19 +138,18 @@ func (r *TaskReporter) reportStageCompletion(status RunningState) error {
 	r.log.Verbose("Reporting {} stage {}/{} (by {})", status, r.job.ID, r.task.StageName, r.task)
 
 	var s StageStatus
-	if err := r.clusterState.Get(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), &s); err != nil {
+	if err := r.clusterState.Get(r.ctx, stageStatusKey(r.job.ID, r.task.StageName), &s); err != nil {
 		return errors.Wrap(err, "read stage status")
 	}
 	s.Complete(status)
-	if err := r.clusterState.Put(r.ctx, path.Join(stageStatusNs, r.job.ID, r.task.StageName), s); err != nil {
+	if err := r.clusterState.Put(r.ctx, stageStatusKey(r.job.ID, r.task.StageName), s); err != nil {
 		return errors.Wrap(err, "update stage status")
 	}
 	if status == Failed {
 		return r.reportJobCompletion(Failed)
 	}
 
-	doneStagesKey := path.Join(jobStatusNs, r.job.ID, "doneStages")
-	doneStages, err := r.clusterState.IncrementCounter(r.ctx, doneStagesKey)
+	doneStages, err := r.clusterState.IncrementCounter(r.ctx, doneStagesKey(r.job.ID))
 	if err != nil {
 		return errors.Wrap(err, "increment done stage count")
 	}
@@ -164,7 +162,7 @@ func (r *TaskReporter) reportStageCompletion(status RunningState) error {
 
 func (r *TaskReporter) reportJobCompletion(status RunningState) error {
 	var js Status
-	if err := r.clusterState.Get(r.ctx, path.Join(jobStatusNs, r.job.ID), &js); err != nil {
+	if err := r.clusterState.Get(r.ctx, jobStatusKey(r.job.ID), &js); err != nil {
 		return errors.Wrapf(err, "get status of job %s", r.job.ID)
 	}
 	if js.Status == status {
@@ -173,7 +171,7 @@ func (r *TaskReporter) reportJobCompletion(status RunningState) error {
 
 	r.log.Verbose("Reporting {} job {} (by {})", status, r.job.ID, r.task)
 	js.Complete(status)
-	if err := r.clusterState.Put(r.ctx, path.Join(jobStatusNs, r.job.ID), js); err != nil {
+	if err := r.clusterState.Put(r.ctx, jobStatusKey(r.job.ID), js); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
 	}
 	return nil
@@ -205,16 +203,5 @@ func (r *TaskReporter) flushTaskStatus() error {
 	status := r.status.Clone()
 	r.flushMu.Unlock()
 
-	return r.clusterState.Put(r.ctx, path.Join(taskStatusNs, r.task.String()), status)
-}
-
-// stageStatusKey returns a key of stage summary entry with given name.
-func stageStatusKey(ref TaskID, name ...string) string {
-	frags := []string{stageStatusNs, ref.JobID, ref.StageName}
-	return path.Join(append(frags, name...)...)
-}
-
-// jobErrorKey returns a key of job error entry with given name.
-func jobErrorKey(ref TaskID) string {
-	return path.Join(jobErrorNs, ref.String())
+	return r.clusterState.Put(r.ctx, taskStatusKey(r.task), status)
 }
