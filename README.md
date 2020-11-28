@@ -28,7 +28,7 @@ func main() {
 
     result, err := lrmr.NewSession(context.TODO(), m).
         FromFile("./testdata/").
-        FlatMap(DecodeJSON()).
+        FlatMap(DecodeCSV()).
         GroupByKey().
         Reduce(Count()).
         Collect()

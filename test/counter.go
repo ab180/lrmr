@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	lrmr.RegisterTypes(Count(), DecodeJSON())
+	lrmr.RegisterTypes(Count(), DecodeCSV())
 }
 
 type counter struct {

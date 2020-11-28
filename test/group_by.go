@@ -7,15 +7,15 @@ import (
 
 func BasicGroupByKey(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.FromFile(testdata.Path()).
-		FlatMap(DecodeJSON()).
+		FlatMap(DecodeCSV()).
 		GroupByKey().
 		Reduce(Count())
 }
 
 func BasicGroupByKnownKeys(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.FromFile(testdata.Path()).
-		FlatMap(DecodeJSON()).
-		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
+		FlatMap(DecodeCSV()).
+		GroupByKnownKeys([]string{"8263", "9223", "8636", "3962"}).
 		Reduce(Count())
 }
 

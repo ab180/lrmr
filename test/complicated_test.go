@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testdata"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/goleak"
 )
@@ -25,8 +26,8 @@ func TestComplicatedQuery(t *testing.T) {
 					So(err, ShouldBeNil)
 
 					t.Logf("Metrics collected:\n%s", m.String())
-					So(m["Files"], ShouldEqual, 55)
-					So(m["Events"], ShouldEqual, 647437)
+					So(m["Files"], ShouldEqual, testdata.TotalFiles)
+					So(m["Events"], ShouldEqual, testdata.TotalRows)
 				})
 			})
 		})

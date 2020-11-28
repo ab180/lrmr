@@ -24,7 +24,7 @@ func main() {
 
 	ds := sess.FromFile(testdata.Path()).
 		WithWorkerCount(8).
-		FlatMap(test.DecodeJSON()).
+		FlatMap(test.DecodeCSV()).
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
 		Reduce(test.Count())
 

@@ -7,7 +7,7 @@ import (
 
 func ComplicatedQuery(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.FromFile(testdata.Path()).
-		FlatMap(DecodeJSON()).
+		FlatMap(DecodeCSV()).
 		Map(NopMapper()).
 		GroupByKey().
 		Reduce(Count())

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testdata"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -23,8 +24,8 @@ func TestBasicGroupByKey(t *testing.T) {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
 					So(m, ShouldResemble, job.Metrics{
-						"Files":  55,
-						"Events": 647437,
+						"Files":  testdata.TotalFiles,
+						"Events": testdata.TotalRows,
 					})
 				})
 			})
@@ -44,7 +45,7 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 
 				Convey("Its result should be collected", func() {
 					So(res, ShouldHaveLength, 4)
-					So(testutils.IntValue(res["1737"][0]), ShouldEqual, 179513)
+					So(testutils.IntValue(res["8263"][0]), ShouldEqual, 197206)
 				})
 			})
 		})

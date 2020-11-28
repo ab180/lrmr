@@ -2,6 +2,11 @@ package testdata
 
 const Name = "data_20200601_v20201110.tar.gz"
 
+const (
+	TotalFiles = 19
+	TotalRows  = 946133
+)
+
 const Interval = "2020-06-01/2020-06-02"
 
 var Columns = []string{
