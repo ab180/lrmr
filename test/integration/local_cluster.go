@@ -71,7 +71,6 @@ func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.
 			master:  m,
 			workers: workers,
 		}
-
 		fn(c)
 	}
 }
@@ -88,12 +87,9 @@ func (lc *LocalCluster) EmulateMasterFailure(old *lrmr.RunningJob) (new *lrmr.Ru
 	}
 
 	newMaster.Start()
-	newJob := &lrmr.RunningJob{
-		Job:    old.Job,
-		Master: newMaster,
+	newJob, err := lrmr.TrackJob(context.Background(), newMaster, old.Job.ID)
+	if err != nil {
+		lc.testCtx.So(err, ShouldBeNil)
 	}
-	newMaster.JobTracker.AddJob(old.Job)
-	lc.master = newMaster
-
 	return newJob
 }

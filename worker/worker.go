@@ -38,7 +38,6 @@ type Worker struct {
 
 	serverLis       net.Listener
 	jobManager      *job.Manager
-	jobTracker      *job.Tracker
 	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
 
@@ -62,7 +61,6 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 	w := &Worker{
 		Cluster:         c,
 		jobManager:      jm,
-		jobTracker:      job.NewJobTracker(c.States(), jm),
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
 		opt:             opt,
@@ -140,9 +138,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 		return status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
 	}
 	s := j.GetStage(req.Stage)
-
-	// jobCtx will be disposed after the job completes
-	jobCtx, cancelJobCtx := context.WithCancel(context.Background())
+	tracker := w.jobManager.Track(context.Background(), j)
 
 	task := job.NewTask(partitionID, w.Node.Info(), j.ID, s)
 	ts, err := w.jobManager.CreateTask(ctx, task)
@@ -152,21 +148,20 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	in := input.NewReader(w.opt.Input.QueueLength)
 
 	// after job finishes, remaining connections should be closed
-	out, err := w.newOutputWriter(jobCtx, j, s.Name, partitionID, req.Output)
+	out, err := w.newOutputWriter(tracker.JobContext(), j, s.Name, partitionID, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec := NewTaskExecutor(jobCtx, w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
+	exec := NewTaskExecutor(tracker.JobContext(), w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
 	w.runningTasks.Store(task.ID().String(), exec)
 
-	w.jobTracker.OnJobCompletion(j, func(j *job.Job, stat *job.Status) {
+	tracker.OnJobCompletion(func(stat *job.Status) {
 		if len(stat.Errors) > 0 {
 			err := stat.Errors[0]
 			log.Verbose("Task {} aborted with error caused by task {}.", task.ID(), err.Task)
 			exec.Abort(nil)
 		}
-		cancelJobCtx()
 	})
 	go exec.Run()
 	return nil
@@ -278,7 +273,6 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 func (w *Worker) Close() error {
 	w.RPCServer.Stop()
 	w.Node.Unregister()
-	w.jobTracker.Close()
 	return w.Cluster.Close()
 }
 
