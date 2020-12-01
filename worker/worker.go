@@ -271,7 +271,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 }
 
 func (w *Worker) Close() error {
-	w.RPCServer.Stop()
+	w.RPCServer.GracefulStop()
 	w.Node.Unregister()
 	return w.Cluster.Close()
 }
