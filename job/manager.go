@@ -55,7 +55,6 @@ func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Sta
 	if _, err := m.clusterState.Commit(ctx, txn); err != nil {
 		return nil, errors.Wrap(err, "etcd write")
 	}
-	m.log.Debug("Job created: {} ({})", j.Name, j.ID)
 	return j, nil
 }
 
@@ -101,7 +100,7 @@ func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, erro
 }
 
 func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
-	errChan := make(chan Error)
+	errChan := make(chan Error, 1)
 	go func() {
 		for event := range m.clusterState.Watch(ctx, path.Join(jobErrorNs, jobID)) {
 			var e Error

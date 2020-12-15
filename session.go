@@ -94,7 +94,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	if err := iw.Close(); err != nil {
 		return nil, errors.Wrap(err, "close input")
 	}
-	timer.End("Job creation completed. Now running...")
+	timer.End("{} ({}) started", j.Name, j.ID)
 
 	return newRunningJob(s.master, j, tracker), nil
 }
