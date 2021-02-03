@@ -17,7 +17,7 @@ func TestBroadcast(t *testing.T) {
 				rows, err := ds.Collect()
 				So(err, ShouldBeNil)
 				So(rows, ShouldHaveLength, 1)
-				So(testutils.StringValue(rows[0]), ShouldEqual, "throughStruct=foo, throughContext=bar")
+				So(testutils.StringValue(rows[0]), ShouldEqual, "throughStruct=foo, throughContext=bar, typeMatched=true")
 			})
 		})
 	}))
