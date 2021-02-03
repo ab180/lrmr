@@ -23,8 +23,8 @@ func (c taskContext) PartitionID() string {
 	return c.executor.task.PartitionID
 }
 
-func (c taskContext) JobID() string {
-	return c.executor.task.JobID
+func (c taskContext) Job() *job.Job {
+	return c.executor.job
 }
 
 func (c taskContext) Broadcast(key string) interface{} {

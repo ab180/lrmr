@@ -1,6 +1,10 @@
 package transformation
 
-import "context"
+import (
+	"context"
+
+	"github.com/ab180/lrmr/job"
+)
 
 type Context interface {
 	context.Context
@@ -8,7 +12,7 @@ type Context interface {
 	Broadcast(key string) interface{}
 	WorkerLocalOption(key string) interface{}
 	PartitionID() string
-	JobID() string
+	Job() *job.Job
 
 	AddMetric(name string, delta int)
 	SetMetric(name string, val int)
