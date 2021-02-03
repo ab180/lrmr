@@ -19,7 +19,6 @@ type TaskExecutor struct {
 	context *taskContext
 	cancel  context.CancelFunc
 	task    *job.Task
-	job     *job.Job
 
 	Input    *input.Reader
 	function transformation.Transformation
@@ -48,7 +47,6 @@ func NewTaskExecutor(
 	ctx, cancel := context.WithCancel(parentCtx)
 	exec := &TaskExecutor{
 		task:         task,
-		job:          j,
 		Input:        in,
 		function:     fn,
 		Output:       out,

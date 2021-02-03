@@ -31,16 +31,16 @@ func getCollectedResultChan(jobID string) (chan []*lrdd.Row, error) {
 type Collector struct{}
 
 func (c *Collector) Apply(ctx transformation.Context, in chan *lrdd.Row, _ output.Output) error {
-	resultChan, err := getCollectedResultChan(ctx.Job().ID)
+	resultChan, err := getCollectedResultChan(ctx.JobID())
 	if err != nil {
-		return errors.Errorf("unknown job: %s", ctx.Job().ID)
+		return errors.Errorf("unknown job: %s", ctx.JobID())
 	}
 	var rows []*lrdd.Row
 	for row := range in {
 		rows = append(rows, row)
 	}
 	resultChan <- rows
-	collectResultChans.Delete(ctx.Job().ID)
+	collectResultChans.Delete(ctx.JobID())
 	return nil
 }
 
