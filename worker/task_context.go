@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"time"
 
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/transformation"
@@ -25,6 +26,10 @@ func (c taskContext) PartitionID() string {
 
 func (c taskContext) JobID() string {
 	return c.executor.task.JobID
+}
+
+func (c taskContext) JobSubmittedAt() time.Time {
+	return c.executor.job.SubmittedAt
 }
 
 func (c taskContext) Broadcast(key string) interface{} {
