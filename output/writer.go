@@ -73,10 +73,11 @@ func (w Writer) NumOutputs() int {
 }
 
 func (w *Writer) Close() (err error) {
-	for _, out := range w.outputs {
+	for k, out := range w.outputs {
 		if e := out.Close(); e == nil {
 			err = e
 		}
+		delete(w.outputs, k)
 	}
 	w.outputs = nil
 	return nil

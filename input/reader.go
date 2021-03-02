@@ -42,7 +42,7 @@ func (p *Reader) Close() {
 		// p.closed was true
 		return
 	}
-	// with CAS, only one goroutines can enter here
+	// with CAS, only a goroutine can enter here
 	close(p.C)
 	p.inputs = nil
 }

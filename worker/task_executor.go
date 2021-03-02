@@ -123,7 +123,9 @@ func (e *TaskExecutor) guardPanic() {
 // close frees occupied resources and memories.
 func (e *TaskExecutor) close() {
 	e.cancel()
+	e.Input.Close()
 	e.function = nil
+	e.Input = nil
 }
 
 func (e *TaskExecutor) WaitForFinish() {

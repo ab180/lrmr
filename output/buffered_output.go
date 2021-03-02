@@ -52,6 +52,7 @@ func (b *BufferedOutput) Close() error {
 	if err := b.Flush(); err != nil {
 		return errors.Wrap(err, "flush")
 	}
+	b.buf = nil
 	return b.output.Close()
 }
 
