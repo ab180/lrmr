@@ -9,6 +9,7 @@ import (
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/pbtypes"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
@@ -19,7 +20,6 @@ import (
 	"github.com/ab180/lrmr/worker"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 )
 
 var ErrNoAvailableWorkers = errors.New("no available workers")

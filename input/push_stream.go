@@ -6,8 +6,8 @@ import (
 
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/errorist"
 )
 
 type PushStream struct {
@@ -28,11 +28,7 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 
 	errChan := make(chan error, 1)
 	go func() {
-		defer func() {
-			if err := logger.WrapRecover(recover()); err != nil {
-				errChan <- err
-			}
-		}()
+		defer errorist.RecoverWithErrChan(errChan)
 		for {
 			req, err := p.stream.Recv()
 			if err != nil {

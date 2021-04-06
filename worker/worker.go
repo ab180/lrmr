@@ -13,6 +13,7 @@ import (
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/input"
+	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
@@ -23,7 +24,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -215,7 +215,10 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 }
 
 func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
-	task, _ := w.runningTasks.Load(taskID)
+	task, ok := w.runningTasks.Load(taskID)
+	if !ok {
+		return nil
+	}
 	return task.(*TaskExecutor)
 }
 

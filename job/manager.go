@@ -13,6 +13,7 @@ import (
 	"github.com/ab180/lrmr/stage"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/errorist"
 )
 
 const (
@@ -102,6 +103,11 @@ func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, erro
 func (m *Manager) WatchJobErrors(ctx context.Context, jobID string) chan Error {
 	errChan := make(chan Error, 1)
 	go func() {
+		defer func() {
+			if err := errorist.WrapPanic(recover()); err != nil {
+				m.log.Error("Panic occurred while watching errors ob job {}", err, jobID)
+			}
+		}()
 		for event := range m.clusterState.Watch(ctx, path.Join(jobErrorNs, jobID)) {
 			var e Error
 			if err := event.Item.Unmarshal(&e); err != nil {

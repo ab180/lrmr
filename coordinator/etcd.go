@@ -6,6 +6,7 @@ import (
 
 	"github.com/airbloc/logger"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/therne/errorist"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
@@ -77,6 +78,11 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 
 	wc := e.Watcher.Watch(ctx, prefix, clientv3.WithPrefix())
 	go func() {
+		defer func() {
+			if err := errorist.WrapPanic(recover()); err != nil {
+				e.log.Error("Panic occurred while watching prefix {}", err, prefix)
+			}
+		}()
 		defer close(watchChan)
 		for wr := range wc {
 			if err := wr.Err(); err != nil {

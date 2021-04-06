@@ -11,8 +11,8 @@ import (
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/transformation"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/therne/errorist"
 )
 
 type TaskExecutor struct {
@@ -115,7 +115,7 @@ func (e *TaskExecutor) Abort(err error) {
 }
 
 func (e *TaskExecutor) guardPanic() {
-	if err := logger.WrapRecover(recover()); err != nil {
+	if err := errorist.WrapPanic(recover()); err != nil {
 		e.Abort(err)
 	}
 }

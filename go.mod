@@ -16,6 +16,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/fasthash v1.0.1
 	github.com/smartystreets/goconvey v1.6.4
+	github.com/therne/errorist v0.1.1
 	github.com/thoas/go-funk v0.5.0
 	github.com/vmihailenco/msgpack/v5 v5.2.0
 	go.etcd.io/etcd/api/v3 v3.0.0-20201026174226-7da5182f1d02
