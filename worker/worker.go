@@ -193,7 +193,9 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 		if host == w.Node.Info().Host {
 			nextTask := w.getRunningTask(taskID)
 			if nextTask != nil {
+				mu.Lock()
 				idToOutput[id] = NewLocalPipe(nextTask.Input)
+				mu.Unlock()
 				continue
 			}
 		}
