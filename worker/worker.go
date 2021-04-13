@@ -107,6 +107,14 @@ func (w *Worker) Start() error {
 	return w.RPCServer.Serve(w.serverLis)
 }
 
+func (w *Worker) NumRunningTasks() (count int) {
+	w.runningTasks.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return
+}
+
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }
