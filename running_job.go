@@ -108,7 +108,31 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 }
 
 func (r *RunningJob) Collect() ([]*lrdd.Row, error) {
-	return r.Master.CollectedResults(r.Job.ID)
+	return r.CollectWithContext(context.Background())
+}
+
+func (r *RunningJob) CollectWithContext(ctx context.Context) ([]*lrdd.Row, error) {
+	collectResultsChan, err := r.Master.CollectedResults(r.Job.ID)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case results := <-collectResultsChan:
+		return results, nil
+
+	case <-r.jobContext.Done():
+		status, err := r.Master.JobManager.GetJobStatus(ctx, r.Job.ID)
+		if err != nil {
+			return nil, errors.Wrap(err, "job cancelled unexpectedly, and failed to load job status")
+		}
+		if status.Status == job.Failed {
+			return nil, status.Errors[0]
+		}
+		return nil, errors.New("job cancelled")
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (r *RunningJob) Abort() error {

@@ -194,21 +194,8 @@ func (m *Master) OpenInputWriter(jobCtx context.Context, j *job.Job, stageName s
 	return out, nil
 }
 
-func (m *Master) CollectedResults(jobID string) ([]*lrdd.Row, error) {
-	watchCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	resultChan, err := getCollectedResultChan(jobID)
-	if err != nil {
-		return nil, err
-	}
-	select {
-	case result := <-resultChan:
-		return result, nil
-
-	case err := <-m.JobManager.WatchJobErrors(watchCtx, jobID):
-		return nil, err
-	}
+func (m *Master) CollectedResults(jobID string) (<-chan []*lrdd.Row, error) {
+	return getCollectedResultChan(jobID)
 }
 
 func (m *Master) Stop() {
