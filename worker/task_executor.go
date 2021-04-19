@@ -13,6 +13,7 @@ import (
 	"github.com/ab180/lrmr/transformation"
 	"github.com/pkg/errors"
 	"github.com/therne/errorist"
+	"go.uber.org/atomic"
 )
 
 type TaskExecutor struct {
@@ -31,6 +32,7 @@ type TaskExecutor struct {
 	finishChan   chan struct{}
 	taskReporter *job.TaskReporter
 	jobManager   *job.Manager
+	closed       atomic.Bool
 }
 
 func NewTaskExecutor(
@@ -95,11 +97,6 @@ func (e *TaskExecutor) Run() {
 	}
 	e.close()
 
-	if err := e.Output.Close(); err != nil {
-		e.Abort(errors.Wrap(err, "close output"))
-		return
-	}
-
 	if err := e.taskReporter.ReportSuccess(); err != nil {
 		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 	}
@@ -111,7 +108,6 @@ func (e *TaskExecutor) Abort(err error) {
 	if reportErr != nil {
 		log.Error("While reporting the error, another error occurred", reportErr)
 	}
-	_ = e.Output.Close()
 }
 
 func (e *TaskExecutor) guardPanic() {
@@ -122,8 +118,14 @@ func (e *TaskExecutor) guardPanic() {
 
 // close frees occupied resources and memories.
 func (e *TaskExecutor) close() {
+	if closing := e.closed.CAS(false, true); !closing {
+		return
+	}
 	e.cancel()
 	e.Input.Close()
+	if err := e.Output.Close(); err != nil {
+		log.Error("Failed to close output: {}")
+	}
 	e.function = nil
 	e.Input = nil
 }
