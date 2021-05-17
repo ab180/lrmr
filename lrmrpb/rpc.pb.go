@@ -10,10 +10,11 @@ import (
 	lrdd "github.com/ab180/lrmr/lrdd"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	empty "github.com/golang/protobuf/ptypes/empty"
+	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -81,12 +82,13 @@ func (Output_Type) EnumDescriptor() ([]byte, []int) {
 }
 
 type CreateTasksRequest struct {
-	Job          *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
-	Stage        string            `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
-	PartitionIDs []string          `protobuf:"bytes,3,rep,name=partitionIDs,proto3" json:"partitionIDs,omitempty"`
-	Input        []*Input          `protobuf:"bytes,4,rep,name=input,proto3" json:"input,omitempty"`
-	Output       *Output           `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
-	Broadcasts   map[string][]byte `protobuf:"bytes,6,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Job           *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Stage         string            `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
+	PartitionIDs  []string          `protobuf:"bytes,3,rep,name=partitionIDs,proto3" json:"partitionIDs,omitempty"`
+	Input         []*Input          `protobuf:"bytes,4,rep,name=input,proto3" json:"input,omitempty"`
+	Output        *Output           `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
+	Broadcasts    map[string][]byte `protobuf:"bytes,6,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_sizecache int32             `json:"-"`
 }
 
 func (m *CreateTasksRequest) Reset()         { *m = CreateTasksRequest{} }
@@ -99,16 +101,12 @@ func (m *CreateTasksRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *CreateTasksRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_CreateTasksRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *CreateTasksRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_CreateTasksRequest.Merge(m, src)
@@ -122,51 +120,10 @@ func (m *CreateTasksRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CreateTasksRequest proto.InternalMessageInfo
 
-func (m *CreateTasksRequest) GetJob() *pbtypes.JSON {
-	if m != nil {
-		return m.Job
-	}
-	return nil
-}
-
-func (m *CreateTasksRequest) GetStage() string {
-	if m != nil {
-		return m.Stage
-	}
-	return ""
-}
-
-func (m *CreateTasksRequest) GetPartitionIDs() []string {
-	if m != nil {
-		return m.PartitionIDs
-	}
-	return nil
-}
-
-func (m *CreateTasksRequest) GetInput() []*Input {
-	if m != nil {
-		return m.Input
-	}
-	return nil
-}
-
-func (m *CreateTasksRequest) GetOutput() *Output {
-	if m != nil {
-		return m.Output
-	}
-	return nil
-}
-
-func (m *CreateTasksRequest) GetBroadcasts() map[string][]byte {
-	if m != nil {
-		return m.Broadcasts
-	}
-	return nil
-}
-
 type Job struct {
-	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	XXX_sizecache int32  `json:"-"`
 }
 
 func (m *Job) Reset()         { *m = Job{} }
@@ -179,16 +136,12 @@ func (m *Job) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Job.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *Job) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_Job.Merge(m, src)
@@ -202,22 +155,9 @@ func (m *Job) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Job proto.InternalMessageInfo
 
-func (m *Job) GetId() string {
-	if m != nil {
-		return m.Id
-	}
-	return ""
-}
-
-func (m *Job) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
 type Input struct {
-	Type Input_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Input_Type" json:"type,omitempty"`
+	Type          Input_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Input_Type" json:"type,omitempty"`
+	XXX_sizecache int32      `json:"-"`
 }
 
 func (m *Input) Reset()         { *m = Input{} }
@@ -230,16 +170,12 @@ func (m *Input) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *Input) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Input.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *Input) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_Input.Merge(m, src)
@@ -253,17 +189,11 @@ func (m *Input) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Input proto.InternalMessageInfo
 
-func (m *Input) GetType() Input_Type {
-	if m != nil {
-		return m.Type
-	}
-	return Input_PUSH
-}
-
 type Output struct {
 	Type Output_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Output_Type" json:"type,omitempty"`
 	// partitionKeyToHost contains an ordered mapping of partition key to output hostname.
 	PartitionToHost map[string]string `protobuf:"bytes,2,rep,name=partitionToHost,proto3" json:"partitionToHost,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_sizecache   int32             `json:"-"`
 }
 
 func (m *Output) Reset()         { *m = Output{} }
@@ -276,16 +206,12 @@ func (m *Output) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *Output) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Output.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *Output) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_Output.Merge(m, src)
@@ -299,23 +225,10 @@ func (m *Output) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Output proto.InternalMessageInfo
 
-func (m *Output) GetType() Output_Type {
-	if m != nil {
-		return m.Type
-	}
-	return Output_PUSH
-}
-
-func (m *Output) GetPartitionToHost() map[string]string {
-	if m != nil {
-		return m.PartitionToHost
-	}
-	return nil
-}
-
 type HostMapping struct {
-	Host   string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
-	TaskID string `protobuf:"bytes,2,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	Host          string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	TaskID        string `protobuf:"bytes,2,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	XXX_sizecache int32  `json:"-"`
 }
 
 func (m *HostMapping) Reset()         { *m = HostMapping{} }
@@ -328,16 +241,12 @@ func (m *HostMapping) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *HostMapping) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_HostMapping.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *HostMapping) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_HostMapping.Merge(m, src)
@@ -351,22 +260,9 @@ func (m *HostMapping) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HostMapping proto.InternalMessageInfo
 
-func (m *HostMapping) GetHost() string {
-	if m != nil {
-		return m.Host
-	}
-	return ""
-}
-
-func (m *HostMapping) GetTaskID() string {
-	if m != nil {
-		return m.TaskID
-	}
-	return ""
-}
-
 type CreateTaskResponse struct {
-	TaskID string `protobuf:"bytes,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	TaskID        string `protobuf:"bytes,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	XXX_sizecache int32  `json:"-"`
 }
 
 func (m *CreateTaskResponse) Reset()         { *m = CreateTaskResponse{} }
@@ -379,16 +275,12 @@ func (m *CreateTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *CreateTaskResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_CreateTaskResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *CreateTaskResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_CreateTaskResponse.Merge(m, src)
@@ -402,17 +294,11 @@ func (m *CreateTaskResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CreateTaskResponse proto.InternalMessageInfo
 
-func (m *CreateTaskResponse) GetTaskID() string {
-	if m != nil {
-		return m.TaskID
-	}
-	return ""
-}
-
 // PushDataRequest is a request to push data for a worker to process.
 // metadata with key "header" and value of DataHeader is required.
 type PushDataRequest struct {
-	Data []*lrdd.Row `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	Data          []*lrdd.Row `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	XXX_sizecache int32       `json:"-"`
 }
 
 func (m *PushDataRequest) Reset()         { *m = PushDataRequest{} }
@@ -425,16 +311,12 @@ func (m *PushDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *PushDataRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PushDataRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *PushDataRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_PushDataRequest.Merge(m, src)
@@ -448,18 +330,12 @@ func (m *PushDataRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PushDataRequest proto.InternalMessageInfo
 
-func (m *PushDataRequest) GetData() []*lrdd.Row {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
 // PollDataRequest is a request to poll data for a worker to process.
 // metadata with key "header" and value of DataHeader is required.
 type PollDataRequest struct {
 	// N is maximum number of the data returned.
-	N int64 `protobuf:"varint,1,opt,name=n,proto3" json:"n,omitempty"`
+	N             int64 `protobuf:"varint,1,opt,name=n,proto3" json:"n,omitempty"`
+	XXX_sizecache int32 `json:"-"`
 }
 
 func (m *PollDataRequest) Reset()         { *m = PollDataRequest{} }
@@ -472,16 +348,12 @@ func (m *PollDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *PollDataRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PollDataRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *PollDataRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_PollDataRequest.Merge(m, src)
@@ -495,16 +367,10 @@ func (m *PollDataRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PollDataRequest proto.InternalMessageInfo
 
-func (m *PollDataRequest) GetN() int64 {
-	if m != nil {
-		return m.N
-	}
-	return 0
-}
-
 type PollDataResponse struct {
-	Data  []*lrdd.Row `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
-	IsEOF bool        `protobuf:"varint,2,opt,name=isEOF,proto3" json:"isEOF,omitempty"`
+	Data          []*lrdd.Row `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	IsEOF         bool        `protobuf:"varint,2,opt,name=isEOF,proto3" json:"isEOF,omitempty"`
+	XXX_sizecache int32       `json:"-"`
 }
 
 func (m *PollDataResponse) Reset()         { *m = PollDataResponse{} }
@@ -517,16 +383,12 @@ func (m *PollDataResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *PollDataResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PollDataResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *PollDataResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_PollDataResponse.Merge(m, src)
@@ -540,23 +402,10 @@ func (m *PollDataResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PollDataResponse proto.InternalMessageInfo
 
-func (m *PollDataResponse) GetData() []*lrdd.Row {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
-func (m *PollDataResponse) GetIsEOF() bool {
-	if m != nil {
-		return m.IsEOF
-	}
-	return false
-}
-
 type DataHeader struct {
-	TaskID   string `protobuf:"bytes,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
-	FromHost string `protobuf:"bytes,2,opt,name=fromHost,proto3" json:"fromHost,omitempty"`
+	TaskID        string `protobuf:"bytes,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
+	FromHost      string `protobuf:"bytes,2,opt,name=fromHost,proto3" json:"fromHost,omitempty"`
+	XXX_sizecache int32  `json:"-"`
 }
 
 func (m *DataHeader) Reset()         { *m = DataHeader{} }
@@ -569,16 +418,12 @@ func (m *DataHeader) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
 func (m *DataHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_DataHeader.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
 	}
+	return b[:n], nil
 }
 func (m *DataHeader) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_DataHeader.Merge(m, src)
@@ -591,20 +436,6 @@ func (m *DataHeader) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_DataHeader proto.InternalMessageInfo
-
-func (m *DataHeader) GetTaskID() string {
-	if m != nil {
-		return m.TaskID
-	}
-	return ""
-}
-
-func (m *DataHeader) GetFromHost() string {
-	if m != nil {
-		return m.FromHost
-	}
-	return ""
-}
 
 func init() {
 	proto.RegisterEnum("lrmrpb.Input_Type", Input_Type_name, Input_Type_value)
@@ -626,49 +457,49 @@ func init() {
 func init() { proto.RegisterFile("lrmrpb/rpc.proto", fileDescriptor_f4e130d388338f6d) }
 
 var fileDescriptor_f4e130d388338f6d = []byte{
-	// 665 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xdd, 0x4e, 0xdb, 0x48,
-	0x14, 0xce, 0xe4, 0x4f, 0xc9, 0x81, 0x4d, 0xa2, 0x59, 0xc4, 0x5a, 0xde, 0xdd, 0x10, 0x19, 0xa9,
-	0x4d, 0xab, 0xca, 0x41, 0xf4, 0xa6, 0xad, 0x84, 0x54, 0x28, 0xb4, 0x84, 0x02, 0x89, 0x06, 0xfa,
-	0x00, 0x13, 0x3c, 0x04, 0x17, 0xc7, 0xe3, 0x7a, 0x26, 0x45, 0x79, 0x8b, 0xbe, 0x55, 0x2b, 0xf5,
-	0x86, 0xcb, 0x5e, 0x22, 0x78, 0x91, 0x6a, 0x66, 0x6c, 0x6a, 0x87, 0x42, 0x6f, 0xa2, 0x73, 0xce,
-	0xf7, 0x63, 0x9f, 0xcf, 0x99, 0x81, 0x56, 0x10, 0x4f, 0xe2, 0x68, 0xd4, 0x8b, 0xa3, 0x13, 0x37,
-	0x8a, 0xb9, 0xe4, 0xb8, 0x6a, 0x26, 0xf6, 0xd2, 0x98, 0x8f, 0xb9, 0x1e, 0xf5, 0x54, 0x65, 0x50,
-	0xfb, 0xdf, 0x31, 0xe7, 0xe3, 0x80, 0xf5, 0x74, 0x37, 0x9a, 0x9e, 0xf6, 0xd8, 0x24, 0x92, 0xb3,
-	0x04, 0x6c, 0x04, 0xb1, 0xe7, 0xf5, 0x62, 0x7e, 0x91, 0xf4, 0xff, 0xf9, 0xa1, 0x64, 0x71, 0x48,
-	0x83, 0x5e, 0x34, 0x92, 0xb3, 0x88, 0x89, 0x9e, 0xfe, 0x35, 0xa8, 0xf3, 0xb5, 0x08, 0xf8, 0x4d,
-	0xcc, 0xa8, 0x64, 0xc7, 0x54, 0x9c, 0x0b, 0xc2, 0x3e, 0x4d, 0x99, 0x90, 0x78, 0x05, 0x4a, 0x1f,
-	0xf9, 0xc8, 0x42, 0x1d, 0xd4, 0x5d, 0x58, 0xff, 0xcb, 0x4d, 0x94, 0xee, 0xde, 0xd1, 0xe0, 0x90,
-	0x28, 0x04, 0x2f, 0x41, 0x45, 0x48, 0x3a, 0x66, 0x56, 0xb1, 0x83, 0xba, 0x75, 0x62, 0x1a, 0xec,
-	0xc0, 0x62, 0x44, 0x63, 0xe9, 0x4b, 0x9f, 0x87, 0xfd, 0x6d, 0x61, 0x95, 0x3a, 0xa5, 0x6e, 0x9d,
-	0xe4, 0x66, 0x78, 0x15, 0x2a, 0x7e, 0x18, 0x4d, 0xa5, 0x55, 0xee, 0x94, 0xb4, 0xb9, 0x59, 0xd5,
-	0xed, 0xab, 0x21, 0x31, 0x18, 0x7e, 0x04, 0x55, 0x3e, 0x95, 0x8a, 0x55, 0xd1, 0xaf, 0xd0, 0x48,
-	0x59, 0x03, 0x3d, 0x25, 0x09, 0x8a, 0xf7, 0x00, 0x46, 0x31, 0xa7, 0xde, 0x09, 0x15, 0x52, 0x58,
-	0x55, 0xed, 0xf8, 0x34, 0xe5, 0xde, 0xdd, 0xcb, 0xdd, 0xba, 0x25, 0xef, 0x84, 0x32, 0x9e, 0x91,
-	0x8c, 0xda, 0xde, 0x80, 0xe6, 0x1c, 0x8c, 0x5b, 0x50, 0x3a, 0x67, 0x33, 0x1d, 0x43, 0x9d, 0xa8,
-	0x52, 0xed, 0xfd, 0x99, 0x06, 0x53, 0xb3, 0xf7, 0x22, 0x31, 0xcd, 0xab, 0xe2, 0x0b, 0xe4, 0x3c,
-	0x81, 0xd2, 0x1e, 0x1f, 0xe1, 0x06, 0x14, 0x7d, 0x2f, 0x51, 0x14, 0x7d, 0x0f, 0x63, 0x28, 0x87,
-	0x74, 0x92, 0xe6, 0xa4, 0x6b, 0xe7, 0x3d, 0x54, 0xfa, 0xc9, 0x9a, 0x65, 0x15, 0xac, 0xa6, 0x37,
-	0xd6, 0x71, 0x2e, 0x0a, 0xf7, 0x78, 0x16, 0x31, 0xa2, 0x71, 0xc7, 0x86, 0xb2, 0xea, 0x70, 0x0d,
-	0xca, 0xc3, 0x0f, 0x47, 0xbb, 0xad, 0x82, 0xae, 0x06, 0xfb, 0xfb, 0x2d, 0xe4, 0x5c, 0x21, 0xa8,
-	0x9a, 0x54, 0xf0, 0xe3, 0x9c, 0xdd, 0xdf, 0xf9, 0xcc, 0x32, 0x7e, 0xf8, 0x00, 0x9a, 0xb7, 0xdf,
-	0xe4, 0x98, 0xef, 0x72, 0x21, 0xad, 0xa2, 0xce, 0x6e, 0x75, 0x4e, 0x33, 0xcc, 0xb3, 0x4c, 0x68,
-	0xf3, 0x5a, 0x7b, 0x0b, 0x96, 0x7e, 0x47, 0xfc, 0x53, 0x7c, 0xf5, 0x6c, 0x7c, 0x0f, 0xad, 0xf8,
-	0x12, 0x16, 0x94, 0xe9, 0x01, 0x8d, 0x22, 0x3f, 0x1c, 0xab, 0x48, 0xcf, 0xd4, 0x2b, 0x1b, 0x5f,
-	0x5d, 0xe3, 0x65, 0xa8, 0x4a, 0x2a, 0xce, 0xfb, 0xdb, 0x89, 0x73, 0xd2, 0x39, 0xcf, 0xb2, 0x7f,
-	0x6f, 0xc2, 0x44, 0xc4, 0x43, 0xc1, 0x32, 0x6c, 0x94, 0x63, 0xaf, 0x41, 0x73, 0x38, 0x15, 0x67,
-	0xdb, 0x54, 0xd2, 0xf4, 0x24, 0xfc, 0x0f, 0x65, 0x8f, 0x4a, 0x6a, 0x21, 0x9d, 0x4f, 0xdd, 0x55,
-	0xa7, 0xcb, 0x25, 0xfc, 0x82, 0xe8, 0xb1, 0xb3, 0x02, 0xcd, 0x21, 0x0f, 0x82, 0xac, 0x62, 0x11,
-	0x50, 0xa8, 0x7d, 0x4b, 0x04, 0x85, 0xce, 0x3b, 0x68, 0xfd, 0x22, 0x24, 0x8f, 0x7f, 0xd8, 0x53,
-	0x85, 0xe4, 0x8b, 0x9d, 0xc1, 0x5b, 0xbd, 0x4a, 0x8d, 0x98, 0xc6, 0x79, 0x0d, 0xa0, 0x4c, 0x76,
-	0x19, 0xf5, 0x58, 0x7c, 0xdf, 0x06, 0xd8, 0x86, 0xda, 0x69, 0xcc, 0x27, 0xc9, 0x27, 0x55, 0xc8,
-	0x6d, 0xbf, 0xfe, 0x1d, 0x41, 0xf9, 0x90, 0x7b, 0x0c, 0x6f, 0xc2, 0x42, 0xe6, 0x6c, 0x60, 0xfb,
-	0xfe, 0x03, 0x63, 0x2f, 0xbb, 0xe6, 0xae, 0x71, 0xd3, 0xbb, 0xc6, 0xdd, 0x51, 0x77, 0x0d, 0xde,
-	0x80, 0x5a, 0x9a, 0x14, 0xfe, 0x27, 0xd5, 0xcf, 0x65, 0x77, 0x9f, 0xb8, 0x8b, 0xf0, 0x26, 0xd4,
-	0xd2, 0x54, 0x32, 0xf2, 0x7c, 0x90, 0xb6, 0x75, 0x17, 0x30, 0x01, 0x76, 0xd1, 0x1a, 0xda, 0xb2,
-	0xbe, 0x5d, 0xb7, 0xd1, 0xe5, 0x75, 0x1b, 0x5d, 0x5d, 0xb7, 0xd1, 0x97, 0x9b, 0x76, 0xe1, 0xf2,
-	0xa6, 0x5d, 0xf8, 0x71, 0xd3, 0x2e, 0x8c, 0xaa, 0xfa, 0x71, 0xcf, 0x7f, 0x06, 0x00, 0x00, 0xff,
-	0xff, 0xd1, 0xb6, 0xd2, 0x89, 0x57, 0x05, 0x00, 0x00,
+	// 666 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xdd, 0x4e, 0x13, 0x41,
+	0x14, 0xee, 0xf4, 0x2f, 0xed, 0x01, 0xdb, 0x66, 0x24, 0xb8, 0x59, 0xb1, 0x34, 0x4b, 0xa2, 0xd5,
+	0x98, 0x2d, 0xc1, 0x1b, 0x35, 0x21, 0x11, 0x04, 0xa5, 0x08, 0xb4, 0x19, 0xf0, 0x01, 0xa6, 0xec,
+	0x50, 0x56, 0xda, 0x9d, 0x75, 0x67, 0x2a, 0xe9, 0x5b, 0xf8, 0x56, 0x92, 0x78, 0xe3, 0x25, 0x97,
+	0x58, 0x5e, 0xc4, 0xcc, 0xcc, 0x2e, 0x6e, 0x8b, 0xe0, 0x4d, 0x73, 0xce, 0xf9, 0x7e, 0x76, 0xcf,
+	0xb7, 0x9d, 0x81, 0xda, 0x20, 0x1a, 0x46, 0x61, 0xaf, 0x15, 0x85, 0xc7, 0x6e, 0x18, 0x71, 0xc9,
+	0x71, 0xd1, 0x4c, 0xec, 0x85, 0x3e, 0xef, 0x73, 0x3d, 0x6a, 0xa9, 0xca, 0xa0, 0xf6, 0xe3, 0x3e,
+	0xe7, 0xfd, 0x01, 0x6b, 0xe9, 0xae, 0x37, 0x3a, 0x69, 0xb1, 0x61, 0x28, 0xc7, 0x31, 0x58, 0x19,
+	0x44, 0x9e, 0xd7, 0x8a, 0xf8, 0x79, 0xdc, 0x2f, 0xf9, 0x81, 0x64, 0x51, 0x40, 0x07, 0xad, 0xb0,
+	0x27, 0xc7, 0x21, 0x13, 0x2d, 0xfd, 0x6b, 0x50, 0xe7, 0x47, 0x16, 0xf0, 0xfb, 0x88, 0x51, 0xc9,
+	0x8e, 0xa8, 0x38, 0x13, 0x84, 0x7d, 0x1d, 0x31, 0x21, 0xf1, 0x32, 0xe4, 0xbe, 0xf0, 0x9e, 0x85,
+	0x1a, 0xa8, 0x39, 0xb7, 0xf6, 0xc0, 0x8d, 0x95, 0xee, 0xee, 0x61, 0xe7, 0x80, 0x28, 0x04, 0x2f,
+	0x40, 0x41, 0x48, 0xda, 0x67, 0x56, 0xb6, 0x81, 0x9a, 0x65, 0x62, 0x1a, 0xec, 0xc0, 0x7c, 0x48,
+	0x23, 0xe9, 0x4b, 0x9f, 0x07, 0xed, 0x2d, 0x61, 0xe5, 0x1a, 0xb9, 0x66, 0x99, 0x4c, 0xcd, 0xf0,
+	0x0a, 0x14, 0xfc, 0x20, 0x1c, 0x49, 0x2b, 0xdf, 0xc8, 0x69, 0x73, 0xb3, 0xaa, 0xdb, 0x56, 0x43,
+	0x62, 0x30, 0xfc, 0x14, 0x8a, 0x7c, 0x24, 0x15, 0xab, 0xa0, 0x5f, 0xa1, 0x92, 0xb0, 0x3a, 0x7a,
+	0x4a, 0x62, 0x14, 0xef, 0x02, 0xf4, 0x22, 0x4e, 0xbd, 0x63, 0x2a, 0xa4, 0xb0, 0x8a, 0xda, 0xf1,
+	0x45, 0xc2, 0xbd, 0xbd, 0x97, 0xbb, 0x79, 0x43, 0xde, 0x0e, 0x64, 0x34, 0x26, 0x29, 0xb5, 0xbd,
+	0x0e, 0xd5, 0x19, 0x18, 0xd7, 0x20, 0x77, 0xc6, 0xc6, 0x3a, 0x86, 0x32, 0x51, 0xa5, 0xda, 0xfb,
+	0x1b, 0x1d, 0x8c, 0xcc, 0xde, 0xf3, 0xc4, 0x34, 0x6f, 0xb3, 0xaf, 0x91, 0xf3, 0x1c, 0x72, 0xbb,
+	0xbc, 0x87, 0x2b, 0x90, 0xf5, 0xbd, 0x58, 0x91, 0xf5, 0x3d, 0x8c, 0x21, 0x1f, 0xd0, 0x61, 0x92,
+	0x93, 0xae, 0x9d, 0x4f, 0x50, 0x68, 0xc7, 0x6b, 0xe6, 0x55, 0xb0, 0x9a, 0x5e, 0x59, 0xc3, 0x53,
+	0x51, 0xb8, 0x47, 0xe3, 0x90, 0x11, 0x8d, 0x3b, 0x36, 0xe4, 0x55, 0x87, 0x4b, 0x90, 0xef, 0x7e,
+	0x3e, 0xdc, 0xa9, 0x65, 0x74, 0xd5, 0xd9, 0xdb, 0xab, 0x21, 0xe7, 0x0a, 0x41, 0xd1, 0xa4, 0x82,
+	0x9f, 0x4d, 0xd9, 0x3d, 0x9c, 0xce, 0x2c, 0xe5, 0x87, 0xf7, 0xa1, 0x7a, 0xf3, 0x4d, 0x8e, 0xf8,
+	0x0e, 0x17, 0xd2, 0xca, 0xea, 0xec, 0x56, 0x66, 0x34, 0xdd, 0x69, 0x96, 0x09, 0x6d, 0x56, 0x6b,
+	0x6f, 0xc2, 0xc2, 0xbf, 0x88, 0xff, 0x8b, 0xaf, 0x9c, 0x8e, 0xef, 0xbe, 0x15, 0xdf, 0xc0, 0x9c,
+	0x32, 0xdd, 0xa7, 0x61, 0xe8, 0x07, 0x7d, 0x15, 0xe9, 0xa9, 0x7a, 0x65, 0xe3, 0xab, 0x6b, 0xbc,
+	0x08, 0x45, 0x49, 0xc5, 0x59, 0x7b, 0x2b, 0x76, 0x8e, 0x3b, 0xe7, 0x65, 0xfa, 0xef, 0x4d, 0x98,
+	0x08, 0x79, 0x20, 0x58, 0x8a, 0x8d, 0xa6, 0xd8, 0xab, 0x50, 0xed, 0x8e, 0xc4, 0xe9, 0x16, 0x95,
+	0x34, 0x39, 0x09, 0x4f, 0x20, 0xef, 0x51, 0x49, 0x2d, 0xa4, 0xf3, 0x29, 0xbb, 0xea, 0x74, 0xb9,
+	0x84, 0x9f, 0x13, 0x3d, 0x76, 0x96, 0xa1, 0xda, 0xe5, 0x83, 0x41, 0x5a, 0x31, 0x0f, 0x28, 0xd0,
+	0xbe, 0x39, 0x82, 0x02, 0xe7, 0x23, 0xd4, 0xfe, 0x12, 0xe2, 0xc7, 0xdf, 0xef, 0xa9, 0x42, 0xf2,
+	0xc5, 0x76, 0xe7, 0x83, 0x5e, 0xa5, 0x44, 0x4c, 0xe3, 0xbc, 0x03, 0x50, 0x26, 0x3b, 0x8c, 0x7a,
+	0x2c, 0xba, 0x6b, 0x03, 0x6c, 0x43, 0xe9, 0x24, 0xe2, 0xc3, 0xf8, 0x93, 0x2a, 0xe4, 0xa6, 0x5f,
+	0xfb, 0x89, 0x20, 0x7f, 0xc0, 0x3d, 0x86, 0x37, 0x60, 0x2e, 0x75, 0x36, 0xb0, 0x7d, 0xf7, 0x81,
+	0xb1, 0x17, 0x5d, 0x73, 0xd7, 0xb8, 0xc9, 0x5d, 0xe3, 0x6e, 0xab, 0xbb, 0x06, 0xaf, 0x43, 0x29,
+	0x49, 0x0a, 0x3f, 0x4a, 0xf4, 0x33, 0xd9, 0xdd, 0x25, 0x6e, 0x22, 0xbc, 0x01, 0xa5, 0x24, 0x95,
+	0x94, 0x7c, 0x3a, 0x48, 0xdb, 0xba, 0x0d, 0x98, 0x00, 0x9b, 0x68, 0x15, 0x6d, 0x2e, 0x5d, 0xfc,
+	0xae, 0x67, 0x2e, 0x26, 0x75, 0xf4, 0x6b, 0x52, 0x47, 0x97, 0x93, 0x3a, 0xba, 0x9a, 0xd4, 0xd1,
+	0xf7, 0xeb, 0x7a, 0xe6, 0xf2, 0xba, 0x9e, 0xe9, 0x15, 0xf5, 0x23, 0x5f, 0xfd, 0x09, 0x00, 0x00,
+	0xff, 0xff, 0x31, 0xfc, 0x88, 0x9d, 0x5b, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -683,7 +514,7 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeClient interface {
-	CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	PushData(ctx context.Context, opts ...grpc.CallOption) (Node_PushDataClient, error)
 	PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error)
 }
@@ -696,8 +527,8 @@ func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *nodeClient) CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/lrmrpb.Node/CreateTasks", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -716,7 +547,7 @@ func (c *nodeClient) PushData(ctx context.Context, opts ...grpc.CallOption) (Nod
 
 type Node_PushDataClient interface {
 	Send(*PushDataRequest) error
-	CloseAndRecv() (*empty.Empty, error)
+	CloseAndRecv() (*emptypb.Empty, error)
 	grpc.ClientStream
 }
 
@@ -728,11 +559,11 @@ func (x *nodePushDataClient) Send(m *PushDataRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *nodePushDataClient) CloseAndRecv() (*empty.Empty, error) {
+func (x *nodePushDataClient) CloseAndRecv() (*emptypb.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(empty.Empty)
+	m := new(emptypb.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -772,7 +603,7 @@ func (x *nodePollDataClient) Recv() (*PollDataResponse, error) {
 
 // NodeServer is the server API for Node service.
 type NodeServer interface {
-	CreateTasks(context.Context, *CreateTasksRequest) (*empty.Empty, error)
+	CreateTasks(context.Context, *CreateTasksRequest) (*emptypb.Empty, error)
 	PushData(Node_PushDataServer) error
 	PollData(Node_PollDataServer) error
 }
@@ -781,7 +612,7 @@ type NodeServer interface {
 type UnimplementedNodeServer struct {
 }
 
-func (*UnimplementedNodeServer) CreateTasks(ctx context.Context, req *CreateTasksRequest) (*empty.Empty, error) {
+func (*UnimplementedNodeServer) CreateTasks(ctx context.Context, req *CreateTasksRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateTasks not implemented")
 }
 func (*UnimplementedNodeServer) PushData(srv Node_PushDataServer) error {
@@ -818,7 +649,7 @@ func _Node_PushData_Handler(srv interface{}, stream grpc.ServerStream) error {
 }
 
 type Node_PushDataServer interface {
-	SendAndClose(*empty.Empty) error
+	SendAndClose(*emptypb.Empty) error
 	Recv() (*PushDataRequest, error)
 	grpc.ServerStream
 }
@@ -827,7 +658,7 @@ type nodePushDataServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodePushDataServer) SendAndClose(m *empty.Empty) error {
+func (x *nodePushDataServer) SendAndClose(m *emptypb.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -911,8 +742,13 @@ func (m *CreateTasksRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.Broadcasts) > 0 {
+		keysForBroadcasts := make([]string, 0, len(m.Broadcasts))
 		for k := range m.Broadcasts {
-			v := m.Broadcasts[k]
+			keysForBroadcasts = append(keysForBroadcasts, string(k))
+		}
+		github_com_gogo_protobuf_sortkeys.Strings(keysForBroadcasts)
+		for iNdEx := len(keysForBroadcasts) - 1; iNdEx >= 0; iNdEx-- {
+			v := m.Broadcasts[string(keysForBroadcasts[iNdEx])]
 			baseI := i
 			if len(v) > 0 {
 				i -= len(v)
@@ -921,9 +757,9 @@ func (m *CreateTasksRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 				i--
 				dAtA[i] = 0x12
 			}
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintRpc(dAtA, i, uint64(len(k)))
+			i -= len(keysForBroadcasts[iNdEx])
+			copy(dAtA[i:], keysForBroadcasts[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(keysForBroadcasts[iNdEx])))
 			i--
 			dAtA[i] = 0xa
 			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
@@ -1074,17 +910,22 @@ func (m *Output) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.PartitionToHost) > 0 {
+		keysForPartitionToHost := make([]string, 0, len(m.PartitionToHost))
 		for k := range m.PartitionToHost {
-			v := m.PartitionToHost[k]
+			keysForPartitionToHost = append(keysForPartitionToHost, string(k))
+		}
+		github_com_gogo_protobuf_sortkeys.Strings(keysForPartitionToHost)
+		for iNdEx := len(keysForPartitionToHost) - 1; iNdEx >= 0; iNdEx-- {
+			v := m.PartitionToHost[string(keysForPartitionToHost[iNdEx])]
 			baseI := i
 			i -= len(v)
 			copy(dAtA[i:], v)
 			i = encodeVarintRpc(dAtA, i, uint64(len(v)))
 			i--
 			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintRpc(dAtA, i, uint64(len(k)))
+			i -= len(keysForPartitionToHost[iNdEx])
+			copy(dAtA[i:], keysForPartitionToHost[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(keysForPartitionToHost[iNdEx])))
 			i--
 			dAtA[i] = 0xa
 			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
@@ -1835,7 +1676,7 @@ func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthRpc
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -1852,10 +1693,7 @@ func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -1969,10 +1807,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2041,10 +1876,7 @@ func (m *Input) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2223,7 +2055,7 @@ func (m *Output) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthRpc
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -2240,10 +2072,7 @@ func (m *Output) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2357,10 +2186,7 @@ func (m *HostMapping) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2442,10 +2268,7 @@ func (m *CreateTaskResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2529,10 +2352,7 @@ func (m *PushDataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2601,10 +2421,7 @@ func (m *PollDataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2708,10 +2525,7 @@ func (m *PollDataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -2825,10 +2639,7 @@ func (m *DataHeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {

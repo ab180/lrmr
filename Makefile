@@ -13,9 +13,9 @@ ifeq ($(shell which mockery), )
 	@echo "Installing Dependency: mockery"
 	@go install github.com/vektra/mockery/.../
 endif
-ifeq ($(shell which protoc-gen-gogofaster), )
+ifeq ($(shell which protoc-gen-gogo), )
 	@echo "Installing Dependency: protoc-gen-gogo"
-	@go install github.com/gogo/protobuf/{proto,protoc-gen-gogofaster,gogoproto}
+	@go install github.com/gogo/protobuf/{proto,protoc-gen-gogo,gogoproto}
 endif
 
 fbs:
@@ -25,9 +25,9 @@ fbs:
 
 proto:
 	@for PROTO in $(PROTO_SRCS); do \
-	  protoc -I/usr/local/include -I. \
+	  protoc -I/usr/local/include --proto_path=$(go list -f '{{ .Dir }}' -m github.com/gogo/protobuf) -I. \
 	  		-I$(GOGOPROTO) \
-			--gogofaster_out=plugins=grpc,paths=source_relative:. \
+			--gogo_out=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types,plugins=grpc,paths=source_relative:. \
 			$$PROTO; \
 	done
 
