@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
 
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/master"
@@ -30,8 +29,6 @@ func RunMaster(optionalOpt ...Options) (*master.Master, error) {
 }
 
 func RunWorker(optionalOpt ...Options) error {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	opt := DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
