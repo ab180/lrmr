@@ -173,7 +173,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 	exec := NewTaskExecutor(tracker.JobContext(), w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
 	w.runningTasks.Store(task.ID().String(), exec)
-	runningTasksGauge := lrmrmetric.RunningTasksGauge.WithLabelValues(w.Node.Info().Host)
+	runningTasksGauge := lrmrmetric.RunningTasksGauge.With(lrmrmetric.WorkerLabelValuesFrom(w.Node.Info()))
 	runningTasksGauge.Inc()
 
 	exec.OnTaskFinish(func() {
