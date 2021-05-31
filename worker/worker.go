@@ -16,6 +16,7 @@ import (
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/partitions"
@@ -39,6 +40,7 @@ type Worker struct {
 	serverLis       net.Listener
 	jobManager      *job.Manager
 	runningTasks    sync.Map
+	runningJobs     sync.Map
 	workerLocalOpts map[string]interface{}
 
 	opt Options
@@ -115,6 +117,14 @@ func (w *Worker) NumRunningTasks() (count int) {
 	return
 }
 
+func (w *Worker) NumRunningJobs() (count int) {
+	w.runningJobs.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return
+}
+
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }
@@ -163,14 +173,25 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 	exec := NewTaskExecutor(tracker.JobContext(), w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
 	w.runningTasks.Store(task.ID().String(), exec)
+	runningTasksGauge := lrmrmetric.RunningTasksGauge.WithLabelValues(w.Node.Info().Host)
+	runningTasksGauge.Inc()
 
-	tracker.OnJobCompletion(func(stat *job.Status) {
-		if len(stat.Errors) > 0 {
-			err := stat.Errors[0]
-			log.Verbose("Task {} aborted with error caused by task {}.", task.ID(), err.Task)
-			exec.Abort(nil)
-		}
+	exec.OnTaskFinish(func() {
+		w.runningTasks.Delete(task.ID().String())
+		runningTasksGauge.Dec()
 	})
+
+	if _, exists := w.runningJobs.LoadOrStore(task.JobID, struct{}{}); !exists {
+		tracker.OnJobCompletion(func(stat *job.Status) {
+			w.runningJobs.Delete(task.JobID)
+
+			if len(stat.Errors) > 0 {
+				err := stat.Errors[0]
+				log.Verbose("Task {} aborted with error caused by task {}.", task.ID(), err.Task)
+				exec.Abort(nil)
+			}
+		})
+	}
 	go exec.Run()
 	return nil
 }
@@ -241,7 +262,6 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	if exec == nil {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
-	defer w.runningTasks.Delete(h.TaskID)
 
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(exec.context); err != nil {

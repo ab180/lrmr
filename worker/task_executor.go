@@ -33,6 +33,8 @@ type TaskExecutor struct {
 	taskReporter *job.TaskReporter
 	jobManager   *job.Manager
 	closed       atomic.Bool
+
+	finishCallbacks []func()
 }
 
 func NewTaskExecutor(
@@ -128,8 +130,17 @@ func (e *TaskExecutor) close() {
 	}
 	e.function = nil
 	e.Input = nil
+
+	for _, callback := range e.finishCallbacks {
+		callback()
+	}
 }
 
 func (e *TaskExecutor) WaitForFinish() {
 	<-e.context.Done()
+}
+
+// OnTaskFinish adds a handler called when the task completes.
+func (e *TaskExecutor) OnTaskFinish(callback func()) {
+	e.finishCallbacks = append(e.finishCallbacks, callback)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/master"
 	"github.com/goombaio/namegenerator"
 	"github.com/pkg/errors"
@@ -95,6 +96,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 		return nil, errors.Wrap(err, "close input")
 	}
 	timer.End("{} ({}) started", j.Name, j.ID)
+	lrmrmetric.RunningJobsGauge.Inc()
 
 	return newRunningJob(s.master, j, tracker), nil
 }

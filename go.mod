@@ -10,9 +10,11 @@ require (
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
-	github.com/json-iterator/go v1.1.9
+	github.com/json-iterator/go v1.1.10
 	github.com/modern-go/reflect2 v1.0.1
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.10.0
+	github.com/prometheus/client_model v0.2.0
 	github.com/segmentio/fasthash v1.0.1
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/therne/errorist v0.1.1

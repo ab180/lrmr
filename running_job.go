@@ -11,6 +11,7 @@ import (
 	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/master"
 	"github.com/pkg/errors"
 )
@@ -26,6 +27,7 @@ type RunningJob struct {
 	jobContext  context.Context
 	finalStatus atomic.Value
 	statusMu    sync.RWMutex
+	startedAt   time.Time
 }
 
 // TrackJob looks for an existing job and returns a RunningJob for tracking the job's lifecycle.
@@ -44,6 +46,7 @@ func newRunningJob(m *master.Master, j *job.Job, tracker *job.Tracker) *RunningJ
 		Job:        j,
 		Master:     m,
 		jobContext: tracker.JobContext(),
+		startedAt:  time.Now(),
 	}
 
 	tracker.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
@@ -165,4 +168,8 @@ func (r *RunningJob) logMetrics() {
 		return
 	}
 	log.Verbose("Metrics collected:\n{}", metrics)
+
+	jobDuration := time.Now().Sub(r.startedAt)
+	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
+	lrmrmetric.RunningJobsGauge.Dec()
 }
