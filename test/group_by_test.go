@@ -1,6 +1,7 @@
 package test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/ab180/lrmr/job"
@@ -31,6 +32,34 @@ func TestBasicGroupByKey(t *testing.T) {
 			})
 		})
 	}))
+}
+
+func BenchmarkBasicGroupByKey(b *testing.B) {
+	b.ReportAllocs()
+	b.StopTimer()
+	cluster, err := integration.NewLocalCluster(2)
+	if err != nil {
+		b.Fatalf("Failed to start local cluster: %v", err)
+	}
+	b.StartTimer()
+
+	ds := BasicGroupByKey(cluster.Session)
+	allocSum := uint64(0)
+	for n := 0; n < b.N; n++ {
+		start := new(runtime.MemStats)
+		runtime.ReadMemStats(start)
+
+		if _, err := ds.Collect(); err != nil {
+			b.Fatalf("Failed to collect: %v", err)
+		}
+		end := new(runtime.MemStats)
+		runtime.ReadMemStats(end)
+
+		allocSum += end.TotalAlloc - start.TotalAlloc
+	}
+	b.StopTimer()
+	_ = cluster.Close()
+	b.Logf("Total Memory Used: Average %dMiB", allocSum/uint64(b.N)/1024/1024)
 }
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {

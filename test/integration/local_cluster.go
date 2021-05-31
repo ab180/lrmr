@@ -9,6 +9,7 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/master"
 	"github.com/ab180/lrmr/worker"
+	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -17,60 +18,67 @@ type LocalCluster struct {
 
 	crd     coordinator.Coordinator
 	master  *master.Master
-	workers []*worker.Worker
+	Workers []*worker.Worker
 	testCtx C
+}
+
+func NewLocalCluster(numWorkers int, options ...lrmr.SessionOption) (*LocalCluster, error) {
+	workers := make([]*worker.Worker, numWorkers)
+	crd := ProvideEtcd()
+
+	for i := 0; i < numWorkers; i++ {
+		opt := worker.DefaultOptions()
+		opt.ListenHost = "127.0.0.1:"
+		opt.AdvertisedHost = "127.0.0.1:"
+		opt.Concurrency = 2
+		opt.NodeTags["No"] = strconv.Itoa(i + 1)
+
+		w, err := worker.New(crd, opt)
+		if err != nil {
+			return nil, errors.Wrapf(err, "init worker #%d", i)
+		}
+		w.SetWorkerLocalOption("No", i+1)
+		w.SetWorkerLocalOption("IsWorker", true)
+
+		go w.Start()
+		workers[i] = w
+	}
+
+	// wait for workers to register themselves
+	time.Sleep(200 * time.Millisecond)
+
+	opt := master.DefaultOptions()
+	opt.ListenHost = "127.0.0.1:"
+	opt.AdvertisedHost = "127.0.0.1:"
+
+	m, err := master.New(crd, opt)
+	if err != nil {
+		return nil, errors.Wrap(err, "init master")
+	}
+	m.Start()
+
+	options = append(options, lrmr.WithTimeout(30*time.Second))
+	sess := lrmr.NewSession(context.Background(), m, options...)
+
+	return &LocalCluster{
+		Session: sess,
+		crd:     crd,
+		master:  m,
+		Workers: workers,
+	}, nil
 }
 
 func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.SessionOption) func() {
 	return func() {
-		var m *master.Master
-		workers := make([]*worker.Worker, numWorkers)
-		Reset(func() {
-			for _, w := range workers {
-				So(w.Close(), ShouldBeNil)
-			}
-			m.Stop()
-		})
-
-		crd := ProvideEtcd()
-
-		for i := 0; i < numWorkers; i++ {
-			opt := worker.DefaultOptions()
-			opt.ListenHost = "127.0.0.1:"
-			opt.AdvertisedHost = "127.0.0.1:"
-			opt.Concurrency = 2
-			opt.NodeTags["No"] = strconv.Itoa(i + 1)
-
-			w, err := worker.New(crd, opt)
+		c, err := NewLocalCluster(numWorkers, options...)
+		if err != nil {
 			So(err, ShouldBeNil)
-			w.SetWorkerLocalOption("No", i+1)
-			w.SetWorkerLocalOption("IsWorker", true)
-
-			go w.Start()
-			workers[i] = w
 		}
-
-		// wait for workers to register themselves
-		time.Sleep(200 * time.Millisecond)
-
-		opt := master.DefaultOptions()
-		opt.ListenHost = "127.0.0.1:"
-		opt.AdvertisedHost = "127.0.0.1:"
-
-		var err error
-		m, err = master.New(crd, opt)
-		So(err, ShouldBeNil)
-		m.Start()
-
-		options = append(options, lrmr.WithTimeout(30*time.Second))
-		sess := lrmr.NewSession(context.Background(), m, options...)
-
-		c := &LocalCluster{
-			Session: sess,
-			crd:     crd,
-			master:  m,
-			workers: workers,
-		}
+		Reset(func() {
+			if err := c.Close(); err != nil {
+				So(err, ShouldBeNil)
+			}
+		})
 		fn(c)
 	}
 }
@@ -92,4 +100,14 @@ func (lc *LocalCluster) EmulateMasterFailure(old *lrmr.RunningJob) (new *lrmr.Ru
 		lc.testCtx.So(err, ShouldBeNil)
 	}
 	return newJob
+}
+
+func (lc *LocalCluster) Close() error {
+	for i, w := range lc.Workers {
+		if err := w.Close(); err != nil {
+			return errors.Wrapf(err, "close worker #%d", i)
+		}
+	}
+	lc.master.Stop()
+	return nil
 }

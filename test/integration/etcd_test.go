@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/thoas/go-funk"
-	"golang.org/x/sync/errgroup"
 )
 
 func TestEtcd_Counter(t *testing.T) {
