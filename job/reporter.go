@@ -21,9 +21,6 @@ type TaskReporter struct {
 	status  *TaskStatus
 	flushMu sync.Mutex
 	dirty   atomic.Bool
-
-	ctx context.Context
-	log logger.Logger
 }
 
 func NewTaskReporter(ctx context.Context, cs cluster.State, j *Job, task TaskID, s *TaskStatus) *TaskReporter {
@@ -32,8 +29,6 @@ func NewTaskReporter(ctx context.Context, cs cluster.State, j *Job, task TaskID,
 		task:         task,
 		job:          j,
 		status:       s,
-		ctx:          ctx,
-		log:          logger.New("lrmr.jobReporter"),
 	}
 }
 
@@ -63,7 +58,7 @@ func (r *TaskReporter) ReportSuccess() error {
 		return errors.Wrap(err, "write etcd")
 	}
 	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
-	r.log.Verbose("Task {} succeeded after {}", r.task, elapsed)
+	log.Verbose("Task {} succeeded after {}", r.task, elapsed)
 
 	r.checkForStageCompletion(int(res[1].Counter), 0)
 	return nil
@@ -101,9 +96,9 @@ func (r *TaskReporter) ReportFailure(err error) error {
 	switch err.(type) {
 	case *logger.PanicError:
 		panicErr := err.(*logger.PanicError)
-		r.log.Error("Task {} failed after {} with {}", r.task, elapsed, panicErr.Pretty())
+		log.Error("Task {} failed after {} with {}", r.task, elapsed, panicErr.Pretty())
 	default:
-		r.log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
+		log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
 	}
 
 	r.checkForStageCompletion(int(res[1].Counter), int(res[2].Counter))
@@ -114,7 +109,7 @@ func (r *TaskReporter) checkForStageCompletion(currentDoneTasks, currentFailedTa
 	if currentFailedTasks == 1 {
 		// to prevent race between workers, the failure is only reported by the first worker failed
 		if err := r.reportStageCompletion(Failed); err != nil {
-			r.log.Error("Failed to report completion of failed stage", err)
+			log.Error("Failed to report completion of failed stage", err)
 		}
 		return
 	}
@@ -122,20 +117,20 @@ func (r *TaskReporter) checkForStageCompletion(currentDoneTasks, currentFailedTa
 	if currentDoneTasks == totalTasks {
 		failedTasks, err := r.clusterState.ReadCounter(r.ctx, failedTasksInStageKey(r.task))
 		if err != nil {
-			r.log.Error("Failed to get count of failed stages of {}/{}", err, r.task.JobID, r.task.StageName)
+			log.Error("Failed to get count of failed stages of {}/{}", err, r.task.JobID, r.task.StageName)
 			return
 		}
 		if failedTasks > 0 {
 			return
 		}
 		if err := r.reportStageCompletion(Succeeded); err != nil {
-			r.log.Error("Failed to report completion of succeeded stage", err)
+			log.Error("Failed to report completion of succeeded stage", err)
 		}
 	}
 }
 
 func (r *TaskReporter) reportStageCompletion(status RunningState) error {
-	r.log.Verbose("Reporting {} stage {}/{} (by {})", status, r.job.ID, r.task.StageName, r.task)
+	log.Verbose("Reporting {} stage {}/{} (by {})", status, r.job.ID, r.task.StageName, r.task)
 
 	var s StageStatus
 	if err := r.clusterState.Get(r.ctx, stageStatusKey(r.job.ID, r.task.StageName), &s); err != nil {
@@ -169,7 +164,7 @@ func (r *TaskReporter) reportJobCompletion(status RunningState) error {
 		return nil
 	}
 
-	r.log.Verbose("Reporting {} job {} (by {})", status, r.job.ID, r.task)
+	log.Verbose("Reporting {} job {} (by {})", status, r.job.ID, r.task)
 	js.Complete(status)
 	if err := r.clusterState.Put(r.ctx, jobStatusKey(r.job.ID), js); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
@@ -184,7 +179,7 @@ func (r *TaskReporter) Start() {
 			select {
 			case <-t.C:
 				if err := r.flushTaskStatus(); err != nil {
-					r.log.Warn("Failed to report, will try again at next tick: {}", err)
+					log.Warn("Failed to report, will try again at next tick: {}", err)
 				}
 			case <-r.ctx.Done():
 				t.Stop()

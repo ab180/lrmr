@@ -82,7 +82,7 @@ func (t *Tracker) watch() {
 func (t *Tracker) handleTaskFinish(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
-		t.log.Warn("Unable to handle task finish event: {}", err)
+		log.Warn("Unable to handle task finish event: {}", err)
 		return
 	}
 	for _, callback := range t.taskSubscriptions {
@@ -93,13 +93,13 @@ func (t *Tracker) handleTaskFinish(e coordinator.WatchEvent) {
 func (t *Tracker) handleStageStatusUpdate(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
-		t.log.Warn("Unable to handle stage status update event: {}", err)
+		log.Warn("Unable to handle stage status update event: {}", err)
 		return
 	}
 
 	st := new(StageStatus)
 	if err := e.Item.Unmarshal(st); err != nil {
-		t.log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
+		log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
 		return
 	}
 	for _, callback := range t.stageSubscriptions {
