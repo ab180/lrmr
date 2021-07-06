@@ -11,9 +11,8 @@ type LocalPipe struct {
 }
 
 func NewLocalPipe(r *input.Reader) *LocalPipe {
-	l := &LocalPipe{reader: r}
-	r.Add(l)
-	return l
+	r.Add()
+	return &LocalPipe{reader: r}
 }
 
 func (l *LocalPipe) CloseWithStatus(s job.Status) error {

@@ -35,12 +35,16 @@ func (c *Collector) Apply(ctx transformation.Context, in chan *lrdd.Row, _ outpu
 	if err != nil {
 		return errors.Errorf("unknown job: %s", ctx.JobID())
 	}
+	defer collectResultChans.Delete(ctx.JobID())
+
 	var rows []*lrdd.Row
 	for row := range in {
 		rows = append(rows, row)
 	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	resultChan <- rows
-	collectResultChans.Delete(ctx.JobID())
 	return nil
 }
 

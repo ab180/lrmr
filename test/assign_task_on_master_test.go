@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -13,7 +14,7 @@ func TestAssignTaskOnMaster(t *testing.T) {
 			ds := AssignTaskOnMaster(cluster.Session)
 
 			Convey("It should be actually assigned on master without error", func() {
-				rows, err := ds.Collect()
+				rows, err := ds.Collect(testutils.ContextWithTimeout())
 				So(err, ShouldBeNil)
 				So(rows, ShouldHaveLength, 1)
 

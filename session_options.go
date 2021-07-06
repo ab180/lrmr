@@ -1,10 +1,14 @@
 package lrmr
 
-import "time"
+import (
+	"time"
+
+	"github.com/creasty/defaults"
+)
 
 type SessionOptions struct {
 	Name         string
-	Timeout      time.Duration
+	StartTimeout time.Duration `default:"5s"`
 	NodeSelector map[string]string
 }
 
@@ -16,9 +20,9 @@ func WithName(n string) SessionOption {
 	}
 }
 
-func WithTimeout(d time.Duration) SessionOption {
+func WithStartTimeout(d time.Duration) SessionOption {
 	return func(o *SessionOptions) {
-		o.Timeout = d
+		o.StartTimeout = d
 	}
 }
 
@@ -29,6 +33,9 @@ func WithNodeSelector(selector map[string]string) SessionOption {
 }
 
 func buildSessionOptions(opts []SessionOption) (o SessionOptions) {
+	if err := defaults.Set(&o); err != nil {
+		panic(err)
+	}
 	for _, optFn := range opts {
 		optFn(&o)
 	}

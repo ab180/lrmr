@@ -49,7 +49,7 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 		start := new(runtime.MemStats)
 		runtime.ReadMemStats(start)
 
-		if _, err := ds.Collect(); err != nil {
+		if _, err := ds.Collect(testutils.ContextWithTimeout()); err != nil {
 			b.Fatalf("Failed to collect: %v", err)
 		}
 		end := new(runtime.MemStats)
@@ -68,7 +68,7 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 			ds := BasicGroupByKnownKeys(cluster.Session)
 
 			Convey("It should run without error", func() {
-				rows, err := ds.Collect()
+				rows, err := ds.Collect(testutils.ContextWithTimeout())
 				res := testutils.GroupRowsByKey(rows)
 				So(err, ShouldBeNil)
 
@@ -108,7 +108,7 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 			ds := SimpleCount(cluster.Session)
 
 			Convey("Calling Collect() should return results with no error", func() {
-				rows, err := ds.Collect()
+				rows, err := ds.Collect(testutils.ContextWithTimeout())
 				res := testutils.GroupRowsByKey(rows)
 
 				So(err, ShouldBeNil)

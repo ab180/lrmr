@@ -57,9 +57,7 @@ func NewLocalCluster(numWorkers int, options ...lrmr.SessionOption) (*LocalClust
 	}
 	m.Start()
 
-	options = append(options, lrmr.WithTimeout(30*time.Second))
-	sess := lrmr.NewSession(context.Background(), m, options...)
-
+	sess := lrmr.NewSession(m, options...)
 	return &LocalCluster{
 		Session: sess,
 		crd:     crd,

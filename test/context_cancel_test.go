@@ -1,10 +1,10 @@
 package test
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/test/integration"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -16,8 +16,11 @@ func TestContextCancel(t *testing.T) {
 		ds := ContextCancel(cluster.Session, time.Second)
 
 		Convey("It should be cancelled after cancelling the Context", func() {
-			_, err := ds.Collect()
-			So(err, ShouldBeError, "job cancelled")
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			_, err := ds.Collect(ctx)
+			So(err, ShouldBeError, context.DeadlineExceeded)
 		})
-	}, lrmr.WithTimeout(100*time.Millisecond)))
+	}))
 }

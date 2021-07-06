@@ -3,15 +3,11 @@ package input
 import (
 	"github.com/ab180/lrmr/lrdd"
 	"go.uber.org/atomic"
-
-	"sync"
 )
 
 type Reader struct {
 	C chan []*lrdd.Row
 
-	inputs    []Input
-	lock      sync.RWMutex
 	activeCnt atomic.Int64
 	closed    atomic.Bool
 }
@@ -22,11 +18,7 @@ func NewReader(queueLen int) *Reader {
 	}
 }
 
-func (p *Reader) Add(in Input) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	p.inputs = append(p.inputs, in)
+func (p *Reader) Add() {
 	p.activeCnt.Inc()
 }
 
@@ -44,5 +36,4 @@ func (p *Reader) Close() {
 	}
 	// with CAS, only a goroutine can enter here
 	close(p.C)
-	p.inputs = nil
 }

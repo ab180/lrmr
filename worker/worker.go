@@ -40,8 +40,10 @@ type Worker struct {
 	serverLis       net.Listener
 	jobManager      *job.Manager
 	runningTasks    sync.Map
-	runningJobs     sync.Map
 	workerLocalOpts map[string]interface{}
+
+	runningJobs   map[string]*runningJobHolder
+	runningJobsMu sync.RWMutex
 
 	opt Options
 }
@@ -118,11 +120,10 @@ func (w *Worker) NumRunningTasks() (count int) {
 }
 
 func (w *Worker) NumRunningJobs() (count int) {
-	w.runningJobs.Range(func(_, _ interface{}) bool {
-		count++
-		return true
-	})
-	return
+	w.runningJobsMu.RLock()
+	defer w.runningJobsMu.RUnlock()
+
+	return len(w.runningJobs)
 }
 
 func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
@@ -155,45 +156,60 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	if err := req.Job.UnmarshalJSON(j); err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
 	}
+	runningJob := w.getOrCreateRunningJob(j)
 	s := j.GetStage(req.Stage)
-	tracker := w.jobManager.Track(context.Background(), j)
 
 	task := job.NewTask(partitionID, w.Node.Info(), j.ID, s)
-	ts, err := w.jobManager.CreateTask(ctx, task)
+	taskStatus, err := w.jobManager.CreateTask(ctx, task)
 	if err != nil {
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
 	in := input.NewReader(w.opt.Input.QueueLength)
 
 	// after job finishes, remaining connections should be closed
-	out, err := w.newOutputWriter(tracker.JobContext(), j, s.Name, partitionID, req.Output)
+	out, err := w.newOutputWriter(runningJob.Context(), j, s.Name, partitionID, req.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
-	exec := NewTaskExecutor(tracker.JobContext(), w.Cluster.States(), j, task, ts, s.Function, in, out, broadcasts, w.workerLocalOpts)
+	exec := NewTaskExecutor(
+		w.Cluster.States(),
+		runningJob,
+		task,
+		taskStatus,
+		s.Function,
+		in,
+		out,
+		broadcasts,
+		w.workerLocalOpts,
+	)
 	w.runningTasks.Store(task.ID().String(), exec)
 	runningTasksGauge := lrmrmetric.RunningTasksGauge.With(lrmrmetric.WorkerLabelValuesFrom(w.Node.Info()))
 	runningTasksGauge.Inc()
 
-	exec.OnTaskFinish(func() {
+	go func() {
+		exec.Run()
+
 		w.runningTasks.Delete(task.ID().String())
 		runningTasksGauge.Dec()
-	})
+	}()
+	return nil
+}
 
-	if _, exists := w.runningJobs.LoadOrStore(task.JobID, struct{}{}); !exists {
-		tracker.OnJobCompletion(func(stat *job.Status) {
-			w.runningJobs.Delete(task.JobID)
+func (w *Worker) getOrCreateRunningJob(j *job.Job) *runningJobHolder {
+	w.runningJobsMu.Lock()
+	defer w.runningJobsMu.Unlock()
 
-			if len(stat.Errors) > 0 {
-				err := stat.Errors[0]
-				log.Verbose("Task {} aborted with error caused by task {}.", task.ID(), err.Task)
-				exec.Abort(nil)
-			}
+	runningJob, ok := w.runningJobs[j.ID]
+	if !ok {
+		runningJob = newRunningJobHolder(w.jobManager, j)
+		runningJob.Tracker.OnJobCompletion(func(stat *job.Status) {
+			w.runningJobsMu.Lock()
+			defer w.runningJobsMu.Unlock()
+			delete(w.runningJobs, j.ID)
 		})
 	}
-	go exec.Run()
-	return nil
+	return runningJob
 }
 
 func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (*output.Writer, error) {
@@ -234,8 +250,8 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 				return err
 			}
 			mu.Lock()
+			defer mu.Unlock()
 			idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
-			mu.Unlock()
 			return nil
 		})
 	}
@@ -264,10 +280,10 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	}
 
 	in := input.NewPushStream(exec.Input, stream)
-	if err := in.Dispatch(exec.context); err != nil {
+	if err := in.Dispatch(); err != nil {
 		return err
 	}
-	exec.WaitForFinish()
+	log.Verbose("Pushing data from node {} to {} finished (input channel closed)", h.FromHost, h.TaskID)
 
 	// upstream may have been closed, but that should not affect the task result
 	_ = stream.SendAndClose(&empty.Empty{})

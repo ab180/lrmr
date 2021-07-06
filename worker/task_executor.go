@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"io"
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/input"
@@ -11,16 +10,12 @@ import (
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/transformation"
-	"github.com/pkg/errors"
 	"github.com/therne/errorist"
-	"go.uber.org/atomic"
 )
 
 type TaskExecutor struct {
-	context *taskContext
-	cancel  context.CancelFunc
-	task    *job.Task
-	job     *job.Job
+	task *job.Task
+	job  *runningJobHolder
 
 	Input    *input.Reader
 	function transformation.Transformation
@@ -29,18 +24,13 @@ type TaskExecutor struct {
 	broadcast    serialization.Broadcast
 	localOptions map[string]interface{}
 
-	finishChan   chan struct{}
 	taskReporter *job.TaskReporter
-	jobManager   *job.Manager
-	closed       atomic.Bool
-
-	finishCallbacks []func()
+	taskError    error
 }
 
 func NewTaskExecutor(
-	parentCtx context.Context,
-	cs cluster.State,
-	j *job.Job,
+	clusterState cluster.State,
+	runningJob *runningJobHolder,
 	task *job.Task,
 	status *job.TaskStatus,
 	fn transformation.Transformation,
@@ -49,98 +39,76 @@ func NewTaskExecutor(
 	broadcast serialization.Broadcast,
 	localOptions map[string]interface{},
 ) *TaskExecutor {
-	ctx, cancel := context.WithCancel(parentCtx)
 	exec := &TaskExecutor{
 		task:         task,
-		job:          j,
+		job:          runningJob,
 		Input:        in,
 		function:     fn,
 		Output:       out,
 		broadcast:    broadcast,
 		localOptions: localOptions,
-		finishChan:   make(chan struct{}, 1),
-		taskReporter: job.NewTaskReporter(parentCtx, cs, j, task.ID(), status),
-		jobManager:   job.NewManager(cs),
+		taskReporter: job.NewTaskReporter(clusterState, runningJob.Job, task.ID(), status),
 	}
-	exec.context = newTaskContext(ctx, exec)
-	exec.cancel = cancel
 	return exec
 }
 
 func (e *TaskExecutor) Run() {
-	defer e.guardPanic()
-	totalRows := 0
+	ctx, cancel := newTaskContextWithCancel(e.job.Context(), e)
+	defer cancel()
+
+	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
-	inputChan := make(chan *lrdd.Row, 100)
-	go func() {
-		defer e.guardPanic()
-		defer close(inputChan)
-		for rows := range e.Input.C {
-			for _, r := range rows {
-				if e.context.Err() != nil {
-					return
-				}
-				inputChan <- r
-			}
-			totalRows += len(rows)
-		}
-	}()
+	inputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
+	go pipeAndFlattenInputs(ctx, e.Input.C, inputChan)
 
-	if err := e.function.Apply(e.context, inputChan, e.Output); err != nil {
-		if errors.Cause(err) == context.Canceled || (e.context.Err() != nil && errors.Cause(err) == io.EOF) {
+	if err := e.function.Apply(ctx, inputChan, e.Output); err != nil {
+		if ctx.Err() != nil {
 			// ignore errors caused by task cancellation
 			return
 		}
-		e.Abort(err)
-		return
-	} else if e.context.Err() != nil {
-		return
-	}
-	e.close()
-
-	if err := e.taskReporter.ReportSuccess(); err != nil {
-		log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
+		e.taskError = err
 	}
 }
 
-func (e *TaskExecutor) Abort(err error) {
-	e.close()
-	reportErr := e.taskReporter.ReportFailure(err)
-	if reportErr != nil {
-		log.Error("While reporting the error, another error occurred", reportErr)
-	}
-}
-
-func (e *TaskExecutor) guardPanic() {
-	if err := errorist.WrapPanic(recover()); err != nil {
-		e.Abort(err)
-	}
-}
-
-// close frees occupied resources and memories.
-func (e *TaskExecutor) close() {
-	if closing := e.closed.CAS(false, true); !closing {
-		return
-	}
-	e.cancel()
-	e.Input.Close()
+// reportStatus updates task status if failed.
+func (e *TaskExecutor) reportStatus(ctx context.Context) {
+	// to flush outputs before the status report
 	if err := e.Output.Close(); err != nil {
 		log.Error("Failed to close output: {}")
 	}
+
+	// recover panic
+	taskErr := e.taskError
+	if err := errorist.WrapPanic(recover()); err != nil {
+		taskErr = err
+	}
+
+	if taskErr != nil {
+		if err := e.taskReporter.ReportFailure(ctx, taskErr); err != nil {
+			log.Error("While reporting the error, another error occurred", err)
+		}
+	} else {
+		if err := e.taskReporter.ReportSuccess(ctx); err != nil {
+			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
+		}
+	}
+
+	// to help GC
 	e.function = nil
 	e.Input = nil
+}
 
-	for _, callback := range e.finishCallbacks {
-		callback()
+func pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan *lrdd.Row) {
+	defer close(out)
+
+	for rows := range in {
+		for _, r := range rows {
+			select {
+			case out <- r:
+			case <-ctx.Done():
+				break
+			}
+		}
 	}
-}
-
-func (e *TaskExecutor) WaitForFinish() {
-	<-e.context.Done()
-}
-
-// OnTaskFinish adds a handler called when the task completes.
-func (e *TaskExecutor) OnTaskFinish(callback func()) {
-	e.finishCallbacks = append(e.finishCallbacks, callback)
 }

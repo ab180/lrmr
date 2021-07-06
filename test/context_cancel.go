@@ -1,6 +1,8 @@
 package test
 
 import (
+	"context"
+	"log"
 	"time"
 
 	"github.com/ab180/lrmr"
@@ -12,9 +14,14 @@ var _ = lrmr.RegisterTypes(ContextCancelTestStage{})
 type ContextCancelTestStage struct{}
 
 func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
+	taskCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	timeout := ctx.Broadcast("timeout").(time.Duration)
+	log.Println("timeout is ", timeout)
 	select {
-	case <-ctx.Done():
+	case <-taskCtx.Done():
+		log.Println("deadline")
 		return nil
 	case <-time.After(timeout):
 		panic("job not cancelled by context cancel")

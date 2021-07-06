@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ab180/lrmr/internal/serialization"
-	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/master"
@@ -14,15 +13,13 @@ import (
 )
 
 type Session struct {
-	ctx        context.Context
 	master     *master.Master
 	broadcasts serialization.Broadcast
 	options    SessionOptions
 }
 
-func NewSession(ctx context.Context, m *master.Master, opts ...SessionOption) *Session {
+func NewSession(m *master.Master, opts ...SessionOption) *Session {
 	return &Session{
-		ctx:        ctx,
 		master:     m,
 		broadcasts: make(serialization.Broadcast),
 		options:    buildSessionOptions(opts),
@@ -47,20 +44,15 @@ func (s *Session) Broadcast(key string, val interface{}) {
 	s.broadcasts[key] = val
 }
 
-func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
+func (s *Session) Start(ctx context.Context, ds *Dataset) (*RunningJob, error) {
 	timer := log.Timer()
 
 	jobName := s.options.Name
 	if jobName == "" {
 		jobName = namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
 	}
-	var (
-		ctx    = s.ctx
-		cancel context.CancelFunc
-	)
-	if s.options.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, s.options.Timeout)
-	}
+	ctx, cancel := context.WithTimeout(ctx, s.options.StartTimeout)
+	defer cancel()
 
 	var createJobOptions []master.CreateJobOption
 	if s.options.NodeSelector != nil {
@@ -79,13 +71,7 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 		return nil, errors.WithMessage(err, "assign task")
 	}
 
-	tracker := s.master.JobManager.Track(ctx, j)
-	if cancel != nil {
-		// job has timeout
-		tracker.OnJobCompletion(func(*job.Status) { cancel() })
-	}
-
-	iw, err := s.master.OpenInputWriter(tracker.JobContext(), j, j.Stages[1].Name, ds.plans[0].Partitioner)
+	iw, err := s.master.OpenInputWriter(context.Background(), j, j.Stages[1].Name, ds.plans[0].Partitioner)
 	if err != nil {
 		return nil, errors.WithMessage(err, "open input")
 	}
@@ -98,5 +84,5 @@ func (s *Session) Run(ds *Dataset) (*RunningJob, error) {
 	timer.End("{} ({}) started", j.Name, j.ID)
 	lrmrmetric.RunningJobsGauge.Inc()
 
-	return newRunningJob(s.master, j, tracker), nil
+	return newRunningJob(s.master, j), nil
 }

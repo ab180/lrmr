@@ -7,7 +7,8 @@ import (
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/pkg/errors"
-	"github.com/therne/errorist"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type PushStream struct {
@@ -22,34 +23,19 @@ func NewPushStream(r *Reader, stream lrmrpb.Node_PushDataServer) *PushStream {
 	}
 }
 
-func (p *PushStream) Dispatch(ctx context.Context) error {
-	p.reader.Add(p)
+func (p *PushStream) Dispatch() error {
+	p.reader.Add()
 	defer p.reader.Done()
 
-	errChan := make(chan error, 1)
-	go func() {
-		defer errorist.RecoverWithErrChan(errChan)
-		for {
-			req, err := p.stream.Recv()
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				errChan <- err
-				return
+	for {
+		req, err := p.stream.Recv()
+		if err != nil {
+			if status.Code(err) == codes.Canceled || errors.Cause(err) == context.Canceled || err == io.EOF {
+				return nil
 			}
-			p.reader.C <- req.Data
+			return errors.Wrap(err, "stream dispatch")
 		}
-	}()
-
-	select {
-	case err := <-errChan:
-		if err == io.EOF || err == context.Canceled {
-			return nil
-		}
-		return errors.Wrap(err, "stream dispatch")
-	case <-ctx.Done():
-		return ctx.Err()
+		p.reader.C <- req.Data
 	}
 }
 

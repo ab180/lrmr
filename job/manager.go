@@ -155,8 +155,8 @@ func (m *Manager) ListTaskStatusesInJob(ctx context.Context, jobID string) ([]*T
 	return statuses, nil
 }
 
-func (m *Manager) Track(ctx context.Context, j *Job) *Tracker {
-	return newJobTracker(ctx, m, j)
+func (m *Manager) Track(j *Job) *Tracker {
+	return newJobTracker(m, j)
 }
 
 func jobStatusKey(jobID string, extra ...string) string {

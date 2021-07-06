@@ -6,32 +6,24 @@ import (
 	"time"
 
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/airbloc/logger"
 )
 
-// JobTracker tracks and updates jobs and their tasks' status.
+// Tracker tracks and updates jobs and their tasks' status.
 type Tracker struct {
 	Job *Job
 
-	jobManager   *Manager
-	jobCtx       context.Context
-	jobCtxCancel context.CancelFunc
-
+	jobManager         *Manager
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)
 	taskSubscriptions  []func(stageName string, doneCountInStage int)
 
-	log logger.Logger
+	shutdown chan struct{}
 }
 
-func newJobTracker(ctx context.Context, jm *Manager, job *Job) *Tracker {
-	jobCtx, cancel := context.WithCancel(ctx)
+func newJobTracker(jm *Manager, job *Job) *Tracker {
 	t := &Tracker{
-		Job:          job,
-		jobManager:   jm,
-		jobCtx:       jobCtx,
-		jobCtxCancel: cancel,
-		log:          logger.New("lrmr.jobTracker"),
+		Job:        job,
+		jobManager: jm,
 	}
 	go t.watch()
 	return t
@@ -53,16 +45,14 @@ func (t *Tracker) OnTaskCompletion(callback func(stageName string, doneCountInSt
 	t.taskSubscriptions = append(t.taskSubscriptions, callback)
 }
 
-// JobContext returns a context follows the job's lifecycle. It will be canceled after the job completion.
-func (t *Tracker) JobContext() context.Context {
-	return t.jobCtx
-}
-
 func (t *Tracker) watch() {
-	defer t.log.Recover()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer log.Recover()
 
 	prefix := jobStatusKey(t.Job.ID)
-	for event := range t.jobManager.clusterState.Watch(t.jobCtx, prefix) {
+	for event := range t.jobManager.clusterState.Watch(ctx, prefix) {
 		if strings.HasPrefix(event.Item.Key, jobStatusKey(t.Job.ID, "stage")) {
 			if strings.HasSuffix(event.Item.Key, doneTasksSuffix) {
 				t.handleTaskFinish(event)
@@ -74,7 +64,10 @@ func (t *Tracker) watch() {
 				t.handleStageStatusUpdate(event)
 			}
 		} else if event.Item.Key == jobStatusKey(t.Job.ID) {
-			t.handleJobStatusChange()
+			finished := t.handleJobStatusChange()
+			if finished {
+				break
+			}
 		}
 	}
 }
@@ -86,7 +79,7 @@ func (t *Tracker) handleTaskFinish(e coordinator.WatchEvent) {
 		return
 	}
 	for _, callback := range t.taskSubscriptions {
-		callback(stageName, int(e.Counter))
+		go callback(stageName, int(e.Counter))
 	}
 }
 
@@ -103,23 +96,28 @@ func (t *Tracker) handleStageStatusUpdate(e coordinator.WatchEvent) {
 		return
 	}
 	for _, callback := range t.stageSubscriptions {
-		callback(stageName, st)
+		go callback(stageName, st)
 	}
 }
 
-func (t *Tracker) handleJobStatusChange() {
-	ctx, cancel := context.WithTimeout(t.jobCtx, 3*time.Second)
+func (t *Tracker) handleJobStatusChange() (finished bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	jobStatus, err := t.jobManager.GetJobStatus(ctx, t.Job.ID)
 	if err != nil {
-		t.log.Error("Failed to get job status of {}", t.Job.ID)
-		return
+		log.Error("Failed to get job status of {}", t.Job.ID)
+		return false
 	}
 	if jobStatus.Status == Succeeded || jobStatus.Status == Failed {
 		for _, callback := range t.jobSubscriptions {
-			callback(&jobStatus)
+			go callback(&jobStatus)
 		}
-		t.jobCtxCancel()
+		return true
 	}
+	return false
+}
+
+func (t *Tracker) Close() {
+	t.shutdown <- struct{}{}
 }
