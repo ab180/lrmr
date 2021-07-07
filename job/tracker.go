@@ -16,8 +16,6 @@ type Tracker struct {
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)
 	taskSubscriptions  []func(stageName string, doneCountInStage int)
-
-	shutdown chan struct{}
 }
 
 func newJobTracker(jm *Manager, job *Job) *Tracker {
@@ -66,7 +64,7 @@ func (t *Tracker) watch() {
 		} else if event.Item.Key == jobStatusKey(t.Job.ID) {
 			finished := t.handleJobStatusChange()
 			if finished {
-				break
+				return
 			}
 		}
 	}
@@ -116,8 +114,4 @@ func (t *Tracker) handleJobStatusChange() (finished bool) {
 		return true
 	}
 	return false
-}
-
-func (t *Tracker) Close() {
-	t.shutdown <- struct{}{}
 }

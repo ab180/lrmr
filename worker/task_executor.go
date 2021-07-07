@@ -56,13 +56,14 @@ func (e *TaskExecutor) Run() {
 	ctx, cancel := newTaskContextWithCancel(e.job.Context(), e)
 	defer cancel()
 
+	go e.taskReporter.Start(ctx)
 	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
-	inputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
-	go pipeAndFlattenInputs(ctx, e.Input.C, inputChan)
+	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
+	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
-	if err := e.function.Apply(ctx, inputChan, e.Output); err != nil {
+	if err := e.function.Apply(ctx, funcInputChan, e.Output); err != nil {
 		if ctx.Err() != nil {
 			// ignore errors caused by task cancellation
 			return
@@ -88,7 +89,7 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 		if err := e.taskReporter.ReportFailure(ctx, taskErr); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
-	} else {
+	} else if ctx.Err() == nil {
 		if err := e.taskReporter.ReportSuccess(ctx); err != nil {
 			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 		}

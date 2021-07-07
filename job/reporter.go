@@ -60,8 +60,7 @@ func (r *TaskReporter) ReportSuccess(ctx context.Context) error {
 	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
 	log.Verbose("Task {} succeeded after {}", r.task, elapsed)
 
-	r.checkForStageCompletion(ctx, int(res[1].Counter), 0)
-	return nil
+	return r.checkForStageCompletion(ctx, int(res[1].Counter), 0)
 }
 
 // ReportFailure marks the task as failed. If the error is non-nil, it's added to the error list of the job.
@@ -88,9 +87,8 @@ func (r *TaskReporter) ReportFailure(ctx context.Context, err error) error {
 		}
 		txn = txn.Put(jobErrorKey(r.task), errDesc)
 	}
-	res, etcdErr := r.clusterState.Commit(ctx, txn)
-	if etcdErr != nil {
-		return errors.Wrap(etcdErr, "write etcd")
+	if _, err := r.clusterState.Commit(ctx, txn); err != nil {
+		return errors.Wrap(err, "write etcd")
 	}
 	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
 	switch err.(type) {
@@ -100,33 +98,31 @@ func (r *TaskReporter) ReportFailure(ctx context.Context, err error) error {
 	default:
 		log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
 	}
-
-	r.checkForStageCompletion(ctx, int(res[1].Counter), int(res[2].Counter))
-	return nil
+	return r.reportJobCompletion(ctx, Failed)
 }
 
-func (r *TaskReporter) checkForStageCompletion(ctx context.Context, currentDoneTasks, currentFailedTasks int) {
+func (r *TaskReporter) checkForStageCompletion(ctx context.Context, currentDoneTasks, currentFailedTasks int) error {
 	if currentFailedTasks == 1 {
 		// to prevent race between workers, the failure is only reported by the first worker failed
 		if err := r.reportStageCompletion(ctx, Failed); err != nil {
-			log.Error("Failed to report completion of failed stage", err)
+			return errors.Wrap(err, "report failure of stage")
 		}
-		return
+		return nil
 	}
 	totalTasks := len(r.job.GetPartitionsOfStage(r.task.StageName))
 	if currentDoneTasks == totalTasks {
 		failedTasks, err := r.clusterState.ReadCounter(ctx, failedTasksInStageKey(r.task))
 		if err != nil {
-			log.Error("Failed to get count of failed stages of {}/{}", err, r.task.JobID, r.task.StageName)
-			return
+			return errors.Wrap(err, "read count of failed stage")
 		}
 		if failedTasks > 0 {
-			return
+			return nil
 		}
 		if err := r.reportStageCompletion(ctx, Succeeded); err != nil {
-			log.Error("Failed to report completion of succeeded stage", err)
+			return errors.Wrap(err, "report success of stage")
 		}
 	}
+	return nil
 }
 
 func (r *TaskReporter) reportStageCompletion(ctx context.Context, status RunningState) error {

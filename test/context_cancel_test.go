@@ -7,10 +7,11 @@ import (
 
 	"github.com/ab180/lrmr/test/integration"
 	. "github.com/smartystreets/goconvey/convey"
+	"go.uber.org/goleak"
 )
 
 func TestContextCancel(t *testing.T) {
-	// defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	Convey("Running a job", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		ds := ContextCancel(cluster.Session, time.Second)
@@ -21,6 +22,9 @@ func TestContextCancel(t *testing.T) {
 
 			_, err := ds.Collect(ctx)
 			So(err, ShouldBeError, context.DeadlineExceeded)
+
+			time.Sleep(50 * time.Millisecond)
+			So(canceled.Load(), ShouldBeTrue)
 		})
 	}))
 }

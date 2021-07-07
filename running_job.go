@@ -109,8 +109,9 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 		return err
 
 	case <-ctx.Done():
-		log.Info("Canceling jobs")
-		_ = r.AbortWithContext(ctx)
+		if err := r.AbortWithContext(context.Background()); err != nil {
+			return errors.Wrap(err, "during abort")
+		}
 		return ctx.Err()
 	}
 }
@@ -145,8 +146,9 @@ func (r *RunningJob) CollectWithContext(ctx context.Context) ([]*lrdd.Row, error
 		}
 
 	case <-ctx.Done():
-		log.Info("Canceling jobs")
-		_ = r.AbortWithContext(ctx)
+		if err := r.AbortWithContext(context.Background()); err != nil {
+			return nil, errors.Wrap(err, "during abort")
+		}
 		return nil, ctx.Err()
 	}
 }
@@ -176,7 +178,7 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 	<-wait
 
 	log.Info("Aborted {} successfully.", r.Job.ID)
-	return Aborted
+	return nil
 }
 
 func (r *RunningJob) logMetrics() {

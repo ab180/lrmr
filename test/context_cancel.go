@@ -7,9 +7,13 @@ import (
 
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/lrdd"
+	"go.uber.org/atomic"
 )
 
-var _ = lrmr.RegisterTypes(ContextCancelTestStage{})
+var (
+	_        = lrmr.RegisterTypes(ContextCancelTestStage{})
+	canceled atomic.Bool
+)
 
 type ContextCancelTestStage struct{}
 
@@ -21,6 +25,7 @@ func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, e
 	log.Println("timeout is ", timeout)
 	select {
 	case <-taskCtx.Done():
+		canceled.Store(true)
 		log.Println("deadline")
 		return nil
 	case <-time.After(timeout):
