@@ -116,29 +116,39 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 				continue
 			}
 			for _, e := range wr.Events {
+				var event WatchEvent
 				switch e.Type {
 				case mvccpb.PUT:
 					if string(e.Kv.Value) == counterMark {
-						watchChan <- WatchEvent{
+						event = WatchEvent{
 							Type:    CounterEvent,
 							Item:    RawItem{Key: string(e.Kv.Key)},
 							Counter: e.Kv.Version,
 						}
-						continue
-					}
-					watchChan <- WatchEvent{
-						Type: PutEvent,
-						Item: RawItem{
-							Key:   string(e.Kv.Key),
-							Value: e.Kv.Value,
-						},
+					} else {
+						event = WatchEvent{
+							Type: PutEvent,
+							Item: RawItem{
+								Key:   string(e.Kv.Key),
+								Value: e.Kv.Value,
+							},
+						}
 					}
 
 				case mvccpb.DELETE:
-					watchChan <- WatchEvent{
+					event = WatchEvent{
 						Type: DeleteEvent,
 						Item: RawItem{Key: string(e.Kv.Key)},
 					}
+
+				default:
+					continue
+				}
+
+				select {
+				case watchChan <- event:
+				case <-ctx.Done():
+					return
 				}
 			}
 		}
