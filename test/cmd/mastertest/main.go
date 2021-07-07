@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/test"
@@ -20,7 +18,7 @@ func main() {
 	m.Start()
 	defer m.Stop()
 
-	sess := lrmr.NewSession(context.TODO(), m, lrmr.WithName("GroupByApp"))
+	sess := lrmr.NewSession(m, lrmr.WithName("GroupByApp"))
 
 	ds := sess.FromFile(testdata.Path()).
 		WithWorkerCount(8).

@@ -17,14 +17,15 @@ import (
 )
 
 var (
-	Aborted = errors.New("job aborted")
+	Aborted      = errors.New("job aborted")
+	ErrCancelled = errors.New("job cancelled")
 )
 
 type RunningJob struct {
 	*job.Job
 	Master *master.Master
 
-	jobContext  context.Context
+	tracker     *job.Tracker
 	finalStatus atomic.Value
 	statusMu    sync.RWMutex
 	startedAt   time.Time
@@ -37,22 +38,20 @@ func TrackJob(ctx context.Context, m *master.Master, jobID string) (*RunningJob,
 	if err != nil {
 		return nil, err
 	}
-	tracker := m.JobManager.Track(ctx, j)
-	return newRunningJob(m, j, tracker), nil
+	return newRunningJob(m, j), nil
 }
 
-func newRunningJob(m *master.Master, j *job.Job, tracker *job.Tracker) *RunningJob {
+func newRunningJob(m *master.Master, j *job.Job) *RunningJob {
 	runningJob := &RunningJob{
-		Job:        j,
-		Master:     m,
-		jobContext: tracker.JobContext(),
-		startedAt:  time.Now(),
+		Job:       j,
+		tracker:   m.JobManager.Track(j),
+		Master:    m,
+		startedAt: time.Now(),
 	}
-
-	tracker.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
+	runningJob.tracker.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
 		log.Verbose("Stage {}/{} {}.", j.ID, stageName, stageStatus.Status)
 	})
-	tracker.OnJobCompletion(func(status *job.Status) {
+	runningJob.tracker.OnJobCompletion(func(status *job.Status) {
 		log.Info("Job {} {}. Total elapsed {}", j.ID, status.Status, time.Since(j.SubmittedAt))
 		for i, errDesc := range status.Errors {
 			log.Info(" - Error #{} caused by {}: {}", i, errDesc.Task, errDesc.Message)
@@ -93,21 +92,28 @@ func (r *RunningJob) Wait() error {
 }
 
 func (r *RunningJob) WaitWithContext(ctx context.Context) error {
-	select {
-	case <-r.jobContext.Done():
-		status, err := r.Master.JobManager.GetJobStatus(ctx, r.Job.ID)
-		if err != nil {
-			return errors.Wrap(err, "load status of completed job")
-		}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errChan := make(chan error, 1)
+	r.tracker.OnJobCompletion(func(status *job.Status) {
 		if status.Status == job.Failed {
-			return status.Errors[0]
+			errChan <- status.Errors[0]
+			return
 		}
+		errChan <- nil
+	})
+
+	select {
+	case err := <-errChan:
+		return err
+
 	case <-ctx.Done():
-		log.Info("Canceling jobs")
-		_ = r.AbortWithContext(ctx)
+		if err := r.AbortWithContext(context.Background()); err != nil {
+			return errors.Wrap(err, "during abort")
+		}
 		return ctx.Err()
 	}
-	return nil
 }
 
 func (r *RunningJob) Collect() ([]*lrdd.Row, error) {
@@ -119,21 +125,30 @@ func (r *RunningJob) CollectWithContext(ctx context.Context) ([]*lrdd.Row, error
 	if err != nil {
 		return nil, err
 	}
-	select {
-	case results := <-collectResultsChan:
-		return results, nil
 
-	case <-r.jobContext.Done():
-		status, err := r.Master.JobManager.GetJobStatus(ctx, r.Job.ID)
-		if err != nil {
-			return nil, errors.Wrap(err, "job cancelled unexpectedly, and failed to load job status")
-		}
+	errChan := make(chan error, 1)
+	r.tracker.OnJobCompletion(func(status *job.Status) {
 		if status.Status == job.Failed {
-			return nil, status.Errors[0]
+			errChan <- status.Errors[0]
+			return
 		}
-		return nil, errors.New("job cancelled")
+		errChan <- nil
+	})
+
+	select {
+	case err := <-errChan:
+		select {
+		case results := <-collectResultsChan:
+			return results, err
+		default:
+			log.Warn("no output found during collect")
+			return nil, err
+		}
 
 	case <-ctx.Done():
+		if err := r.AbortWithContext(context.Background()); err != nil {
+			return nil, errors.Wrap(err, "during abort")
+		}
 		return nil, ctx.Err()
 	}
 }
@@ -151,24 +166,22 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		StageName:   "__input",
 		PartitionID: "__master",
 	}
-	reporter := job.NewTaskReporter(ctx, r.Master.Cluster.States(), r.Job, ref, job.NewTaskStatus())
-	if err := reporter.ReportFailure(Aborted); err != nil {
+	reporter := job.NewTaskReporter(r.Master.Cluster.States(), r.Job, ref, job.NewTaskStatus())
+	if err := reporter.ReportFailure(ctx, Aborted); err != nil {
 		return errors.Wrap(err, "abort")
 	}
 
-	<-r.jobContext.Done()
+	wait := make(chan struct{})
+	r.tracker.OnJobCompletion(func(status *job.Status) {
+		wait <- struct{}{}
+	})
+	<-wait
+
 	log.Info("Aborted {} successfully.", r.Job.ID)
-	return Aborted
+	return nil
 }
 
 func (r *RunningJob) logMetrics() {
-	metrics, err := r.Metrics()
-	if err != nil {
-		log.Warn("Collecting metric of job {} failed: {}", r.Job.ID, err)
-		return
-	}
-	log.Verbose("Metrics collected:\n{}", metrics)
-
 	jobDuration := time.Now().Sub(r.startedAt)
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()

@@ -1,6 +1,7 @@
 package lrmr
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ab180/lrmr/internal/util"
@@ -110,7 +111,7 @@ func (d *Dataset) WithConcurrencyPerWorker(n int) *Dataset {
 	return d
 }
 
-func (d *Dataset) Collect() ([]*lrdd.Row, error) {
+func (d *Dataset) Collect(ctx context.Context) ([]*lrdd.Row, error) {
 	// add collect stage for the master
 	d.PartitionedBy(master.NewCollectPartitioner()).
 		Repartition(1).
@@ -118,11 +119,11 @@ func (d *Dataset) Collect() ([]*lrdd.Row, error) {
 		WithConcurrencyPerWorker(1).
 		addStage(master.CollectStageName, &master.Collector{})
 
-	j, err := d.session.Run(d)
+	j, err := d.session.Start(ctx, d)
 	if err != nil {
 		return nil, err
 	}
-	res, err := j.Collect()
+	res, err := j.CollectWithContext(ctx)
 	if err != nil {
 		if jobErr, ok := err.(*job.Error); ok {
 			log.Error("Job {} ({}) failed. Cause: {}", j.Name, j.ID, jobErr.Message)
@@ -141,7 +142,7 @@ func (d *Dataset) stageName(v interface{}) string {
 }
 
 func (d *Dataset) Run() (*RunningJob, error) {
-	return d.session.Run(d)
+	return d.session.Start(context.Background(), d)
 }
 
 func (d *Dataset) lastStage() *stage.Stage {

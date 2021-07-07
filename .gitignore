@@ -7,6 +7,8 @@ temp/
 *.local.*
 .env
 
+test/testdata/unpacked
+
 ### Go ###
 # Binaries for programs and plugins
 *.exe

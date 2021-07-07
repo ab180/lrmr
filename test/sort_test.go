@@ -14,7 +14,7 @@ func TestSort(t *testing.T) {
 			ds := Sort(cluster.Session)
 
 			Convey("It should sort given data", func() {
-				rows, err := ds.Collect()
+				rows, err := ds.Collect(testutils.ContextWithTimeout())
 				res := testutils.GroupRowsByKey(rows)
 				So(err, ShouldBeNil)
 				So(res, ShouldHaveLength, 3)

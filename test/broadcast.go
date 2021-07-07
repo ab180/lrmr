@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ab180/lrmr"
@@ -24,5 +25,8 @@ type BroadcastStage struct {
 func (b *BroadcastStage) Map(c lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
 	v := c.Broadcast("ThroughContext")
 	typeMatched := c.Broadcast("AnyType").(time.Time) == time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)
-	return lrdd.Value(fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)), nil
+
+	output := fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)
+	log.Println("output is ", output)
+	return lrdd.Value(output), nil
 }

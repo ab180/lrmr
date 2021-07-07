@@ -88,6 +88,9 @@ func (m *Master) Workers() ([]WorkerHolder, error) {
 }
 
 func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.Plan, stages []stage.Stage, opt ...CreateJobOption) (*job.Job, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	opts := buildCreateJobOptions(opt)
 
 	listOpts := cluster.ListOption{Type: node.Worker}
@@ -120,6 +123,9 @@ func (m *Master) CreateJob(ctx context.Context, name string, plans []partitions.
 
 // StartTasks create tasks to the nodes with the plan.
 func (m *Master) StartJob(ctx context.Context, j *job.Job, broadcasts map[string][]byte) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	prepareCollect(j.ID)
 	marshalledJob := pbtypes.MustMarshalJSON(j)
 
@@ -167,7 +173,7 @@ func (m *Master) StartJob(ctx context.Context, j *job.Job, broadcasts map[string
 	return nil
 }
 
-func (m *Master) OpenInputWriter(jobCtx context.Context, j *job.Job, stageName string, input partitions.Partitioner) (output.Output, error) {
+func (m *Master) OpenInputWriter(ctx context.Context, j *job.Job, stageName string, input partitions.Partitioner) (output.Output, error) {
 	targets := j.GetPartitionsOfStage(stageName)
 	outs := make(map[string]output.Output, len(targets))
 	var lock sync.Mutex
@@ -177,7 +183,7 @@ func (m *Master) OpenInputWriter(jobCtx context.Context, j *job.Job, stageName s
 		assigned := t
 		wg.Go(func() error {
 			taskID := path.Join(j.ID, stageName, assigned.PartitionID)
-			out, err := output.OpenPushStream(jobCtx, m.Cluster, m.Node, assigned.Host, taskID)
+			out, err := output.OpenPushStream(ctx, m.Cluster, m.Node, assigned.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", assigned.Host)
 			}

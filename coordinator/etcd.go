@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/airbloc/logger"
+	"github.com/creasty/defaults"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/therne/errorist"
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -25,14 +26,32 @@ type Etcd struct {
 	Watcher clientv3.Watcher
 	Lease   clientv3.Lease
 
-	log  logger.Logger
-	opts []WriteOption
+	log    logger.Logger
+	option EtcdOptions
 }
 
-func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
+type EtcdOptions struct {
+	DialTimeout  time.Duration `default:"5s"`
+	OpTimeout    time.Duration `default:"3s"`
+	WriteOptions []WriteOption
+}
+
+func defaultEtcdOptions() (o EtcdOptions) {
+	if err := defaults.Set(&o); err != nil {
+		panic(err)
+	}
+	return
+}
+
+func NewEtcd(endpoints []string, nsPrefix string, opts ...EtcdOptions) (Coordinator, error) {
+	option := defaultEtcdOptions()
+	if len(opts) > 0 {
+		option = opts[0]
+	}
+
 	cfg := clientv3.Config{
 		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
+		DialTimeout: option.DialTimeout,
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	}
 	cli, err := clientv3.New(cfg)
@@ -45,10 +64,14 @@ func NewEtcd(endpoints []string, nsPrefix string) (Coordinator, error) {
 		Watcher: namespace.NewWatcher(cli, nsPrefix),
 		Lease:   namespace.NewLease(cli, nsPrefix),
 		log:     logger.New("etcd"),
+		option:  option,
 	}, nil
 }
 
 func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	resp, err := e.KV.Get(ctx, key)
 	if err != nil {
 		return err
@@ -60,6 +83,9 @@ func (e *Etcd) Get(ctx context.Context, key string, valuePtr interface{}) error 
 }
 
 func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	resp, err := e.KV.Get(ctx, prefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	if err != nil {
 		return
@@ -74,6 +100,9 @@ func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err 
 }
 
 func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	watchChan := make(chan WatchEvent)
 
 	wc := e.Watcher.Watch(ctx, prefix, clientv3.WithPrefix())
@@ -121,12 +150,15 @@ func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
 }
 
 func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...WriteOption) error {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	jsonVal, err := jsoniter.MarshalToString(value)
 	if err != nil {
 		return err
 	}
 	var etcdOpts []clientv3.OpOption
-	opt := buildWriteOption(append(e.opts, opts...))
+	opt := buildWriteOption(append(e.option.WriteOptions, opts...))
 	if opt.Lease != clientv3.NoLease {
 		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
 	}
@@ -135,8 +167,11 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...W
 }
 
 func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) ([]TxnResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	var etcdOpts []clientv3.OpOption
-	opt := buildWriteOption(append(e.opts, opts...))
+	opt := buildWriteOption(append(e.option.WriteOptions, opts...))
 	if opt.Lease != clientv3.NoLease {
 		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
 	}
@@ -204,7 +239,12 @@ func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
 	return err
 }
 
+// IncrementCounter is an atomic operation increasing the counter in given key.
+// returns a increased value of the counter right after the operation.
 func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	// uses version as a cheap atomic counter
 	result, err := e.KV.Put(ctx, key, counterMark, clientv3.WithPrevKV())
 	if err != nil {
@@ -218,7 +258,11 @@ func (e *Etcd) IncrementCounter(ctx context.Context, key string) (counter int64,
 	return
 }
 
+// ReadCounter
 func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	resp, err := e.KV.Get(ctx, key)
 	if err != nil {
 		return
@@ -235,7 +279,11 @@ func (e *Etcd) ReadCounter(ctx context.Context, key string) (counter int64, err 
 	return
 }
 
+// Delete remove all keys starting with given prefix.
 func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
 	var opts []clientv3.OpOption
 	if prefix == "" {
 		prefix = "\x00"
@@ -250,15 +298,11 @@ func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err er
 	return resp.Deleted, nil
 }
 
+// WithOptions returns a child etcd coordinator with given options applied.
 func (e *Etcd) WithOptions(opt ...WriteOption) KV {
-	return &Etcd{
-		Client:  e.Client,
-		KV:      e.KV,
-		Watcher: e.Watcher,
-		Lease:   e.Lease,
-		log:     logger.New("etcd"),
-		opts:    opt,
-	}
+	child := *e
+	child.option.WriteOptions = append(e.option.WriteOptions, opt...)
+	return e
 }
 
 func (e *Etcd) Close() error {

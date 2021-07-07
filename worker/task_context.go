@@ -13,11 +13,12 @@ type taskContext struct {
 	executor *TaskExecutor
 }
 
-func newTaskContext(ctx context.Context, executor *TaskExecutor) *taskContext {
+func newTaskContextWithCancel(ctx context.Context, executor *TaskExecutor) (*taskContext, context.CancelFunc) {
+	c, cancel := context.WithCancel(ctx)
 	return &taskContext{
-		Context:  ctx,
+		Context:  c,
 		executor: executor,
-	}
+	}, cancel
 }
 
 func (c taskContext) PartitionID() string {
@@ -29,7 +30,7 @@ func (c taskContext) JobID() string {
 }
 
 func (c taskContext) JobSubmittedAt() time.Time {
-	return c.executor.job.SubmittedAt
+	return c.executor.job.Job.SubmittedAt
 }
 
 func (c taskContext) Broadcast(key string) interface{} {

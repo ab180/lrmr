@@ -14,7 +14,7 @@ func TestMap(t *testing.T) {
 			ds := Map(cluster.Session)
 
 			Convey("It should run without error", func() {
-				rows, err := ds.Collect()
+				rows, err := ds.Collect(testutils.ContextWithTimeout())
 				So(err, ShouldBeNil)
 				So(rows, ShouldHaveLength, 1000)
 
