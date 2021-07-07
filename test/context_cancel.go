@@ -38,3 +38,21 @@ func ContextCancel(sess *lrmr.Session, timeout time.Duration) *lrmr.Dataset {
 		Broadcast("timeout", timeout).
 		Do(ContextCancelTestStage{})
 }
+
+type ContextCancelWithForTestStage struct{}
+
+func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
+	for range in {
+		time.Sleep(200 * time.Millisecond)
+	}
+	if ctx.Err() == nil {
+		panic("job not cancelled by context cancel")
+	}
+	log.Println("deadline")
+	return nil
+}
+
+func ContextCancelWithInputLoop(sess *lrmr.Session, timeout time.Duration) *lrmr.Dataset {
+	return sess.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
+		Do(ContextCancelWithForTestStage{})
+}
