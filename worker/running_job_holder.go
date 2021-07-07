@@ -18,7 +18,6 @@ func newRunningJobHolder(jobManager *job.Manager, j *job.Job) *runningJobHolder 
 	ctx, cancel := context.WithCancel(context.Background())
 	tracker := jobManager.Track(j)
 	tracker.OnJobCompletion(func(status *job.Status) {
-		log.Verbose("Job {} context cancelling", j.ID)
 		cancel()
 	})
 	return &runningJobHolder{

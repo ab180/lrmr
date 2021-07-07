@@ -3,7 +3,7 @@ module github.com/ab180/lrmr
 go 1.14
 
 require (
-	github.com/airbloc/logger v1.4.5
+	github.com/airbloc/logger v1.4.7
 	github.com/creasty/defaults v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2

@@ -54,7 +54,7 @@ func RunWorker(optionalOpt ...Options) error {
 	<-waitForExit
 
 	if err := w.Close(); err != nil {
-		log.Error("failed to shutdown historical node", err)
+		log.Error("failed to shutdown worker node", err)
 	}
 	log.Info("Bye")
 	return nil

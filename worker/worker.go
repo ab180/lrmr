@@ -283,7 +283,6 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	if err := in.Dispatch(); err != nil {
 		return err
 	}
-	log.Verbose("Pushing data from node {} to {} finished (input channel closed)", h.FromHost, h.TaskID)
 
 	// upstream may have been closed, but that should not affect the task result
 	_ = stream.SendAndClose(&empty.Empty{})

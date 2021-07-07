@@ -109,7 +109,7 @@ func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration
 	if err := c.clusterState.Put(ctx, path.Join(nodeNs, n.Host), n, coordinator.WithLease(lease)); err != nil {
 		return nil, errors.Wrap(err, "register node info")
 	}
-	log.Verbose("{} node registered as {}", n.Type, n.Host)
+	log.Info("{} node registered as {} (Tag: )", n.Type, n.Host, n.Tag)
 	return nodeReg, nil
 }
 
