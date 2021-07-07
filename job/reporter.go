@@ -176,12 +176,16 @@ func (r *TaskReporter) Start(ctx context.Context) {
 	for {
 		select {
 		case <-t.C:
+			if ctx.Err() != nil {
+				continue
+			}
 			if err := r.flushTaskStatus(ctx); err != nil {
-				log.Warn("Failed to report, will try again at next tick: {}", err)
+				log.Warn("Failed to update status of task {}, and will try again at next tick: {}", r.task, err)
 			}
 		case <-ctx.Done():
-			if err := r.flushTaskStatus(ctx); err != nil {
-				log.Warn("Failed to report, will try again at next tick: {}", err)
+			// extend context
+			if err := r.flushTaskStatus(context.Background()); err != nil {
+				log.Warn("Failed to flush task {}: {}", r.task, err)
 			}
 			t.Stop()
 			return
