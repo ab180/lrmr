@@ -6,6 +6,7 @@ import (
 
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
+	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/errorist"
 )
@@ -13,12 +14,14 @@ import (
 type PushStream struct {
 	stream lrmrpb.Node_PushDataServer
 	reader *Reader
+	log    logger.Logger
 }
 
-func NewPushStream(r *Reader, stream lrmrpb.Node_PushDataServer) *PushStream {
+func NewPushStream(r *Reader, stream lrmrpb.Node_PushDataServer, logTag string) *PushStream {
 	return &PushStream{
 		stream: stream,
 		reader: r,
+		log:    logger.New("lrmr").WithAttrs(logger.Attrs{"TaskID": logTag}),
 	}
 }
 
@@ -38,7 +41,13 @@ func (p *PushStream) Dispatch(ctx context.Context) error {
 				errChan <- err
 				return
 			}
-			p.reader.C <- req.Data
+			select {
+			case p.reader.C <- req.Data:
+			default:
+				p.log.Debug("Input backpressure on")
+				p.reader.C <- req.Data
+				p.log.Debug("Backpressure released on")
+			}
 		}
 	}()
 

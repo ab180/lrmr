@@ -263,7 +263,7 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
 	}
 
-	in := input.NewPushStream(exec.Input, stream)
+	in := input.NewPushStream(exec.Input, stream, h.TaskID)
 	if err := in.Dispatch(exec.context); err != nil {
 		return err
 	}
