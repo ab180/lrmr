@@ -180,6 +180,9 @@ func (r *TaskReporter) Start(ctx context.Context) {
 				continue
 			}
 			if err := r.flushTaskStatus(ctx); err != nil {
+				if errors.Cause(err) == context.Canceled {
+					continue
+				}
 				log.Warn("Failed to update status of task {}, and will try again at next tick: {}", r.task, err)
 			}
 		case <-ctx.Done():

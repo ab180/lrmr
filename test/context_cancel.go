@@ -43,7 +43,7 @@ type ContextCancelWithForTestStage struct{}
 
 func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
 	for range in {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	if ctx.Err() == nil {
 		panic("job not cancelled by context cancel")
@@ -52,7 +52,7 @@ func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd
 	return nil
 }
 
-func ContextCancelWithInputLoop(sess *lrmr.Session, timeout time.Duration) *lrmr.Dataset {
+func ContextCancelWithInputLoop(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
 		Do(ContextCancelWithForTestStage{})
 }

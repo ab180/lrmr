@@ -10,7 +10,7 @@ import (
 )
 
 func TestLeakOnShortRunning(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running short-running job", func() {
