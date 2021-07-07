@@ -11,6 +11,7 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -53,6 +54,7 @@ func NewEtcd(endpoints []string, nsPrefix string, opts ...EtcdOptions) (Coordina
 		Endpoints:   endpoints,
 		DialTimeout: option.DialTimeout,
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
+		Logger:      zap.NewNop(),
 	}
 	cli, err := clientv3.New(cfg)
 	if err != nil {
