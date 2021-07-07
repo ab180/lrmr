@@ -100,9 +100,6 @@ func (e *Etcd) Scan(ctx context.Context, prefix string) (results []RawItem, err 
 }
 
 func (e *Etcd) Watch(ctx context.Context, prefix string) chan WatchEvent {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	watchChan := make(chan WatchEvent)
 
 	wc := e.Watcher.Watch(ctx, prefix, clientv3.WithPrefix())
