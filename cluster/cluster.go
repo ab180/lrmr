@@ -102,11 +102,11 @@ func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration
 	if err != nil {
 		return nil, errors.Wrap(err, "grant TTL")
 	}
-	if err := c.clusterState.KeepAlive(c.ctx, lease); err != nil {
+	if err := c.clusterState.KeepAlive(nodeCtx, lease); err != nil {
 		return nil, errors.Wrap(err, "start liveness prove")
 	}
 	nodeReg.livenessLease = lease
-	if err := c.clusterState.Put(ctx, path.Join(nodeNs, n.Host), n, coordinator.WithLease(lease)); err != nil {
+	if err := nodeReg.States().Put(ctx, path.Join(nodeNs, n.Host), n); err != nil {
 		return nil, errors.Wrap(err, "register node info")
 	}
 	log.Info("{} node registered as {} (Tag: {})", n.Type, n.Host, n.Tag)

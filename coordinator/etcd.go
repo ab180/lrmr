@@ -311,7 +311,7 @@ func (e *Etcd) Delete(ctx context.Context, prefix string) (deleted int64, err er
 func (e *Etcd) WithOptions(opt ...WriteOption) KV {
 	child := *e
 	child.option.WriteOptions = append(e.option.WriteOptions, opt...)
-	return e
+	return &child
 }
 
 func (e *Etcd) Close() error {

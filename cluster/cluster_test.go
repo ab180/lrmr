@@ -9,6 +9,7 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
+	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/test/integration"
 	. "github.com/smartystreets/goconvey/convey"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	tick        = 300 * time.Millisecond
+	tick        = time.Second
 	testTimeout = 10 * tick
 	numNodes    = 3
 )
@@ -112,6 +113,34 @@ func TestCluster_Connect(t *testing.T) {
 				// leak is detected within WithCluster HoF
 			})
 		}))
+	}))
+}
+
+func TestCluster_NodeStates(t *testing.T) {
+	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
+		nodeReg, err := c.Register(ctx, &node.Node{
+			Host: "test",
+			Type: node.Worker,
+		})
+		if err != nil {
+			So(err, ShouldBeNil)
+		}
+
+		Convey("Node states should be removed after unregister", func() {
+			err := nodeReg.States().Put(ctx, "hello", "world")
+			So(err, ShouldBeNil)
+
+			var world string
+			err = nodeReg.States().Get(ctx, "hello", &world)
+			So(err, ShouldBeNil)
+			So(world, ShouldEqual, "world")
+
+			nodeReg.Unregister()
+			time.Sleep(4 * tick)
+
+			err = nodeReg.States().Get(ctx, "hello", &world)
+			So(err, ShouldBeError, coordinator.ErrNotFound)
+		})
 	}))
 }
 
