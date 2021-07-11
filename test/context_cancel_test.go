@@ -44,3 +44,19 @@ func TestContextCancel_WithinForLoop(t *testing.T) {
 		})
 	}))
 }
+
+func TestContextCancel_WithLocalPipes(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	Convey("Running a job", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+		ds := ContextCancelWithLocalPipe(cluster.Session)
+
+		Convey("It should be cancelled after cancelling the Context", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			_, err := ds.Collect(ctx)
+			So(err, ShouldBeError, context.DeadlineExceeded)
+		})
+	}))
+}

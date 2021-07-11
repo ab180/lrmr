@@ -56,3 +56,23 @@ func ContextCancelWithInputLoop(sess *lrmr.Session) *lrmr.Dataset {
 	return sess.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
 		Do(ContextCancelWithForTestStage{})
 }
+
+type ContextCancelWithLocalPipeStage struct{}
+
+func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
+	for range in {
+		time.Sleep(500 * time.Millisecond)
+	}
+	if ctx.Err() == nil {
+		panic("job not cancelled by context cancel")
+	}
+	log.Println("deadline")
+	return nil
+}
+
+func ContextCancelWithLocalPipe(sess *lrmr.Session) *lrmr.Dataset {
+	return sess.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
+		Do(ContextCancelWithLocalPipeStage{}).
+		Do(ContextCancelWithLocalPipeStage{}).
+		Do(ContextCancelWithLocalPipeStage{})
+}

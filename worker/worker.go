@@ -165,6 +165,9 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
 	in := input.NewReader(w.opt.Input.QueueLength)
+	runningJob.Tracker.OnJobCompletion(func(s *job.Status) {
+		in.Close()
+	})
 
 	// after job finishes, remaining connections should be closed
 	out, err := w.newOutputWriter(runningJob.Context(), j, s.Name, partitionID, req.Output)

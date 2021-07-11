@@ -1,6 +1,8 @@
 package input
 
 import (
+	"sync"
+
 	"github.com/ab180/lrmr/lrdd"
 	"go.uber.org/atomic"
 )
@@ -9,7 +11,7 @@ type Reader struct {
 	C chan []*lrdd.Row
 
 	activeCnt atomic.Int64
-	closed    atomic.Bool
+	once      sync.Once
 }
 
 func NewReader(queueLen int) *Reader {
@@ -30,10 +32,7 @@ func (p *Reader) Done() {
 }
 
 func (p *Reader) Close() {
-	if swapped := p.closed.CAS(false, true); !swapped {
-		// p.closed was true
-		return
-	}
-	// with CAS, only a goroutine can enter here
-	close(p.C)
+	p.once.Do(func() {
+		close(p.C)
+	})
 }
