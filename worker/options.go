@@ -25,6 +25,8 @@ type Options struct {
 		MaxRecvSize int `default:"67108864"`
 	}
 	Output output.Options
+
+	ExperimentalCPUAffinity bool `default:"true"`
 }
 
 func DefaultOptions() (o Options) {

@@ -44,6 +44,7 @@ type Worker struct {
 
 	runningJobs   map[string]*runningJobHolder
 	runningJobsMu sync.RWMutex
+	cpuScheduler  CPUAffinityScheduler
 
 	opt Options
 }
@@ -68,6 +69,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
 		runningJobs:     make(map[string]*runningJobHolder),
+		cpuScheduler:    NewCPUAffinityScheduler(),
 		opt:             opt,
 	}
 	if err := w.register(); err != nil {
@@ -192,6 +194,10 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	runningTasksGauge.Inc()
 
 	go func() {
+		if w.opt.ExperimentalCPUAffinity {
+			occ := w.cpuScheduler.Occupy()
+			defer w.cpuScheduler.Release(occ)
+		}
 		exec.Run()
 
 		w.runningTasks.Delete(task.ID().String())
