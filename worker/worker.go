@@ -67,6 +67,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		jobManager:      jm,
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
+		runningJobs:     make(map[string]*runningJobHolder),
 		opt:             opt,
 	}
 	if err := w.register(); err != nil {
