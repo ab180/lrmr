@@ -36,6 +36,9 @@ func DeserializeStruct(data []byte) (interface{}, error) {
 	}
 
 	v := desc.Type.New()
+	if desc.Data == nil {
+		return desc.Type.T.Indirect(v), nil
+	}
 	if err := jsoniter.Unmarshal(desc.Data, v); err != nil {
 		return nil, errors.Wrapf(err, "deserialize struct data %s", string(desc.Data))
 	}
