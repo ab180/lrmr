@@ -25,16 +25,7 @@ require (
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.17.0
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
-)
-
-replace (
-	golang.org/x/lint => golang.org/x/lint v0.0.0-20200302205851-738671d3881b
-	golang.org/x/net => github.com/golang/net v0.0.0-20201027133719-8eef5233e2a1
-	golang.org/x/sync => github.com/golang/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys => github.com/golang/sys v0.0.0-20201027140754-0fcbb8f4928c
-	golang.org/x/text => github.com/golang/text v0.3.4
-	golang.org/x/tools => golang.org/x/tools v0.0.0-20201028025901-8cd080b735b3
-	golang.org/x/xerrors => golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 )
