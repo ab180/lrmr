@@ -18,7 +18,7 @@ func TestFailingJob(t *testing.T) {
 			job, err := ds.Run()
 			So(err, ShouldBeNil)
 
-			err = job.Wait()
+			err = job.WaitWithContext(testutils.ContextWithTimeout())
 			So(err, ShouldNotBeNil)
 		})
 		Convey("It should handle errors gracefully on Collect", func() {
@@ -38,7 +38,7 @@ func TestFailingJob_WithFatalErrors(t *testing.T) {
 
 			go forceKillWorker(cluster.Workers[0])
 
-			err = job.Wait()
+			err = job.WaitWithContext(testutils.ContextWithTimeout())
 			So(err, ShouldNotBeNil)
 		})
 		Convey("It should handle errors gracefully on Collect", func() {

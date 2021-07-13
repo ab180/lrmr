@@ -6,6 +6,7 @@ import (
 	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testdata"
+	"github.com/ab180/lrmr/test/testutils"
 	dto "github.com/prometheus/client_model/go"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/goleak"
@@ -21,7 +22,7 @@ func TestComplicatedQuery(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
-				So(j.Wait(), ShouldBeNil)
+				So(j.WaitWithContext(testutils.ContextWithTimeout()), ShouldBeNil)
 
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()

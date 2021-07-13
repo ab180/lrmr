@@ -19,7 +19,7 @@ func TestBasicGroupByKey(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
-				So(j.Wait(), ShouldBeNil)
+				So(j.WaitWithContext(testutils.ContextWithTimeout()), ShouldBeNil)
 
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
@@ -89,7 +89,7 @@ func TestSimpleCount(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
-				So(j.Wait(), ShouldBeNil)
+				So(j.WaitWithContext(testutils.ContextWithTimeout()), ShouldBeNil)
 
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()

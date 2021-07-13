@@ -6,6 +6,7 @@ import (
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/master"
 	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testutils"
 	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -17,7 +18,7 @@ func TestNodeSelection(t *testing.T) {
 				j, err := NodeSelection(cluster.Session).Run()
 				So(err, ShouldBeNil)
 
-				So(j.Wait(), ShouldBeNil)
+				So(j.WaitWithContext(testutils.ContextWithTimeout()), ShouldBeNil)
 
 				m, err := j.Metrics()
 				So(err, ShouldBeNil)
