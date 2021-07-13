@@ -9,7 +9,6 @@ import (
 
 type Job struct {
 	ID          string                   `json:"id"`
-	Name        string                   `json:"name"`
 	Stages      []stage.Stage            `json:"stages"`
 	Partitions  []partitions.Assignments `json:"partitions"`
 	SubmittedAt time.Time                `json:"submittedAt"`

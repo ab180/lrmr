@@ -44,6 +44,10 @@ func (tid TaskID) String() string {
 	return fmt.Sprintf("%s/%s/%s", tid.JobID, tid.StageName, tid.PartitionID)
 }
 
+func (tid TaskID) WithoutJobID() string {
+	return fmt.Sprintf("%s/%s", tid.StageName, tid.PartitionID)
+}
+
 type TaskStatus struct {
 	baseStatus
 	Error   string  `json:"error,omitempty"`

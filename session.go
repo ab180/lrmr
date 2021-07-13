@@ -2,13 +2,14 @@ package lrmr
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/ab180/lrmr/internal/serialization"
+	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/master"
-	"github.com/goombaio/namegenerator"
+	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 )
 
@@ -45,12 +46,12 @@ func (s *Session) Broadcast(key string, val interface{}) {
 }
 
 func (s *Session) Start(ctx context.Context, ds *Dataset) (*RunningJob, error) {
-	timer := log.Timer()
-
-	jobName := s.options.Name
-	if jobName == "" {
-		jobName = namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
+	jobID := s.options.Name
+	if jobID == "" {
+		jobID = util.GenerateID("J")
 	}
+	timer := logger.New(fmt.Sprintf("lrmr(%s)", jobID)).Timer()
+
 	ctx, cancel := context.WithTimeout(ctx, s.options.StartTimeout)
 	defer cancel()
 
@@ -58,7 +59,7 @@ func (s *Session) Start(ctx context.Context, ds *Dataset) (*RunningJob, error) {
 	if s.options.NodeSelector != nil {
 		createJobOptions = append(createJobOptions, master.WithNodeSelector(s.options.NodeSelector))
 	}
-	j, err := s.master.CreateJob(ctx, jobName, ds.plans, ds.stages, createJobOptions...)
+	j, err := s.master.CreateJob(ctx, jobID, ds.plans, ds.stages, createJobOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (s *Session) Start(ctx context.Context, ds *Dataset) (*RunningJob, error) {
 	if err := iw.Close(); err != nil {
 		return nil, errors.Wrap(err, "close input")
 	}
-	timer.End("{} ({}) started", j.Name, j.ID)
+	timer.End("Job started")
 	lrmrmetric.RunningJobsGauge.Inc()
 
 	return newRunningJob(s.master, j), nil

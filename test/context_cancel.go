@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/ab180/lrmr"
@@ -22,11 +21,9 @@ func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, e
 	defer cancel()
 
 	timeout := ctx.Broadcast("timeout").(time.Duration)
-	log.Println("timeout is ", timeout)
 	select {
 	case <-taskCtx.Done():
 		canceled.Store(true)
-		log.Println("deadline")
 		return nil
 	case <-time.After(timeout):
 		panic("job not cancelled by context cancel")
@@ -48,7 +45,6 @@ func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd
 	if ctx.Err() == nil {
 		panic("job not cancelled by context cancel")
 	}
-	log.Println("deadline")
 	return nil
 }
 
@@ -66,7 +62,6 @@ func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan *lr
 	if ctx.Err() == nil {
 		panic("job not cancelled by context cancel")
 	}
-	log.Println("deadline")
 	return nil
 }
 

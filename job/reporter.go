@@ -21,6 +21,7 @@ type TaskReporter struct {
 	status  *TaskStatus
 	flushMu sync.Mutex
 	dirty   atomic.Bool
+	logger  logger.Logger
 }
 
 func NewTaskReporter(cs cluster.State, j *Job, task TaskID, s *TaskStatus) *TaskReporter {
@@ -29,6 +30,7 @@ func NewTaskReporter(cs cluster.State, j *Job, task TaskID, s *TaskStatus) *Task
 		task:         task,
 		job:          j,
 		status:       s,
+		logger:       logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
 	}
 }
 
@@ -58,7 +60,7 @@ func (r *TaskReporter) ReportSuccess(ctx context.Context) error {
 		return errors.Wrap(err, "write etcd")
 	}
 	elapsed := r.status.CompletedAt.Sub(r.status.SubmittedAt)
-	log.Verbose("Task {} succeeded after {}", r.task, elapsed)
+	r.logger.Verbose("Task {} succeeded after {}", r.task.WithoutJobID(), elapsed)
 
 	return r.checkForStageCompletion(ctx, int(res[1].Counter), 0)
 }
@@ -94,9 +96,9 @@ func (r *TaskReporter) ReportFailure(ctx context.Context, err error) error {
 	switch err.(type) {
 	case *logger.PanicError:
 		panicErr := err.(*logger.PanicError)
-		log.Error("Task {} failed after {} with {}", r.task, elapsed, panicErr.Pretty())
+		r.logger.Error("Task {} failed after {} with {}", r.task.WithoutJobID(), elapsed, panicErr.Pretty())
 	default:
-		log.Error("Task {} failed after {} with error: {}", r.task, elapsed, err)
+		r.logger.Error("Task {} failed after {} with error: {}", r.task.WithoutJobID(), elapsed, err)
 	}
 	return r.reportJobCompletion(ctx, Failed)
 }
@@ -126,7 +128,7 @@ func (r *TaskReporter) checkForStageCompletion(ctx context.Context, currentDoneT
 }
 
 func (r *TaskReporter) reportStageCompletion(ctx context.Context, status RunningState) error {
-	log.Verbose("Reporting {} stage {}/{} (by {})", status, r.job.ID, r.task.StageName, r.task)
+	r.logger.Verbose("Reporting {} stage {} (by #{})", status, r.task.StageName, r.task.PartitionID)
 
 	var s StageStatus
 	if err := r.clusterState.Get(ctx, stageStatusKey(r.job.ID, r.task.StageName), &s); err != nil {
@@ -160,10 +162,34 @@ func (r *TaskReporter) reportJobCompletion(ctx context.Context, status RunningSt
 		return nil
 	}
 
-	log.Verbose("Reporting {} job {} (by {})", status, r.job.ID, r.task)
+	r.logger.Verbose("Reporting job {} (by {})", status, r.task.WithoutJobID())
 	js.Complete(status)
 	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
+	}
+	return nil
+}
+
+func (r *TaskReporter) Abort(ctx context.Context) error {
+	var js Status
+	if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
+		return errors.Wrapf(err, "get status of job %s", r.job.ID)
+	}
+	if js.Status == Failed {
+		return nil
+	}
+	js.Complete(Failed)
+
+	errDesc := Error{
+		Task:    r.task.String(),
+		Message: "aborted",
+	}
+	txn := coordinator.NewTxn().
+		Put(jobErrorKey(r.task), errDesc).
+		Put(jobStatusKey(r.job.ID), js)
+
+	if _, err := r.clusterState.Commit(ctx, txn); err != nil {
+		return errors.Wrap(err, "write etcd")
 	}
 	return nil
 }
@@ -183,12 +209,12 @@ func (r *TaskReporter) Start(ctx context.Context) {
 				if errors.Cause(err) == context.Canceled {
 					continue
 				}
-				log.Warn("Failed to update status of task {}, and will try again at next tick: {}", r.task, err)
+				r.logger.Warn("Failed to update status of task {}, and will try again at next tick: {}", r.task.WithoutJobID(), err)
 			}
 		case <-ctx.Done():
 			// extend context
 			if err := r.flushTaskStatus(context.Background()); err != nil {
-				log.Warn("Failed to flush task {}: {}", r.task, err)
+				r.logger.Warn("Failed to flush task {}: {}", r.task.WithoutJobID(), err)
 			}
 			t.Stop()
 			return

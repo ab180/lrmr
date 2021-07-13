@@ -2,7 +2,9 @@ package lrmr
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -13,6 +15,7 @@ import (
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrmetric"
 	"github.com/ab180/lrmr/master"
+	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 )
 
@@ -29,6 +32,7 @@ type RunningJob struct {
 	finalStatus atomic.Value
 	statusMu    sync.RWMutex
 	startedAt   time.Time
+	logger      logger.Logger
 }
 
 // TrackJob looks for an existing job and returns a RunningJob for tracking the job's lifecycle.
@@ -47,14 +51,21 @@ func newRunningJob(m *master.Master, j *job.Job) *RunningJob {
 		tracker:   m.JobManager.Track(j),
 		Master:    m,
 		startedAt: time.Now(),
+		logger:    logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
 	}
 	runningJob.tracker.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
-		log.Verbose("Stage {}/{} {}.", j.ID, stageName, stageStatus.Status)
+		runningJob.logger.Verbose("Stage {} {}.", stageName, stageStatus.Status)
 	})
 	runningJob.tracker.OnJobCompletion(func(status *job.Status) {
-		log.Info("Job {} {}. Total elapsed {}", j.ID, status.Status, time.Since(j.SubmittedAt))
-		for i, errDesc := range status.Errors {
-			log.Info(" - Error #{} caused by {}: {}", i, errDesc.Task, errDesc.Message)
+		runningJob.logger.Info("Job {}. Total elapsed {}", status.Status, time.Since(j.SubmittedAt))
+
+		groupTasksByError := make(map[string][]string)
+		for _, errDesc := range status.Errors {
+			simpleTaskID := strings.ReplaceAll(errDesc.Task, j.ID+"/", "")
+			groupTasksByError[errDesc.Message] = append(groupTasksByError[errDesc.Message], simpleTaskID)
+		}
+		for errMsg, tasks := range groupTasksByError {
+			runningJob.logger.Info(" - Error caused by [{}]: {}", strings.Join(tasks, ", "), errMsg)
 		}
 		runningJob.finalStatus.Store(status)
 		runningJob.logMetrics()
@@ -163,11 +174,11 @@ func (r *RunningJob) Abort() error {
 func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 	ref := job.TaskID{
 		JobID:       r.Job.ID,
-		StageName:   "__input",
-		PartitionID: "__master",
+		StageName:   "master",
+		PartitionID: "_",
 	}
 	reporter := job.NewTaskReporter(r.Master.Cluster.States(), r.Job, ref, job.NewTaskStatus())
-	if err := reporter.ReportFailure(ctx, Aborted); err != nil {
+	if err := reporter.Abort(ctx); err != nil {
 		return errors.Wrap(err, "abort")
 	}
 
@@ -176,8 +187,6 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		wait <- struct{}{}
 	})
 	<-wait
-
-	log.Info("Aborted {} successfully.", r.Job.ID)
 	return nil
 }
 

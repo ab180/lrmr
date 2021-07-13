@@ -126,12 +126,12 @@ func (d *Dataset) Collect(ctx context.Context) ([]*lrdd.Row, error) {
 	res, err := j.CollectWithContext(ctx)
 	if err != nil {
 		if jobErr, ok := err.(*job.Error); ok {
-			log.Error("Job {} ({}) failed. Cause: {}", j.Name, j.ID, jobErr.Message)
+			log.Error("Job {} failed. Cause: {}", j.ID, jobErr.Message)
 			log.Error("  (caused by task {})", jobErr.Task)
 		}
 		return nil, err
 	}
-	log.Info("Job {} ({}) succeed. Collected {} rows.", j.Name, j.ID, len(res))
+	log.Info("Job {} succeed. Collected {} rows.", j.ID, len(res))
 	return res, nil
 }
 

@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"context"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
@@ -61,7 +60,6 @@ func (lmc *localMemoryCoordinator) Get(ctx context.Context, key string, valuePtr
 		return ErrNotFound
 	}
 	e := v.(entry)
-	log.Println("Key", key, "lease is", e.lease)
 	if lmc.isAfterDeadline(e.lease) {
 		lmc.expireLease(key, e.lease)
 		return ErrNotFound
@@ -204,7 +202,6 @@ func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Dura
 	lease := clientv3.LeaseID(rand.Uint64())
 	deadline := time.Now().Add(ttl)
 	lmc.leases.Store(lease, deadline)
-	log.Println("lease", lease, "created to", deadline)
 	return lease, nil
 }
 
@@ -215,7 +212,6 @@ func (lmc *localMemoryCoordinator) KeepAlive(ctx context.Context, lease clientv3
 			select {
 			case <-tick.C:
 				newDeadline := time.Now().Add(2 * time.Second)
-				log.Println("lease extended to", newDeadline)
 				lmc.leases.Store(lease, newDeadline)
 
 			case <-ctx.Done():
@@ -232,11 +228,9 @@ func (lmc *localMemoryCoordinator) isAfterDeadline(lease clientv3.LeaseID) (expi
 	}
 	v, ok := lmc.leases.Load(lease)
 	if !ok {
-		log.Println(" => but no lease", lease)
 		return true
 	}
 	deadline := v.(time.Time)
-	log.Println(" => deadline is", deadline.Format(time.RFC3339))
 	return time.Now().After(deadline)
 }
 

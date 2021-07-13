@@ -8,7 +8,6 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/partitions"
 	"github.com/ab180/lrmr/stage"
 	"github.com/airbloc/logger"
@@ -39,8 +38,7 @@ func NewManager(cs cluster.State) *Manager {
 func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Stage, assignments []partitions.Assignments) (*Job, error) {
 	js := newStatus()
 	j := &Job{
-		ID:          util.GenerateID("J"),
-		Name:        name,
+		ID:          name,
 		Stages:      stages,
 		Partitions:  assignments,
 		SubmittedAt: js.SubmittedAt,
