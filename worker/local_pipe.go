@@ -20,7 +20,7 @@ func (l *LocalPipe) CloseWithStatus(s job.Status) error {
 }
 
 func (l *LocalPipe) Write(rows ...*lrdd.Row) error {
-	l.reader.C <- rows
+	l.reader.Write(rows)
 	return nil
 }
 

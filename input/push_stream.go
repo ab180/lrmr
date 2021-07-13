@@ -35,7 +35,7 @@ func (p *PushStream) Dispatch() error {
 			}
 			return errors.Wrap(err, "stream dispatch")
 		}
-		p.reader.C <- req.Data
+		p.reader.Write(req.Data)
 	}
 }
 
