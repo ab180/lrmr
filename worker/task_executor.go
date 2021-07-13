@@ -108,7 +108,7 @@ func pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan *lr
 			select {
 			case out <- r:
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}

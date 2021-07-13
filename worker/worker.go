@@ -168,9 +168,6 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 		return status.Errorf(codes.Internal, "create task failed: %v", err)
 	}
 	in := input.NewReader(w.opt.Input.QueueLength)
-	runningJob.Tracker.OnJobCompletion(func(s *job.Status) {
-		in.Close()
-	})
 
 	// after job finishes, remaining connections should be closed
 	out, err := w.newOutputWriter(runningJob.Context(), j, s.Name, partitionID, req.Output)
@@ -337,7 +334,7 @@ func (w *Worker) Close() error {
 func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	// dump header on stream failure
 	if err := handler(srv, ss); err != nil {
-		if errors.Cause(err) == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 		if h, herr := lrmrpb.DataHeaderFromMetadata(ss); herr == nil {
