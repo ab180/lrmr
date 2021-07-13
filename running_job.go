@@ -19,11 +19,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	Aborted      = errors.New("job aborted")
-	ErrCancelled = errors.New("job cancelled")
-)
-
 type RunningJob struct {
 	*job.Job
 	Master *master.Master
@@ -54,7 +49,7 @@ func newRunningJob(m *master.Master, j *job.Job) *RunningJob {
 		logger:    logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
 	}
 	runningJob.tracker.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
-		runningJob.logger.Verbose("Stage {} {}.", stageName, stageStatus.Status)
+		runningJob.logger.Info("Stage {} {}.", stageName, stageStatus.Status)
 	})
 	runningJob.tracker.OnJobCompletion(func(status *job.Status) {
 		runningJob.logger.Info("Job {}. Total elapsed {}", status.Status, time.Since(j.SubmittedAt))

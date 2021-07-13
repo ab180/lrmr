@@ -7,12 +7,12 @@ import (
 )
 
 type LocalPipe struct {
-	reader *input.Reader
+	nextStageReader *input.Reader
 }
 
 func NewLocalPipe(r *input.Reader) *LocalPipe {
 	r.Add()
-	return &LocalPipe{reader: r}
+	return &LocalPipe{nextStageReader: r}
 }
 
 func (l *LocalPipe) CloseWithStatus(s job.Status) error {
@@ -20,12 +20,12 @@ func (l *LocalPipe) CloseWithStatus(s job.Status) error {
 }
 
 func (l *LocalPipe) Write(rows ...*lrdd.Row) error {
-	l.reader.Write(rows)
+	l.nextStageReader.Write(rows)
 	return nil
 }
 
 func (l *LocalPipe) Close() error {
-	l.reader.Done()
-	l.reader = nil
+	l.nextStageReader.Done()
+	l.nextStageReader = nil
 	return nil
 }

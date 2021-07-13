@@ -7,7 +7,6 @@ require (
 	github.com/creasty/defaults v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/json-iterator/go v1.1.11

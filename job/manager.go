@@ -122,14 +122,6 @@ func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, erro
 	return status, nil
 }
 
-func (m *Manager) GetTask(ctx context.Context, ref TaskID) (*Task, error) {
-	task := &Task{}
-	if err := m.clusterState.Get(ctx, path.Join(taskNs, ref.PartitionID), task); err != nil {
-		return nil, errors.Wrap(err, "get task")
-	}
-	return task, nil
-}
-
 func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, error) {
 	status := &TaskStatus{}
 	if err := m.clusterState.Get(ctx, taskStatusKey(ref), status); err != nil {
