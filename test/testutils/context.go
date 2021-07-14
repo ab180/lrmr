@@ -7,7 +7,7 @@ import (
 	"github.com/smartystreets/goconvey/convey"
 )
 
-const defaultTimeout = 5 * time.Second
+const defaultTimeout = 20 * time.Second
 
 // ContextWithTimeout returns a context.Context which has a timeout and usable on convey suite.
 // the timeout is defaults to 5 seconds, but you can override it with optional argument.
