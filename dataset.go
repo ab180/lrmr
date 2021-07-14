@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ab180/lrmr/internal/util"
-	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/master"
 	"github.com/ab180/lrmr/partitions"
@@ -123,16 +122,7 @@ func (d *Dataset) Collect(ctx context.Context) ([]*lrdd.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := j.CollectWithContext(ctx)
-	if err != nil {
-		if jobErr, ok := err.(*job.Error); ok {
-			log.Error("Job {} failed. Cause: {}", j.ID, jobErr.Message)
-			log.Error("  (caused by task {})", jobErr.Task)
-		}
-		return nil, err
-	}
-	log.Info("Job {} succeed. Collected {} rows.", j.ID, len(res))
-	return res, nil
+	return j.CollectWithContext(ctx)
 }
 
 func (d *Dataset) stageName(v interface{}) string {
