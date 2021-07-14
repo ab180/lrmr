@@ -16,7 +16,7 @@ func NewCPUAffinityScheduler() CPUAffinityScheduler {
 	return CPUAffinityScheduler{}
 }
 
-func (s *CPUAffinityScheduler) Occupy() interface{} {
+func (s *CPUAffinityScheduler) Occupy(string) interface{} {
 	_once.Do(func() {
 		log.Warn("CPU affinity scheduling is disabled on non-linux systems")
 	})

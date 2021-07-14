@@ -54,7 +54,7 @@ func NewCPUAffinityScheduler() CPUAffinityScheduler {
 
 // Occupy sticks current goroutine to freest CPU cores. Also, it locks the goroutine to current OS thread.
 // Returned occupation value can be used to release the goroutine from the core.
-func (s *CPUAffinityScheduler) Occupy() (occupation interface{}) {
+func (s *CPUAffinityScheduler) Occupy(name string) (occupation interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -83,6 +83,7 @@ func (s *CPUAffinityScheduler) Occupy() (occupation interface{}) {
 	} else {
 		freestCore.numTasksRunning++
 		occupation = freestCore
+		log.Debug("{} occupied CPU #{} (now running {})", name, freestCore.id, freestCore.numTasksRunning)
 	}
 	return
 }

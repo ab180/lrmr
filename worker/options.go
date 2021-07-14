@@ -26,7 +26,7 @@ type Options struct {
 	}
 	Output output.Options
 
-	ExperimentalCPUAffinity bool `default:"true"`
+	ExperimentalCPUAffinity bool `default:"false"`
 }
 
 func DefaultOptions() (o Options) {

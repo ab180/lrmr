@@ -192,7 +192,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 
 	go func() {
 		if w.opt.ExperimentalCPUAffinity {
-			occ := w.cpuScheduler.Occupy()
+			occ := w.cpuScheduler.Occupy(task.ID().String())
 			defer w.cpuScheduler.Release(occ)
 		}
 		exec.Run()
