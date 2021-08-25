@@ -63,7 +63,10 @@ func newRunningJob(m *master.Master, j *job.Job) *RunningJob {
 			runningJob.logger.Info(" - Error caused by [{}]: {}", strings.Join(tasks, ", "), errMsg)
 		}
 		runningJob.finalStatus.Store(status)
-		runningJob.logMetrics()
+		err := runningJob.logMetrics()
+		if err != nil {
+			runningJob.logger.Warn("Failed to log metrics: {}", err)
+		}
 	})
 	return runningJob
 }
@@ -185,8 +188,15 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 	return nil
 }
 
-func (r *RunningJob) logMetrics() {
+func (r *RunningJob) logMetrics() error {
 	jobDuration := time.Now().Sub(r.startedAt)
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()
+	metrics, err := r.Metrics()
+	if err != nil {
+		return err
+	}
+	r.logger.Info("Job metrics:\n{}", metrics.String())
+
+	return nil
 }
