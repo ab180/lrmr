@@ -1,7 +1,7 @@
 // CPUAffinityScheduler only supports linux systems.
 // +build !linux
 
-package worker
+package executor
 
 import (
 	"sync"

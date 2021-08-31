@@ -10,7 +10,7 @@ type Type string
 
 const (
 	Master Type = "master"
-	Worker Type = "worker"
+	Worker Type = "executor"
 )
 
 type Node struct {

@@ -1,4 +1,4 @@
-package worker
+package executor
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 
 var log = logger.New("lrmr")
 
-type Worker struct {
+type Executor struct {
 	Cluster   cluster.Cluster
 	Node      node.Registration
 	RPCServer *grpc.Server
@@ -49,7 +49,7 @@ type Worker struct {
 	opt Options
 }
 
-func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
+func New(crd coordinator.Coordinator, opt Options) (*Executor, error) {
 	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
 	if err != nil {
 		return nil, err
@@ -62,8 +62,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
-	jm := job.NewManager(c.States())
-	w := &Worker{
+	w := &Executor{
 		Cluster:         c,
 		jobManager:      jm,
 		RPCServer:       srv,
@@ -73,12 +72,12 @@ func New(crd coordinator.Coordinator, opt Options) (*Worker, error) {
 		opt:             opt,
 	}
 	if err := w.register(); err != nil {
-		return nil, errors.WithMessage(err, "register worker")
+		return nil, errors.WithMessage(err, "register executor")
 	}
 	return w, nil
 }
 
-func (w *Worker) register() error {
+func (w *Executor) register() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -110,11 +109,11 @@ func (w *Worker) register() error {
 	return nil
 }
 
-func (w *Worker) Start() error {
+func (w *Executor) Start() error {
 	return w.RPCServer.Serve(w.serverLis)
 }
 
-func (w *Worker) NumRunningTasks() (count int) {
+func (w *Executor) NumRunningTasks() (count int) {
 	w.runningTasks.Range(func(_, _ interface{}) bool {
 		count++
 		return true
@@ -122,22 +121,22 @@ func (w *Worker) NumRunningTasks() (count int) {
 	return
 }
 
-func (w *Worker) NumRunningJobs() (count int) {
+func (w *Executor) NumRunningJobs() (count int) {
 	w.runningJobsMu.RLock()
 	defer w.runningJobsMu.RUnlock()
 
 	return len(w.runningJobs)
 }
 
-func (w *Worker) SetWorkerLocalOption(key string, value interface{}) {
+func (w *Executor) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }
 
-func (w *Worker) State() node.State {
+func (w *Executor) State() node.State {
 	return w.Node.States()
 }
 
-func (w *Worker) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
+func (w *Executor) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
 	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -203,7 +202,7 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Worker) getOrCreateRunningJob(j *job.Job) *runningJobHolder {
+func (w *Executor) getOrCreateRunningJob(j *job.Job) *runningJobHolder {
 	w.runningJobsMu.Lock()
 	defer w.runningJobsMu.Unlock()
 
@@ -219,7 +218,7 @@ func (w *Worker) getOrCreateRunningJob(j *job.Job) *runningJobHolder {
 	return runningJob
 }
 
-func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (*output.Writer, error) {
+func (w *Executor) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (*output.Writer, error) {
 	idToOutput := make(map[string]output.Output)
 	cur := j.GetStage(stageName)
 	if cur.Output.Stage == "" {
@@ -268,7 +267,7 @@ func (w *Worker) newOutputWriter(ctx context.Context, j *job.Job, stageName, cur
 	return output.NewWriter(curPartitionID, partitions.UnwrapPartitioner(cur.Output.Partitioner), idToOutput), nil
 }
 
-func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
+func (w *Executor) getRunningTask(taskID string) *TaskExecutor {
 	task, ok := w.runningTasks.Load(taskID)
 	if !ok {
 		return nil
@@ -276,7 +275,7 @@ func (w *Worker) getRunningTask(taskID string) *TaskExecutor {
 	return task.(*TaskExecutor)
 }
 
-func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
+func (w *Executor) PushData(stream lrmrpb.Node_PushDataServer) error {
 	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
@@ -296,7 +295,7 @@ func (w *Worker) PushData(stream lrmrpb.Node_PushDataServer) error {
 	return nil
 }
 
-func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
+func (w *Executor) PollData(stream lrmrpb.Node_PollDataServer) error {
 	h, err := lrmrpb.DataHeaderFromMetadata(stream)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
@@ -325,7 +324,7 @@ func (w *Worker) PollData(stream lrmrpb.Node_PollDataServer) error {
 	panic("implement me")
 }
 
-func (w *Worker) Close() error {
+func (w *Executor) Close() error {
 	w.RPCServer.GracefulStop()
 	w.Node.Unregister()
 	return w.Cluster.Close()

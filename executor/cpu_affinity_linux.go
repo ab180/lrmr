@@ -1,7 +1,7 @@
 // Inspired by https://github.com/jandos/gofine
 // +build linux
 
-package worker
+package executor
 
 import (
 	"math"
@@ -14,7 +14,7 @@ import (
 // maxNumCPUs value ported from gofine
 const maxNumCPUs = 1 << 10
 
-// CPUAffinityScheduler balances worker goroutines to available CPU cores.
+// CPUAffinityScheduler balances executor goroutines to available CPU cores.
 type CPUAffinityScheduler struct {
 	originalAffinity unix.CPUSet
 	availableCores   []*core

@@ -3,6 +3,8 @@ package job
 import (
 	"time"
 
+	"github.com/ab180/lrmr/job/stage"
+	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/partitions"
 	"github.com/ab180/lrmr/stage"
 )

@@ -6,8 +6,8 @@ import (
 	"os/signal"
 
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/ab180/lrmr/master"
-	"github.com/ab180/lrmr/worker"
+	"github.com/ab180/lrmr/executor"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
 )
 
@@ -28,7 +28,8 @@ func RunMaster(optionalOpt ...Options) (*master.Master, error) {
 	return master.New(etcd, opt.Master)
 }
 
-func RunWorker(optionalOpt ...Options) error {
+// RunExecutor starts a new Executor. Executor can run tasks start
+func RunExecutor(optionalOpt ...Options) error {
 	opt := DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
@@ -38,13 +39,13 @@ func RunWorker(optionalOpt ...Options) error {
 	if err != nil {
 		return fmt.Errorf("connect etcd: %w", err)
 	}
-	w, err := worker.New(etcd, opt.Worker)
+	w, err := executor.New(etcd, opt.Worker)
 	if err != nil {
-		return fmt.Errorf("init worker: %w", err)
+		return fmt.Errorf("init executor: %w", err)
 	}
 	go func() {
 		if err := w.Start(); err != nil {
-			log.Wtf("failed to start worker", err)
+			log.Wtf("failed to start executor", err)
 			return
 		}
 	}()
@@ -54,7 +55,7 @@ func RunWorker(optionalOpt ...Options) error {
 	<-waitForExit
 
 	if err := w.Close(); err != nil {
-		log.Error("failed to shutdown worker node", err)
+		log.Error("failed to shutdown executor node", err)
 	}
 	log.Info("Bye")
 	return nil

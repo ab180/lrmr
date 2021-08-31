@@ -1,4 +1,4 @@
-package worker
+package executor
 
 import (
 	"github.com/ab180/lrmr/input"
