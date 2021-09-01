@@ -1,4 +1,4 @@
-package job
+package lrmrmetric
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/thoas/go-funk"
 )
 
-type Metrics map[string]int
+type Metrics map[string]uint64
 
 // Sum merges two metrics. When a key collides, it sums two key.
 func (m Metrics) Sum(o Metrics) (merged Metrics) {

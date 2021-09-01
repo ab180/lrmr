@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// JobLabels are vector definitions for worker-level metrics.
+// WorkerLabels are vector definitions for executor-level metrics.
 var WorkerLabels = []string{"host", "tag"}
 
 var RunningTasksGauge = promauto.NewGaugeVec(
@@ -20,7 +20,7 @@ var RunningTasksGauge = promauto.NewGaugeVec(
 	WorkerLabels,
 )
 
-// WorkerLabelValuesFrom extracts label values for worker-level metrics from a node information.
+// WorkerLabelValuesFrom extracts label values for executor-level metrics from a node information.
 func WorkerLabelValuesFrom(n *node.Node) prometheus.Labels {
 	// sort tags alphabetically to create a consistent label
 	keys := make([]string, 0, len(n.Tag))
