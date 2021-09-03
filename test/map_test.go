@@ -11,15 +11,15 @@ import (
 func TestMap(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running Map", func() {
-			ds := Map(cluster.Session)
+			ds := Map()
 
 			Convey("It should run without error", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
+				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				So(rows, ShouldHaveLength, 1000)
+				So(result.Outputs, ShouldHaveLength, 1000)
 
 				max := 0
-				for _, row := range rows {
+				for _, row := range result.Outputs {
 					n := testutils.IntValue(row)
 					if n > max {
 						max = n

@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testdata"
 	"github.com/ab180/lrmr/test/testutils"
@@ -14,8 +14,8 @@ import (
 func TestBasicGroupByKey(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKey(cluster.Session)
-			j, err := ds.Run()
+			ds := BasicGroupByKey()
+			j, err := ds.RunInBackground(cluster)
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
@@ -24,7 +24,7 @@ func TestBasicGroupByKey(t *testing.T) {
 				Convey("It should emit all metrics", func() {
 					m, err := j.Metrics()
 					So(err, ShouldBeNil)
-					So(m, ShouldResemble, job.Metrics{
+					So(m, ShouldResemble, lrmrmetric.Metrics{
 						"Files":  testdata.TotalFiles,
 						"Events": testdata.TotalRows,
 					})
@@ -43,13 +43,13 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 	}
 	b.StartTimer()
 
-	ds := BasicGroupByKey(cluster.Session)
+	ds := BasicGroupByKey()
 	allocSum := uint64(0)
 	for n := 0; n < b.N; n++ {
 		start := new(runtime.MemStats)
 		runtime.ReadMemStats(start)
 
-		if _, err := ds.Collect(testutils.ContextWithTimeout()); err != nil {
+		if _, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster); err != nil {
 			b.Fatalf("Failed to collect: %v", err)
 		}
 		end := new(runtime.MemStats)
@@ -65,12 +65,12 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKnownKeys(cluster.Session)
+			ds := BasicGroupByKnownKeys()
 
 			Convey("It should run without error", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
-				res := testutils.GroupRowsByKey(rows)
+				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
+				res := testutils.GroupRowsByKey(rows.Outputs)
 
 				Convey("Its result should be collected", func() {
 					So(res, ShouldHaveLength, 4)
@@ -84,8 +84,8 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 func TestSimpleCount(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(cluster.Session)
-			j, err := ds.Run()
+			ds := SimpleCount()
+			j, err := ds.RunInBackground(cluster)
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
@@ -105,13 +105,13 @@ func TestSimpleCount(t *testing.T) {
 func TestSimpleCount_WithCollect(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When doing Count operations", func() {
-			ds := SimpleCount(cluster.Session)
+			ds := SimpleCount()
 
 			Convey("Calling Collect() should return results with no error", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
-				res := testutils.GroupRowsByKey(rows)
-
+				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
+
+				res := testutils.GroupRowsByKey(rows.Outputs)
 				So(res, ShouldHaveLength, 2)
 				So(res["foo"], ShouldHaveLength, 1)
 				So(res["bar"], ShouldHaveLength, 1)

@@ -11,12 +11,13 @@ import (
 func TestSort(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running Sort", func() {
-			ds := Sort(cluster.Session)
+			ds := Sort()
 
 			Convey("It should sort given data", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
-				res := testutils.GroupRowsByKey(rows)
+				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
+
+				res := testutils.GroupRowsByKey(rows.Outputs)
 				So(res, ShouldHaveLength, 3)
 
 				So(res["foo"], ShouldHaveLength, 1)

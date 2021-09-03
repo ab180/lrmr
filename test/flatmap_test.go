@@ -11,15 +11,15 @@ import (
 func TestFlatMap(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running FlatMap", func() {
-			ds := FlatMap(cluster.Session)
+			ds := FlatMap()
 
 			Convey("It should run without error", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
+				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				So(rows, ShouldHaveLength, 8000)
+				So(rows.Outputs, ShouldHaveLength, 8000)
 
 				max := 0
-				for _, row := range rows {
+				for _, row := range rows.Outputs {
 					n := testutils.IntValue(row)
 					if n > max {
 						max = n

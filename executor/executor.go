@@ -16,8 +16,9 @@ import (
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
-	"github.com/ab180/lrmr/lrmrmetric"
+	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/lrmrpb"
+	"github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/partitions"
 	"github.com/airbloc/logger"
@@ -38,15 +39,10 @@ type Executor struct {
 	RPCServer *grpc.Server
 
 	serverLis       net.Listener
-	jobManager      *job.Manager
 	runningTasks    sync.Map
 	workerLocalOpts map[string]interface{}
-
-	runningJobs   map[string]*runningJobHolder
-	runningJobsMu sync.RWMutex
-	cpuScheduler  CPUAffinityScheduler
-
-	opt Options
+	cpuScheduler    CPUAffinityScheduler
+	opt             Options
 }
 
 func New(crd coordinator.Coordinator, opt Options) (*Executor, error) {
@@ -64,10 +60,8 @@ func New(crd coordinator.Coordinator, opt Options) (*Executor, error) {
 	)
 	w := &Executor{
 		Cluster:         c,
-		jobManager:      jm,
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
-		runningJobs:     make(map[string]*runningJobHolder),
 		cpuScheduler:    NewCPUAffinityScheduler(),
 		opt:             opt,
 	}
@@ -121,13 +115,6 @@ func (w *Executor) NumRunningTasks() (count int) {
 	return
 }
 
-func (w *Executor) NumRunningJobs() (count int) {
-	w.runningJobsMu.RLock()
-	defer w.runningJobsMu.RUnlock()
-
-	return len(w.runningJobs)
-}
-
 func (w *Executor) SetWorkerLocalOption(key string, value interface{}) {
 	w.workerLocalOpts[key] = value
 }
@@ -136,50 +123,87 @@ func (w *Executor) State() node.State {
 	return w.Node.States()
 }
 
-func (w *Executor) CreateTasks(ctx context.Context, req *lrmrpb.CreateTasksRequest) (*empty.Empty, error) {
-	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+func (w *Executor) RunJobInForeground(req *lrmrpb.RunJobRequest, stream lrmrpb.Node_RunJobInForegroundServer) error {
+	j := new(job.Job)
+	if err := req.Job.UnmarshalJSON(j); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
 	}
 
-	wg, wctx := errgroup.WithContext(ctx)
-	for _, p := range req.PartitionIDs {
-		partitionID := p
-		wg.Go(func() error { return w.createTask(wctx, req, partitionID, broadcasts) })
+	// replace last partition with collect
+	j.Stages[len(j.Stages)-1].Output = stage.Output{
+		Stage:       collectStageName,
+		Partitioner: partitions.WrapPartitioner(NewCollector(stream)),
 	}
-	if err := wg.Wait(); err != nil {
+
+	runningJob := newRunningJobHolder(j, newForegroundJobStatusReporter(stream))
+	if err := w.createTasks(req, runningJob); err != nil {
+		return err
+	}
+	taskReadySignal := &lrmrpb.RunOnlineJobOutputToDriver{Type: lrmrpb.RunOnlineJobOutputToDriver_TASKS_READY}
+	if err := stream.Send(taskReadySignal); err != nil {
+		return errors.Wrap(err, "send TASKS_READY signal to driver")
+	}
+	<-runningJob.Context().Done()
+	return nil
+}
+
+func (w *Executor) RunJobInBackground(ctx context.Context, req *lrmrpb.RunJobRequest) (*empty.Empty, error) {
+	j := new(job.Job)
+	if err := req.Job.UnmarshalJSON(j); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
+	}
+	runningJob := newRunningJobHolder(j, newBackgroundJobStatusReporter(w.Cluster.States(), j))
+	if err := w.createTasks(req, runningJob); err != nil {
 		return nil, err
 	}
 	return &empty.Empty{}, nil
 }
 
-func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest, partitionID string, broadcasts serialization.Broadcast) error {
-	j := new(job.Job)
-	if err := req.Job.UnmarshalJSON(j); err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
-	}
-	runningJob := w.getOrCreateRunningJob(j)
-	s := j.GetStage(req.Stage)
+func (w *Executor) GetMetric(ctx context.Context, req *lrmrpb.GetMetricRequest) (*lrmrpb.GetMetricResponse, error) {
+	panic("not implemented")
+}
 
-	task := job.NewTask(partitionID, w.Node.Info(), j.ID, s)
-	taskStatus, err := w.jobManager.CreateTask(ctx, task)
+func (w *Executor) createTasks(req *lrmrpb.RunJobRequest, runningJob *runningJobHolder) error {
+	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
 	if err != nil {
-		return status.Errorf(codes.Internal, "create task failed: %v", err)
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
-	in := input.NewReader(w.opt.Input.QueueLength)
+
+	var wg errgroup.Group
+	for _, stage := range req.Stages {
+		for _, task := range stage.Tasks {
+			stage, task := stage, task
+
+			wg.Go(func() error {
+				if err := w.createTask(runningJob, stage, task, broadcasts); err != nil {
+					return errors.Wrapf(err, "create task %s/%s", stage.Name, task.PartitionID)
+				}
+				return nil
+			})
+		}
+	}
+	return wg.Wait()
+}
+
+func (w *Executor) createTask(runningJob *runningJobHolder, stageDesc *lrmrpb.Stage, taskDesc *lrmrpb.Task, broadcasts serialization.Broadcast) error {
+	curStage := runningJob.Job.GetStage(stageDesc.Name)
+	prevStage := runningJob.Job.GetPrevStageOf(curStage.Name)
+	prevStageTasks := runningJob.Job.GetPartitionsOfStage(prevStage.Name)
+
+	task := job.NewTask(taskDesc.PartitionID, w.Node.Info(), runningJob.Job.ID, curStage)
+
+	in := input.NewReader(w.opt.Input.QueueLength, len(prevStageTasks))
 
 	// after job finishes, remaining connections should be closed
-	out, err := w.newOutputWriter(runningJob.Context(), j, s.Name, partitionID, req.Output)
+	out, err := w.newOutputWriter(runningJob.Context(), runningJob.Job, stageDesc.Name, taskDesc.PartitionID, stageDesc.Output)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create output: %v", err)
 	}
 
 	exec := NewTaskExecutor(
-		w.Cluster.States(),
 		runningJob,
 		task,
-		taskStatus,
-		s.Function,
+		curStage.Function,
 		in,
 		out,
 		broadcasts,
@@ -202,22 +226,6 @@ func (w *Worker) createTask(ctx context.Context, req *lrmrpb.CreateTasksRequest,
 	return nil
 }
 
-func (w *Executor) getOrCreateRunningJob(j *job.Job) *runningJobHolder {
-	w.runningJobsMu.Lock()
-	defer w.runningJobsMu.Unlock()
-
-	runningJob, ok := w.runningJobs[j.ID]
-	if !ok {
-		runningJob = newRunningJobHolder(w.jobManager, j)
-		runningJob.Tracker.OnJobCompletion(func(stat *job.Status) {
-			w.runningJobsMu.Lock()
-			defer w.runningJobsMu.Unlock()
-			delete(w.runningJobs, j.ID)
-		})
-	}
-	return runningJob
-}
-
 func (w *Executor) newOutputWriter(ctx context.Context, j *job.Job, stageName, curPartitionID string, o *lrmrpb.Output) (*output.Writer, error) {
 	idToOutput := make(map[string]output.Output)
 	cur := j.GetStage(stageName)
@@ -225,13 +233,25 @@ func (w *Executor) newOutputWriter(ctx context.Context, j *job.Job, stageName, c
 		// last stage
 		return output.NewWriter(curPartitionID, partitions.NewPreservePartitioner(), idToOutput), nil
 	}
+	if cur.Output.Stage == collectStageName {
+		// use Collector as both output / partitioner
+		collector := partitions.UnwrapPartitioner(cur.Output.Partitioner)
+		idToOutput[collectPartitionID] = output.NewBufferedOutput(
+			collector.(output.Output),
+			w.opt.Output.BufferLength,
+		)
+		return output.NewWriter(curPartitionID, collector, idToOutput), nil
+	}
 
 	// only connect local
 	if partitions.IsPreserved(cur.Output.Partitioner) {
 		taskID := path.Join(j.ID, cur.Output.Stage, curPartitionID)
-		nextTask := w.getRunningTask(taskID)
 
-		idToOutput[curPartitionID] = NewLocalPipe(nextTask.Input)
+		idToOutput[curPartitionID] = output.LazyInitialized(func() (output.Output, error) {
+			log.Verbose("Opening local input from {}/{} -> {}", cur.Name, curPartitionID, taskID)
+			nextTask := w.getRunningTask(taskID)
+			return NewLocalPipe(nextTask.Input), nil
+		})
 		return output.NewWriter(curPartitionID, partitions.NewPreservePartitioner(), idToOutput), nil
 	}
 
@@ -251,10 +271,13 @@ func (w *Executor) newOutputWriter(ctx context.Context, j *job.Job, stageName, c
 			}
 		}
 		wg.Go(func() error {
-			out, err := output.OpenPushStream(ctx, w.Cluster, w.Node.Info(), host, taskID)
+			conn, err := w.Cluster.Connect(ctx, host)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "dial %s", host)
 			}
+			out := output.LazyInitialized(func() (output.Output, error) {
+				return output.OpenPushStream(ctx, lrmrpb.NewNodeClient(conn), w.Node.Info(), host, taskID)
+			})
 			mu.Lock()
 			defer mu.Unlock()
 			idToOutput[id] = output.NewBufferedOutput(out, w.opt.Output.BufferLength)
@@ -282,9 +305,10 @@ func (w *Executor) PushData(stream lrmrpb.Node_PushDataServer) error {
 	}
 	exec := w.getRunningTask(h.TaskID)
 	if exec == nil {
-		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
+		return status.Errorf(codes.InvalidArgument, "task %s not found on %s", h.TaskID, w.Node.Info().Host)
 	}
 
+	log.Verbose("PushData({})", h.TaskID)
 	in := input.NewPushStream(exec.Input, stream)
 	if err := in.Dispatch(); err != nil {
 		return err

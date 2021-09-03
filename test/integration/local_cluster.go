@@ -1,41 +1,42 @@
 package integration
 
 import (
-	"context"
 	"strconv"
 	"time"
 
 	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/ab180/lrmr/master"
-	"github.com/ab180/lrmr/worker"
+	"github.com/ab180/lrmr/executor"
 	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 type LocalCluster struct {
-	Session *lrmr.Session
-
-	crd     coordinator.Coordinator
-	master  *master.Master
-	Workers []*worker.Worker
-	testCtx C
+	cluster.Cluster
+	crd       coordinator.Coordinator
+	Executors []*executor.Executor
+	testCtx   C
 }
 
-func NewLocalCluster(numWorkers int, options ...lrmr.SessionOption) (*LocalCluster, error) {
-	workers := make([]*worker.Worker, numWorkers)
+func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
+	workers := make([]*executor.Executor, numWorkers)
 	crd := ProvideEtcd()
+	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
+	if err != nil {
+		return nil, err
+	}
 
 	for i := 0; i < numWorkers; i++ {
-		opt := worker.DefaultOptions()
+		opt := executor.DefaultOptions()
 		opt.ListenHost = "127.0.0.1:"
 		opt.AdvertisedHost = "127.0.0.1:"
 		opt.Concurrency = 2
 		opt.NodeTags["No"] = strconv.Itoa(i + 1)
 
-		w, err := worker.New(crd, opt)
+		w, err := executor.New(crd, opt)
 		if err != nil {
-			return nil, errors.Wrapf(err, "init worker #%d", i)
+			return nil, errors.Wrapf(err, "init executor #%d", i)
 		}
 		w.SetWorkerLocalOption("No", i+1)
 		w.SetWorkerLocalOption("IsWorker", true)
@@ -47,28 +48,16 @@ func NewLocalCluster(numWorkers int, options ...lrmr.SessionOption) (*LocalClust
 	// wait for workers to register themselves
 	time.Sleep(200 * time.Millisecond)
 
-	opt := master.DefaultOptions()
-	opt.ListenHost = "127.0.0.1:"
-	opt.AdvertisedHost = "127.0.0.1:"
-
-	m, err := master.New(crd, opt)
-	if err != nil {
-		return nil, errors.Wrap(err, "init master")
-	}
-	m.Start()
-
-	sess := lrmr.NewSession(m, options...)
 	return &LocalCluster{
-		Session: sess,
-		crd:     crd,
-		master:  m,
-		Workers: workers,
+		Cluster:   c,
+		crd:       crd,
+		Executors: workers,
 	}, nil
 }
 
 func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.SessionOption) func() {
 	return func() {
-		c, err := NewLocalCluster(numWorkers, options...)
+		c, err := NewLocalCluster(numWorkers)
 		if err != nil {
 			So(err, ShouldBeNil)
 		}
@@ -81,31 +70,11 @@ func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.
 	}
 }
 
-func (lc *LocalCluster) EmulateMasterFailure(old *lrmr.RunningJob) (new *lrmr.RunningJob) {
-	lc.master.Stop()
-
-	opt := master.DefaultOptions()
-	opt.ListenHost = "127.0.0.1:"
-	opt.AdvertisedHost = "127.0.0.1:"
-	newMaster, err := master.New(lc.crd, opt)
-	if err != nil {
-		log.Error("Failed to create new master", err)
-	}
-
-	newMaster.Start()
-	newJob, err := lrmr.TrackJob(context.Background(), newMaster, old.Job.ID)
-	if err != nil {
-		lc.testCtx.So(err, ShouldBeNil)
-	}
-	return newJob
-}
-
 func (lc *LocalCluster) Close() error {
-	for i, w := range lc.Workers {
+	for i, w := range lc.Executors {
 		if err := w.Close(); err != nil {
-			return errors.Wrapf(err, "close worker #%d", i)
+			return errors.Wrapf(err, "close executor #%d", i)
 		}
 	}
-	lc.master.Stop()
 	return nil
 }

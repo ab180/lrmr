@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/transformation"
 )
 
@@ -42,15 +41,15 @@ func (c taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
-		metrics[name] += int(delta)
-	})
+	// c.executor.taskReporter.UpdateMetric(func(metrics lrmrmetric.Metrics) {
+	// 	metrics[name] += int(delta)
+	// })
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
-		metrics[name] = val
-	})
+	// c.executor.taskReporter.UpdateMetric(func(metrics lrmrmetric.Metrics) {
+	// 	metrics[name] = val
+	// })
 }
 
 func (c *taskContext) SetGauge(name string, val float64) {

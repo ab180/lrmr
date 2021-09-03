@@ -15,7 +15,7 @@ type Stage struct {
 	// Function is a transformation the stage executes.
 	Function transformation.Serializable `json:"function"`
 
-	Output *Output
+	Output Output
 }
 
 // New creates a new stage.

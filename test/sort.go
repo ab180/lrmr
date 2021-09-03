@@ -31,13 +31,13 @@ func (cc Concat) Reduce(c lrmr.Context, prev interface{}, cur *lrdd.Row) (next i
 	return prev.(string) + strconv.Itoa(n), nil
 }
 
-func Sort(sess *lrmr.Session) *lrmr.Dataset {
+func Sort() *lrmr.Pipeline {
 	data := map[string][]int{
 		"foo": {9, 8, 7, 6},
 		"bar": {5, 4, 3, 2},
 		"baz": {9, 5, 1, 3},
 	}
-	return sess.Parallelize(data).
+	return lrmr.Parallelize(data).
 		GroupByKey().
 		Sort(&Ascending{}).
 		Reduce(&Concat{})

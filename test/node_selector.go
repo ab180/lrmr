@@ -5,8 +5,8 @@ import (
 	"github.com/ab180/lrmr/lrdd"
 )
 
-func NodeSelection(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.Parallelize([]int{}).
+func NodeSelection() *lrmr.Pipeline {
+	return lrmr.Parallelize([]int{}).
 		Do(countNumPartitions{})
 }
 

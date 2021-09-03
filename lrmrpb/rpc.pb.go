@@ -11,6 +11,7 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
+	_ "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -30,6 +31,60 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+
+type RunOnlineJobOutputToDriver_Type int32
+
+const (
+	RunOnlineJobOutputToDriver_TASKS_READY            RunOnlineJobOutputToDriver_Type = 0
+	RunOnlineJobOutputToDriver_COLLECT_DATA           RunOnlineJobOutputToDriver_Type = 1
+	RunOnlineJobOutputToDriver_REPORT_TASK_COMPLETION RunOnlineJobOutputToDriver_Type = 2
+)
+
+var RunOnlineJobOutputToDriver_Type_name = map[int32]string{
+	0: "TASKS_READY",
+	1: "COLLECT_DATA",
+	2: "REPORT_TASK_COMPLETION",
+}
+
+var RunOnlineJobOutputToDriver_Type_value = map[string]int32{
+	"TASKS_READY":            0,
+	"COLLECT_DATA":           1,
+	"REPORT_TASK_COMPLETION": 2,
+}
+
+func (x RunOnlineJobOutputToDriver_Type) String() string {
+	return proto.EnumName(RunOnlineJobOutputToDriver_Type_name, int32(x))
+}
+
+func (RunOnlineJobOutputToDriver_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{4, 0}
+}
+
+// on type == REPORT_TASK_COMPLETION
+type RunOnlineJobOutputToDriver_TaskStatus int32
+
+const (
+	RunOnlineJobOutputToDriver_SUCCEED RunOnlineJobOutputToDriver_TaskStatus = 0
+	RunOnlineJobOutputToDriver_FAILED  RunOnlineJobOutputToDriver_TaskStatus = 1
+)
+
+var RunOnlineJobOutputToDriver_TaskStatus_name = map[int32]string{
+	0: "SUCCEED",
+	1: "FAILED",
+}
+
+var RunOnlineJobOutputToDriver_TaskStatus_value = map[string]int32{
+	"SUCCEED": 0,
+	"FAILED":  1,
+}
+
+func (x RunOnlineJobOutputToDriver_TaskStatus) String() string {
+	return proto.EnumName(RunOnlineJobOutputToDriver_TaskStatus_name, int32(x))
+}
+
+func (RunOnlineJobOutputToDriver_TaskStatus) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{4, 1}
+}
 
 type Input_Type int32
 
@@ -53,7 +108,7 @@ func (x Input_Type) String() string {
 }
 
 func (Input_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{2, 0}
+	return fileDescriptor_f4e130d388338f6d, []int{7, 0}
 }
 
 type Output_Type int32
@@ -78,7 +133,7 @@ func (x Output_Type) String() string {
 }
 
 func (Output_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3, 0}
+	return fileDescriptor_f4e130d388338f6d, []int{8, 0}
 }
 
 type CreateTasksRequest struct {
@@ -120,22 +175,23 @@ func (m *CreateTasksRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CreateTasksRequest proto.InternalMessageInfo
 
-type Job struct {
-	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	XXX_sizecache int32  `json:"-"`
+type RunJobRequest struct {
+	Job           *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Stages        []*Stage          `protobuf:"bytes,2,rep,name=stages,proto3" json:"stages,omitempty"`
+	Broadcasts    map[string][]byte `protobuf:"bytes,3,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_sizecache int32             `json:"-"`
 }
 
-func (m *Job) Reset()         { *m = Job{} }
-func (m *Job) String() string { return proto.CompactTextString(m) }
-func (*Job) ProtoMessage()    {}
-func (*Job) Descriptor() ([]byte, []int) {
+func (m *RunJobRequest) Reset()         { *m = RunJobRequest{} }
+func (m *RunJobRequest) String() string { return proto.CompactTextString(m) }
+func (*RunJobRequest) ProtoMessage()    {}
+func (*RunJobRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{1}
 }
-func (m *Job) XXX_Unmarshal(b []byte) error {
+func (m *RunJobRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *RunJobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	b = b[:cap(b)]
 	n, err := m.MarshalToSizedBuffer(b)
 	if err != nil {
@@ -143,17 +199,198 @@ func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	}
 	return b[:n], nil
 }
-func (m *Job) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Job.Merge(m, src)
+func (m *RunJobRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RunJobRequest.Merge(m, src)
 }
-func (m *Job) XXX_Size() int {
+func (m *RunJobRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *Job) XXX_DiscardUnknown() {
-	xxx_messageInfo_Job.DiscardUnknown(m)
+func (m *RunJobRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RunJobRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Job proto.InternalMessageInfo
+var xxx_messageInfo_RunJobRequest proto.InternalMessageInfo
+
+type Stage struct {
+	Name          string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Tasks         []*Task  `protobuf:"bytes,2,rep,name=tasks,proto3" json:"tasks,omitempty"`
+	Input         []*Input `protobuf:"bytes,4,rep,name=input,proto3" json:"input,omitempty"`
+	Output        *Output  `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
+	XXX_sizecache int32    `json:"-"`
+}
+
+func (m *Stage) Reset()         { *m = Stage{} }
+func (m *Stage) String() string { return proto.CompactTextString(m) }
+func (*Stage) ProtoMessage()    {}
+func (*Stage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{2}
+}
+func (m *Stage) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Stage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *Stage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Stage.Merge(m, src)
+}
+func (m *Stage) XXX_Size() int {
+	return m.Size()
+}
+func (m *Stage) XXX_DiscardUnknown() {
+	xxx_messageInfo_Stage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Stage proto.InternalMessageInfo
+
+type Task struct {
+	PartitionID   string `protobuf:"bytes,1,opt,name=partitionID,proto3" json:"partitionID,omitempty"`
+	XXX_sizecache int32  `json:"-"`
+}
+
+func (m *Task) Reset()         { *m = Task{} }
+func (m *Task) String() string { return proto.CompactTextString(m) }
+func (*Task) ProtoMessage()    {}
+func (*Task) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{3}
+}
+func (m *Task) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Task) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *Task) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Task.Merge(m, src)
+}
+func (m *Task) XXX_Size() int {
+	return m.Size()
+}
+func (m *Task) XXX_DiscardUnknown() {
+	xxx_messageInfo_Task.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Task proto.InternalMessageInfo
+
+type RunOnlineJobOutputToDriver struct {
+	Type RunOnlineJobOutputToDriver_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.RunOnlineJobOutputToDriver_Type" json:"type,omitempty"`
+	// sender task
+	Stage       string `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
+	PartitionID string `protobuf:"bytes,3,opt,name=partitionID,proto3" json:"partitionID,omitempty"`
+	// on type == COLLECT_DATA
+	Data          []*lrdd.Row                           `protobuf:"bytes,5,rep,name=data,proto3" json:"data,omitempty"`
+	TaskStatus    RunOnlineJobOutputToDriver_TaskStatus `protobuf:"varint,6,opt,name=taskStatus,proto3,enum=lrmrpb.RunOnlineJobOutputToDriver_TaskStatus" json:"taskStatus,omitempty"`
+	Error         string                                `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	Stacktrace    string                                `protobuf:"bytes,8,opt,name=stacktrace,proto3" json:"stacktrace,omitempty"`
+	XXX_sizecache int32                                 `json:"-"`
+}
+
+func (m *RunOnlineJobOutputToDriver) Reset()         { *m = RunOnlineJobOutputToDriver{} }
+func (m *RunOnlineJobOutputToDriver) String() string { return proto.CompactTextString(m) }
+func (*RunOnlineJobOutputToDriver) ProtoMessage()    {}
+func (*RunOnlineJobOutputToDriver) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{4}
+}
+func (m *RunOnlineJobOutputToDriver) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RunOnlineJobOutputToDriver) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *RunOnlineJobOutputToDriver) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RunOnlineJobOutputToDriver.Merge(m, src)
+}
+func (m *RunOnlineJobOutputToDriver) XXX_Size() int {
+	return m.Size()
+}
+func (m *RunOnlineJobOutputToDriver) XXX_DiscardUnknown() {
+	xxx_messageInfo_RunOnlineJobOutputToDriver.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RunOnlineJobOutputToDriver proto.InternalMessageInfo
+
+type GetMetricRequest struct {
+	JobID         string `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
+	XXX_sizecache int32  `json:"-"`
+}
+
+func (m *GetMetricRequest) Reset()         { *m = GetMetricRequest{} }
+func (m *GetMetricRequest) String() string { return proto.CompactTextString(m) }
+func (*GetMetricRequest) ProtoMessage()    {}
+func (*GetMetricRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{5}
+}
+func (m *GetMetricRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetMetricRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *GetMetricRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetMetricRequest.Merge(m, src)
+}
+func (m *GetMetricRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetMetricRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetMetricRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetMetricRequest proto.InternalMessageInfo
+
+type GetMetricResponse struct {
+	Metrics       map[string]uint64 `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	XXX_sizecache int32             `json:"-"`
+}
+
+func (m *GetMetricResponse) Reset()         { *m = GetMetricResponse{} }
+func (m *GetMetricResponse) String() string { return proto.CompactTextString(m) }
+func (*GetMetricResponse) ProtoMessage()    {}
+func (*GetMetricResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{6}
+}
+func (m *GetMetricResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetMetricResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *GetMetricResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetMetricResponse.Merge(m, src)
+}
+func (m *GetMetricResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetMetricResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetMetricResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetMetricResponse proto.InternalMessageInfo
 
 type Input struct {
 	Type          Input_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.Input_Type" json:"type,omitempty"`
@@ -164,7 +401,7 @@ func (m *Input) Reset()         { *m = Input{} }
 func (m *Input) String() string { return proto.CompactTextString(m) }
 func (*Input) ProtoMessage()    {}
 func (*Input) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{2}
+	return fileDescriptor_f4e130d388338f6d, []int{7}
 }
 func (m *Input) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -200,7 +437,7 @@ func (m *Output) Reset()         { *m = Output{} }
 func (m *Output) String() string { return proto.CompactTextString(m) }
 func (*Output) ProtoMessage()    {}
 func (*Output) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{3}
+	return fileDescriptor_f4e130d388338f6d, []int{8}
 }
 func (m *Output) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -235,7 +472,7 @@ func (m *HostMapping) Reset()         { *m = HostMapping{} }
 func (m *HostMapping) String() string { return proto.CompactTextString(m) }
 func (*HostMapping) ProtoMessage()    {}
 func (*HostMapping) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{4}
+	return fileDescriptor_f4e130d388338f6d, []int{9}
 }
 func (m *HostMapping) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -269,7 +506,7 @@ func (m *CreateTaskResponse) Reset()         { *m = CreateTaskResponse{} }
 func (m *CreateTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateTaskResponse) ProtoMessage()    {}
 func (*CreateTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{5}
+	return fileDescriptor_f4e130d388338f6d, []int{10}
 }
 func (m *CreateTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -305,7 +542,7 @@ func (m *PushDataRequest) Reset()         { *m = PushDataRequest{} }
 func (m *PushDataRequest) String() string { return proto.CompactTextString(m) }
 func (*PushDataRequest) ProtoMessage()    {}
 func (*PushDataRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{6}
+	return fileDescriptor_f4e130d388338f6d, []int{11}
 }
 func (m *PushDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -342,7 +579,7 @@ func (m *PollDataRequest) Reset()         { *m = PollDataRequest{} }
 func (m *PollDataRequest) String() string { return proto.CompactTextString(m) }
 func (*PollDataRequest) ProtoMessage()    {}
 func (*PollDataRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{7}
+	return fileDescriptor_f4e130d388338f6d, []int{12}
 }
 func (m *PollDataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -377,7 +614,7 @@ func (m *PollDataResponse) Reset()         { *m = PollDataResponse{} }
 func (m *PollDataResponse) String() string { return proto.CompactTextString(m) }
 func (*PollDataResponse) ProtoMessage()    {}
 func (*PollDataResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{8}
+	return fileDescriptor_f4e130d388338f6d, []int{13}
 }
 func (m *PollDataResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -412,7 +649,7 @@ func (m *DataHeader) Reset()         { *m = DataHeader{} }
 func (m *DataHeader) String() string { return proto.CompactTextString(m) }
 func (*DataHeader) ProtoMessage()    {}
 func (*DataHeader) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{9}
+	return fileDescriptor_f4e130d388338f6d, []int{14}
 }
 func (m *DataHeader) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -438,11 +675,20 @@ func (m *DataHeader) XXX_DiscardUnknown() {
 var xxx_messageInfo_DataHeader proto.InternalMessageInfo
 
 func init() {
+	proto.RegisterEnum("lrmrpb.RunOnlineJobOutputToDriver_Type", RunOnlineJobOutputToDriver_Type_name, RunOnlineJobOutputToDriver_Type_value)
+	proto.RegisterEnum("lrmrpb.RunOnlineJobOutputToDriver_TaskStatus", RunOnlineJobOutputToDriver_TaskStatus_name, RunOnlineJobOutputToDriver_TaskStatus_value)
 	proto.RegisterEnum("lrmrpb.Input_Type", Input_Type_name, Input_Type_value)
 	proto.RegisterEnum("lrmrpb.Output_Type", Output_Type_name, Output_Type_value)
 	proto.RegisterType((*CreateTasksRequest)(nil), "lrmrpb.CreateTasksRequest")
 	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.CreateTasksRequest.BroadcastsEntry")
-	proto.RegisterType((*Job)(nil), "lrmrpb.Job")
+	proto.RegisterType((*RunJobRequest)(nil), "lrmrpb.RunJobRequest")
+	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.RunJobRequest.BroadcastsEntry")
+	proto.RegisterType((*Stage)(nil), "lrmrpb.Stage")
+	proto.RegisterType((*Task)(nil), "lrmrpb.Task")
+	proto.RegisterType((*RunOnlineJobOutputToDriver)(nil), "lrmrpb.RunOnlineJobOutputToDriver")
+	proto.RegisterType((*GetMetricRequest)(nil), "lrmrpb.GetMetricRequest")
+	proto.RegisterType((*GetMetricResponse)(nil), "lrmrpb.GetMetricResponse")
+	proto.RegisterMapType((map[string]uint64)(nil), "lrmrpb.GetMetricResponse.MetricsEntry")
 	proto.RegisterType((*Input)(nil), "lrmrpb.Input")
 	proto.RegisterType((*Output)(nil), "lrmrpb.Output")
 	proto.RegisterMapType((map[string]string)(nil), "lrmrpb.Output.PartitionToHostEntry")
@@ -457,49 +703,72 @@ func init() {
 func init() { proto.RegisterFile("lrmrpb/rpc.proto", fileDescriptor_f4e130d388338f6d) }
 
 var fileDescriptor_f4e130d388338f6d = []byte{
-	// 666 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xdd, 0x4e, 0x13, 0x41,
-	0x14, 0xee, 0xf4, 0x2f, 0xed, 0x01, 0xdb, 0x66, 0x24, 0xb8, 0x59, 0xb1, 0x34, 0x4b, 0xa2, 0xd5,
-	0x98, 0x2d, 0xc1, 0x1b, 0x35, 0x21, 0x11, 0x04, 0xa5, 0x08, 0xb4, 0x19, 0xf0, 0x01, 0xa6, 0xec,
-	0x50, 0x56, 0xda, 0x9d, 0x75, 0x67, 0x2a, 0xe9, 0x5b, 0xf8, 0x56, 0x92, 0x78, 0xe3, 0x25, 0x97,
-	0x58, 0x5e, 0xc4, 0xcc, 0xcc, 0x2e, 0x6e, 0x8b, 0xe0, 0x4d, 0x73, 0xce, 0xf9, 0x7e, 0x76, 0xcf,
-	0xb7, 0x9d, 0x81, 0xda, 0x20, 0x1a, 0x46, 0x61, 0xaf, 0x15, 0x85, 0xc7, 0x6e, 0x18, 0x71, 0xc9,
-	0x71, 0xd1, 0x4c, 0xec, 0x85, 0x3e, 0xef, 0x73, 0x3d, 0x6a, 0xa9, 0xca, 0xa0, 0xf6, 0xe3, 0x3e,
-	0xe7, 0xfd, 0x01, 0x6b, 0xe9, 0xae, 0x37, 0x3a, 0x69, 0xb1, 0x61, 0x28, 0xc7, 0x31, 0x58, 0x19,
-	0x44, 0x9e, 0xd7, 0x8a, 0xf8, 0x79, 0xdc, 0x2f, 0xf9, 0x81, 0x64, 0x51, 0x40, 0x07, 0xad, 0xb0,
-	0x27, 0xc7, 0x21, 0x13, 0x2d, 0xfd, 0x6b, 0x50, 0xe7, 0x47, 0x16, 0xf0, 0xfb, 0x88, 0x51, 0xc9,
-	0x8e, 0xa8, 0x38, 0x13, 0x84, 0x7d, 0x1d, 0x31, 0x21, 0xf1, 0x32, 0xe4, 0xbe, 0xf0, 0x9e, 0x85,
-	0x1a, 0xa8, 0x39, 0xb7, 0xf6, 0xc0, 0x8d, 0x95, 0xee, 0xee, 0x61, 0xe7, 0x80, 0x28, 0x04, 0x2f,
-	0x40, 0x41, 0x48, 0xda, 0x67, 0x56, 0xb6, 0x81, 0x9a, 0x65, 0x62, 0x1a, 0xec, 0xc0, 0x7c, 0x48,
-	0x23, 0xe9, 0x4b, 0x9f, 0x07, 0xed, 0x2d, 0x61, 0xe5, 0x1a, 0xb9, 0x66, 0x99, 0x4c, 0xcd, 0xf0,
-	0x0a, 0x14, 0xfc, 0x20, 0x1c, 0x49, 0x2b, 0xdf, 0xc8, 0x69, 0x73, 0xb3, 0xaa, 0xdb, 0x56, 0x43,
-	0x62, 0x30, 0xfc, 0x14, 0x8a, 0x7c, 0x24, 0x15, 0xab, 0xa0, 0x5f, 0xa1, 0x92, 0xb0, 0x3a, 0x7a,
-	0x4a, 0x62, 0x14, 0xef, 0x02, 0xf4, 0x22, 0x4e, 0xbd, 0x63, 0x2a, 0xa4, 0xb0, 0x8a, 0xda, 0xf1,
-	0x45, 0xc2, 0xbd, 0xbd, 0x97, 0xbb, 0x79, 0x43, 0xde, 0x0e, 0x64, 0x34, 0x26, 0x29, 0xb5, 0xbd,
-	0x0e, 0xd5, 0x19, 0x18, 0xd7, 0x20, 0x77, 0xc6, 0xc6, 0x3a, 0x86, 0x32, 0x51, 0xa5, 0xda, 0xfb,
-	0x1b, 0x1d, 0x8c, 0xcc, 0xde, 0xf3, 0xc4, 0x34, 0x6f, 0xb3, 0xaf, 0x91, 0xf3, 0x1c, 0x72, 0xbb,
-	0xbc, 0x87, 0x2b, 0x90, 0xf5, 0xbd, 0x58, 0x91, 0xf5, 0x3d, 0x8c, 0x21, 0x1f, 0xd0, 0x61, 0x92,
-	0x93, 0xae, 0x9d, 0x4f, 0x50, 0x68, 0xc7, 0x6b, 0xe6, 0x55, 0xb0, 0x9a, 0x5e, 0x59, 0xc3, 0x53,
-	0x51, 0xb8, 0x47, 0xe3, 0x90, 0x11, 0x8d, 0x3b, 0x36, 0xe4, 0x55, 0x87, 0x4b, 0x90, 0xef, 0x7e,
-	0x3e, 0xdc, 0xa9, 0x65, 0x74, 0xd5, 0xd9, 0xdb, 0xab, 0x21, 0xe7, 0x0a, 0x41, 0xd1, 0xa4, 0x82,
-	0x9f, 0x4d, 0xd9, 0x3d, 0x9c, 0xce, 0x2c, 0xe5, 0x87, 0xf7, 0xa1, 0x7a, 0xf3, 0x4d, 0x8e, 0xf8,
-	0x0e, 0x17, 0xd2, 0xca, 0xea, 0xec, 0x56, 0x66, 0x34, 0xdd, 0x69, 0x96, 0x09, 0x6d, 0x56, 0x6b,
-	0x6f, 0xc2, 0xc2, 0xbf, 0x88, 0xff, 0x8b, 0xaf, 0x9c, 0x8e, 0xef, 0xbe, 0x15, 0xdf, 0xc0, 0x9c,
-	0x32, 0xdd, 0xa7, 0x61, 0xe8, 0x07, 0x7d, 0x15, 0xe9, 0xa9, 0x7a, 0x65, 0xe3, 0xab, 0x6b, 0xbc,
-	0x08, 0x45, 0x49, 0xc5, 0x59, 0x7b, 0x2b, 0x76, 0x8e, 0x3b, 0xe7, 0x65, 0xfa, 0xef, 0x4d, 0x98,
-	0x08, 0x79, 0x20, 0x58, 0x8a, 0x8d, 0xa6, 0xd8, 0xab, 0x50, 0xed, 0x8e, 0xc4, 0xe9, 0x16, 0x95,
-	0x34, 0x39, 0x09, 0x4f, 0x20, 0xef, 0x51, 0x49, 0x2d, 0xa4, 0xf3, 0x29, 0xbb, 0xea, 0x74, 0xb9,
-	0x84, 0x9f, 0x13, 0x3d, 0x76, 0x96, 0xa1, 0xda, 0xe5, 0x83, 0x41, 0x5a, 0x31, 0x0f, 0x28, 0xd0,
-	0xbe, 0x39, 0x82, 0x02, 0xe7, 0x23, 0xd4, 0xfe, 0x12, 0xe2, 0xc7, 0xdf, 0xef, 0xa9, 0x42, 0xf2,
-	0xc5, 0x76, 0xe7, 0x83, 0x5e, 0xa5, 0x44, 0x4c, 0xe3, 0xbc, 0x03, 0x50, 0x26, 0x3b, 0x8c, 0x7a,
-	0x2c, 0xba, 0x6b, 0x03, 0x6c, 0x43, 0xe9, 0x24, 0xe2, 0xc3, 0xf8, 0x93, 0x2a, 0xe4, 0xa6, 0x5f,
-	0xfb, 0x89, 0x20, 0x7f, 0xc0, 0x3d, 0x86, 0x37, 0x60, 0x2e, 0x75, 0x36, 0xb0, 0x7d, 0xf7, 0x81,
-	0xb1, 0x17, 0x5d, 0x73, 0xd7, 0xb8, 0xc9, 0x5d, 0xe3, 0x6e, 0xab, 0xbb, 0x06, 0xaf, 0x43, 0x29,
-	0x49, 0x0a, 0x3f, 0x4a, 0xf4, 0x33, 0xd9, 0xdd, 0x25, 0x6e, 0x22, 0xbc, 0x01, 0xa5, 0x24, 0x95,
-	0x94, 0x7c, 0x3a, 0x48, 0xdb, 0xba, 0x0d, 0x98, 0x00, 0x9b, 0x68, 0x15, 0x6d, 0x2e, 0x5d, 0xfc,
-	0xae, 0x67, 0x2e, 0x26, 0x75, 0xf4, 0x6b, 0x52, 0x47, 0x97, 0x93, 0x3a, 0xba, 0x9a, 0xd4, 0xd1,
-	0xf7, 0xeb, 0x7a, 0xe6, 0xf2, 0xba, 0x9e, 0xe9, 0x15, 0xf5, 0x23, 0x5f, 0xfd, 0x09, 0x00, 0x00,
-	0xff, 0xff, 0x31, 0xfc, 0x88, 0x9d, 0x5b, 0x05, 0x00, 0x00,
+	// 1036 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x5f, 0x73, 0xda, 0x46,
+	0x10, 0xe7, 0x40, 0x60, 0x58, 0x13, 0x5b, 0xbd, 0xba, 0xae, 0xa2, 0xa6, 0xc4, 0xa3, 0x8c, 0x13,
+	0xa6, 0xd3, 0x0a, 0x8f, 0xfb, 0xd2, 0xa6, 0x93, 0x19, 0x63, 0x90, 0x63, 0x1c, 0x6c, 0xe8, 0x41,
+	0x1e, 0xfa, 0xe4, 0x11, 0x70, 0x21, 0xc4, 0x58, 0xa7, 0x9e, 0x8e, 0x64, 0xfc, 0x2d, 0xda, 0x7e,
+	0x85, 0x7e, 0x98, 0xe6, 0xb1, 0x8f, 0x79, 0xe9, 0x4c, 0xea, 0x7c, 0x91, 0xce, 0x9d, 0x24, 0x2c,
+	0xe1, 0x7f, 0x79, 0x68, 0x5e, 0x34, 0xb7, 0xfb, 0xdb, 0x5d, 0xed, 0xfe, 0x76, 0xf7, 0x24, 0xd0,
+	0xa7, 0xfc, 0x94, 0xfb, 0x83, 0x1a, 0xf7, 0x87, 0xb6, 0xcf, 0x99, 0x60, 0xb8, 0x10, 0x6a, 0xcc,
+	0xb5, 0x31, 0x1b, 0x33, 0xa5, 0xaa, 0xc9, 0x53, 0x88, 0x9a, 0x5f, 0x8d, 0x19, 0x1b, 0x4f, 0x69,
+	0x4d, 0x49, 0x83, 0xd9, 0x8b, 0x1a, 0x3d, 0xf5, 0xc5, 0x59, 0x04, 0xde, 0x5d, 0x04, 0x5d, 0x2f,
+	0x86, 0x56, 0xa6, 0x7c, 0x34, 0xaa, 0x71, 0xf6, 0x26, 0x92, 0xef, 0x4d, 0x3c, 0x41, 0xb9, 0xe7,
+	0x4e, 0x6b, 0xfe, 0x40, 0x9c, 0xf9, 0x34, 0xa8, 0xa9, 0x67, 0x88, 0x5a, 0x7f, 0x65, 0x01, 0x37,
+	0x38, 0x75, 0x05, 0xed, 0xbb, 0xc1, 0x49, 0x40, 0xe8, 0xaf, 0x33, 0x1a, 0x08, 0x7c, 0x1f, 0x72,
+	0xaf, 0xd8, 0xc0, 0x40, 0x1b, 0xa8, 0xba, 0xbc, 0x7d, 0xc7, 0x8e, 0x3c, 0xed, 0x83, 0x5e, 0xe7,
+	0x88, 0x48, 0x04, 0xaf, 0x41, 0x3e, 0x10, 0xee, 0x98, 0x1a, 0xd9, 0x0d, 0x54, 0x2d, 0x91, 0x50,
+	0xc0, 0x16, 0x94, 0x7d, 0x97, 0x8b, 0x89, 0x98, 0x30, 0xaf, 0xd5, 0x0c, 0x8c, 0xdc, 0x46, 0xae,
+	0x5a, 0x22, 0x29, 0x1d, 0x7e, 0x00, 0xf9, 0x89, 0xe7, 0xcf, 0x84, 0xa1, 0x6d, 0xe4, 0x54, 0xf0,
+	0x90, 0x05, 0xbb, 0x25, 0x95, 0x24, 0xc4, 0xf0, 0x43, 0x28, 0xb0, 0x99, 0x90, 0x56, 0x79, 0x95,
+	0xc2, 0x4a, 0x6c, 0xd5, 0x51, 0x5a, 0x12, 0xa1, 0xf8, 0x00, 0x60, 0xc0, 0x99, 0x3b, 0x1a, 0xba,
+	0x81, 0x08, 0x8c, 0x82, 0x8a, 0xf8, 0x4d, 0x6c, 0x7b, 0xb9, 0x2e, 0x7b, 0x77, 0x6e, 0xec, 0x78,
+	0x82, 0x9f, 0x91, 0x84, 0xb7, 0xf9, 0x04, 0x56, 0x17, 0x60, 0xac, 0x43, 0xee, 0x84, 0x9e, 0x29,
+	0x1a, 0x4a, 0x44, 0x1e, 0x65, 0xdd, 0xaf, 0xdd, 0xe9, 0x2c, 0xac, 0xbb, 0x4c, 0x42, 0xe1, 0x71,
+	0xf6, 0x07, 0x64, 0xfd, 0x83, 0xe0, 0x0e, 0x99, 0x79, 0x07, 0x6c, 0xf0, 0xd1, 0x24, 0x6e, 0x42,
+	0x41, 0xf1, 0x16, 0x18, 0xd9, 0x34, 0x17, 0x3d, 0xa9, 0x25, 0x11, 0x88, 0x9d, 0x54, 0x91, 0x39,
+	0x65, 0xba, 0x19, 0x9b, 0xa6, 0x5e, 0xf9, 0x29, 0xeb, 0xfb, 0x03, 0x41, 0x5e, 0xe5, 0x85, 0x31,
+	0x68, 0x9e, 0x7b, 0x4a, 0x23, 0x37, 0x75, 0xc6, 0x16, 0xe4, 0x85, 0x24, 0x3a, 0xaa, 0xa4, 0x1c,
+	0xa7, 0x27, 0xd9, 0x27, 0x21, 0xf4, 0xbf, 0x76, 0xfe, 0x40, 0x2b, 0xe6, 0x74, 0xcd, 0xaa, 0x82,
+	0x26, 0xdf, 0x80, 0x37, 0x60, 0x39, 0x31, 0x64, 0x51, 0x66, 0x49, 0x95, 0xf5, 0x67, 0x0e, 0x4c,
+	0x32, 0xf3, 0x3a, 0xde, 0x74, 0xe2, 0xd1, 0x03, 0x36, 0x08, 0xc3, 0xf5, 0x59, 0x93, 0x4f, 0x5e,
+	0x53, 0x8e, 0x7f, 0x02, 0x4d, 0x76, 0x47, 0x79, 0xae, 0x6c, 0x3f, 0x4a, 0xb0, 0x7b, 0x8d, 0x87,
+	0xdd, 0x3f, 0xf3, 0x29, 0x51, 0x4e, 0xd7, 0x2c, 0xc3, 0x42, 0x4e, 0xb9, 0x4b, 0x39, 0xe1, 0xaf,
+	0x41, 0x1b, 0xb9, 0xc2, 0x35, 0xf2, 0x8a, 0x8f, 0x92, 0x2d, 0x37, 0xd7, 0x26, 0xec, 0x0d, 0x51,
+	0x6a, 0x7c, 0x08, 0x20, 0x89, 0xeb, 0x09, 0x57, 0xcc, 0xe4, 0x70, 0xcb, 0xcc, 0xbe, 0xfb, 0x98,
+	0xcc, 0xe6, 0x4e, 0x24, 0x11, 0x40, 0x66, 0x49, 0x39, 0x67, 0xdc, 0x58, 0x0a, 0xb3, 0x54, 0x02,
+	0xae, 0x00, 0x04, 0xc2, 0x1d, 0x9e, 0x08, 0xee, 0x0e, 0xa9, 0x51, 0x54, 0x50, 0x42, 0x63, 0x39,
+	0xa0, 0xc9, 0x4a, 0xf1, 0x2a, 0x2c, 0xf7, 0xeb, 0xbd, 0x67, 0xbd, 0x63, 0xe2, 0xd4, 0x9b, 0xbf,
+	0xe8, 0x19, 0xac, 0x43, 0xb9, 0xd1, 0x69, 0xb7, 0x9d, 0x46, 0xff, 0xb8, 0x59, 0xef, 0xd7, 0x75,
+	0x84, 0x4d, 0x58, 0x27, 0x4e, 0xb7, 0x43, 0xfa, 0xc7, 0xd2, 0xf2, 0xb8, 0xd1, 0x39, 0xec, 0xb6,
+	0x9d, 0x7e, 0xab, 0x73, 0xa4, 0x67, 0xad, 0x4d, 0x80, 0x8b, 0xb4, 0xf0, 0x32, 0x2c, 0xf5, 0x9e,
+	0x37, 0x1a, 0x8e, 0xd3, 0xd4, 0x33, 0x18, 0xa0, 0xb0, 0x57, 0x6f, 0xb5, 0x9d, 0xa6, 0x8e, 0xac,
+	0x2a, 0xe8, 0x4f, 0xa9, 0x38, 0xa4, 0x82, 0x4f, 0x86, 0xf1, 0x1a, 0xad, 0x41, 0xfe, 0x15, 0x1b,
+	0xcc, 0xbb, 0x1a, 0x0a, 0xd6, 0xef, 0x08, 0x3e, 0x4b, 0x98, 0x06, 0x3e, 0xf3, 0x02, 0x8a, 0x77,
+	0x60, 0xe9, 0x54, 0x69, 0x02, 0x03, 0x29, 0x52, 0x1f, 0xc6, 0x7c, 0x5d, 0xb2, 0xb5, 0x43, 0x31,
+	0x5a, 0x94, 0xd8, 0xcd, 0x7c, 0x0c, 0xe5, 0x24, 0x70, 0xdb, 0x8a, 0x68, 0xc9, 0x15, 0x79, 0x06,
+	0xf9, 0x56, 0x34, 0xc4, 0xc9, 0x69, 0xc2, 0xa9, 0x41, 0x4f, 0x0c, 0x8e, 0x65, 0x46, 0xe4, 0x16,
+	0x41, 0xeb, 0x3e, 0xef, 0xed, 0xeb, 0x19, 0x75, 0xea, 0xb4, 0xdb, 0x3a, 0xb2, 0xde, 0x23, 0x28,
+	0x84, 0x8d, 0xc5, 0x8f, 0x52, 0xe1, 0x3e, 0x4f, 0x6f, 0x44, 0x72, 0x10, 0x0f, 0x61, 0x75, 0x3e,
+	0x5f, 0x7d, 0xb6, 0xcf, 0x02, 0x11, 0xed, 0xe3, 0x83, 0x05, 0x9f, 0x6e, 0xda, 0x2a, 0xe4, 0x60,
+	0xd1, 0xd7, 0xdc, 0x85, 0xb5, 0xab, 0x0c, 0x6f, 0xe3, 0xa4, 0x94, 0xe4, 0xe4, 0xa6, 0x12, 0x7f,
+	0x84, 0x65, 0x19, 0xf4, 0xd0, 0xf5, 0xfd, 0x89, 0x37, 0x96, 0xf7, 0xca, 0x4b, 0x99, 0x72, 0x74,
+	0xaf, 0xc8, 0x33, 0x5e, 0x87, 0x82, 0x1c, 0xe1, 0x56, 0x33, 0x8a, 0x1c, 0x49, 0xd6, 0xb7, 0xc9,
+	0xcf, 0xd6, 0xbc, 0xfd, 0x17, 0xd6, 0x28, 0x65, 0xbd, 0x05, 0xab, 0xdd, 0x59, 0xf0, 0xb2, 0xe9,
+	0x0a, 0x37, 0x9e, 0xaa, 0x78, 0xf7, 0xd0, 0x95, 0xbb, 0x67, 0xdd, 0x87, 0xd5, 0x2e, 0x9b, 0x4e,
+	0x93, 0x1e, 0x65, 0x40, 0x9e, 0x8a, 0x9b, 0x23, 0xc8, 0xb3, 0x9e, 0x82, 0x7e, 0x61, 0x10, 0xbd,
+	0xfe, 0xe6, 0x98, 0x92, 0xa4, 0x49, 0xe0, 0x74, 0xf6, 0x54, 0x29, 0x45, 0x12, 0x0a, 0xd6, 0x0e,
+	0x80, 0x0c, 0xb2, 0x4f, 0xdd, 0x11, 0xe5, 0xd7, 0x55, 0x80, 0x4d, 0x28, 0xbe, 0xe0, 0xec, 0x34,
+	0x6a, 0xa9, 0x44, 0xe6, 0xf2, 0xf6, 0x79, 0x16, 0xb4, 0x23, 0x36, 0xa2, 0xb8, 0x01, 0x38, 0xfc,
+	0x1c, 0xb4, 0xbc, 0x5d, 0x77, 0x78, 0x32, 0xe6, 0x6c, 0xe6, 0x8d, 0xf0, 0x17, 0x57, 0x7e, 0x2a,
+	0xcc, 0x75, 0x3b, 0xfc, 0x87, 0xb0, 0xe3, 0x7f, 0x08, 0xdb, 0x91, 0x3f, 0x18, 0xf8, 0xe7, 0x8b,
+	0x20, 0x7b, 0x8c, 0xd3, 0x9b, 0x83, 0x58, 0xb7, 0x5f, 0x47, 0x5b, 0x08, 0x3f, 0x81, 0x62, 0x4c,
+	0x3f, 0xfe, 0x32, 0xf6, 0x58, 0x68, 0xc8, 0x75, 0xf9, 0x54, 0x11, 0xae, 0x43, 0x31, 0xa6, 0x3a,
+	0xe1, 0x9e, 0xee, 0x8e, 0x69, 0x5c, 0x06, 0xc2, 0xae, 0x54, 0xd1, 0x16, 0xc2, 0x3b, 0x50, 0x9a,
+	0x5f, 0x00, 0xd8, 0xb8, 0xe2, 0x4e, 0x08, 0x83, 0xdc, 0xbd, 0xf6, 0xb6, 0xd8, 0xbd, 0xf7, 0xf6,
+	0xdf, 0x4a, 0xe6, 0xed, 0x79, 0x05, 0xfd, 0x7d, 0x5e, 0x41, 0xef, 0xce, 0x2b, 0xe8, 0xfd, 0x79,
+	0x05, 0xfd, 0xf6, 0xa1, 0x92, 0x79, 0xf7, 0xa1, 0x92, 0x19, 0x14, 0x54, 0xd2, 0xdf, 0xff, 0x17,
+	0x00, 0x00, 0xff, 0xff, 0xc7, 0xe2, 0x2d, 0xa9, 0xe5, 0x09, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -514,9 +783,11 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeClient interface {
-	CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RunJobInBackground(ctx context.Context, in *RunJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RunJobInForeground(ctx context.Context, in *RunJobRequest, opts ...grpc.CallOption) (Node_RunJobInForegroundClient, error)
 	PushData(ctx context.Context, opts ...grpc.CallOption) (Node_PushDataClient, error)
 	PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error)
+	GetMetric(ctx context.Context, in *GetMetricRequest, opts ...grpc.CallOption) (*GetMetricResponse, error)
 }
 
 type nodeClient struct {
@@ -527,17 +798,49 @@ func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) CreateTasks(ctx context.Context, in *CreateTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *nodeClient) RunJobInBackground(ctx context.Context, in *RunJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/lrmrpb.Node/CreateTasks", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/lrmrpb.Node/RunJobInBackground", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
+func (c *nodeClient) RunJobInForeground(ctx context.Context, in *RunJobRequest, opts ...grpc.CallOption) (Node_RunJobInForegroundClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/lrmrpb.Node/RunJobInForeground", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeRunJobInForegroundClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Node_RunJobInForegroundClient interface {
+	Recv() (*RunOnlineJobOutputToDriver, error)
+	grpc.ClientStream
+}
+
+type nodeRunJobInForegroundClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeRunJobInForegroundClient) Recv() (*RunOnlineJobOutputToDriver, error) {
+	m := new(RunOnlineJobOutputToDriver)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *nodeClient) PushData(ctx context.Context, opts ...grpc.CallOption) (Node_PushDataClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/lrmrpb.Node/PushData", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[1], "/lrmrpb.Node/PushData", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +874,7 @@ func (x *nodePushDataClient) CloseAndRecv() (*emptypb.Empty, error) {
 }
 
 func (c *nodeClient) PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[1], "/lrmrpb.Node/PollData", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[2], "/lrmrpb.Node/PollData", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -601,19 +904,33 @@ func (x *nodePollDataClient) Recv() (*PollDataResponse, error) {
 	return m, nil
 }
 
+func (c *nodeClient) GetMetric(ctx context.Context, in *GetMetricRequest, opts ...grpc.CallOption) (*GetMetricResponse, error) {
+	out := new(GetMetricResponse)
+	err := c.cc.Invoke(ctx, "/lrmrpb.Node/GetMetric", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServer is the server API for Node service.
 type NodeServer interface {
-	CreateTasks(context.Context, *CreateTasksRequest) (*emptypb.Empty, error)
+	RunJobInBackground(context.Context, *RunJobRequest) (*emptypb.Empty, error)
+	RunJobInForeground(*RunJobRequest, Node_RunJobInForegroundServer) error
 	PushData(Node_PushDataServer) error
 	PollData(Node_PollDataServer) error
+	GetMetric(context.Context, *GetMetricRequest) (*GetMetricResponse, error)
 }
 
 // UnimplementedNodeServer can be embedded to have forward compatible implementations.
 type UnimplementedNodeServer struct {
 }
 
-func (*UnimplementedNodeServer) CreateTasks(ctx context.Context, req *CreateTasksRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateTasks not implemented")
+func (*UnimplementedNodeServer) RunJobInBackground(ctx context.Context, req *RunJobRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunJobInBackground not implemented")
+}
+func (*UnimplementedNodeServer) RunJobInForeground(req *RunJobRequest, srv Node_RunJobInForegroundServer) error {
+	return status.Errorf(codes.Unimplemented, "method RunJobInForeground not implemented")
 }
 func (*UnimplementedNodeServer) PushData(srv Node_PushDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method PushData not implemented")
@@ -621,27 +938,51 @@ func (*UnimplementedNodeServer) PushData(srv Node_PushDataServer) error {
 func (*UnimplementedNodeServer) PollData(srv Node_PollDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method PollData not implemented")
 }
+func (*UnimplementedNodeServer) GetMetric(ctx context.Context, req *GetMetricRequest) (*GetMetricResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMetric not implemented")
+}
 
 func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
 	s.RegisterService(&_Node_serviceDesc, srv)
 }
 
-func _Node_CreateTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateTasksRequest)
+func _Node_RunJobInBackground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).CreateTasks(ctx, in)
+		return srv.(NodeServer).RunJobInBackground(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/lrmrpb.Node/CreateTasks",
+		FullMethod: "/lrmrpb.Node/RunJobInBackground",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).CreateTasks(ctx, req.(*CreateTasksRequest))
+		return srv.(NodeServer).RunJobInBackground(ctx, req.(*RunJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_RunJobInForeground_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RunJobRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NodeServer).RunJobInForeground(m, &nodeRunJobInForegroundServer{stream})
+}
+
+type Node_RunJobInForegroundServer interface {
+	Send(*RunOnlineJobOutputToDriver) error
+	grpc.ServerStream
+}
+
+type nodeRunJobInForegroundServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeRunJobInForegroundServer) Send(m *RunOnlineJobOutputToDriver) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _Node_PushData_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -696,16 +1037,43 @@ func (x *nodePollDataServer) Recv() (*PollDataRequest, error) {
 	return m, nil
 }
 
+func _Node_GetMetric_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMetricRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).GetMetric(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/lrmrpb.Node/GetMetric",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).GetMetric(ctx, req.(*GetMetricRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Node_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "lrmrpb.Node",
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateTasks",
-			Handler:    _Node_CreateTasks_Handler,
+			MethodName: "RunJobInBackground",
+			Handler:    _Node_RunJobInBackground_Handler,
+		},
+		{
+			MethodName: "GetMetric",
+			Handler:    _Node_GetMetric_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "RunJobInForeground",
+			Handler:       _Node_RunJobInForeground_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "PushData",
 			Handler:       _Node_PushData_Handler,
@@ -824,7 +1192,7 @@ func (m *CreateTasksRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Job) Marshal() (dAtA []byte, err error) {
+func (m *RunJobRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -834,29 +1202,317 @@ func (m *Job) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Job) MarshalTo(dAtA []byte) (int, error) {
+func (m *RunJobRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Job) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *RunJobRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if len(m.Broadcasts) > 0 {
+		keysForBroadcasts := make([]string, 0, len(m.Broadcasts))
+		for k := range m.Broadcasts {
+			keysForBroadcasts = append(keysForBroadcasts, string(k))
+		}
+		github_com_gogo_protobuf_sortkeys.Strings(keysForBroadcasts)
+		for iNdEx := len(keysForBroadcasts) - 1; iNdEx >= 0; iNdEx-- {
+			v := m.Broadcasts[string(keysForBroadcasts[iNdEx])]
+			baseI := i
+			if len(v) > 0 {
+				i -= len(v)
+				copy(dAtA[i:], v)
+				i = encodeVarintRpc(dAtA, i, uint64(len(v)))
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(keysForBroadcasts[iNdEx])
+			copy(dAtA[i:], keysForBroadcasts[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(keysForBroadcasts[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.Stages) > 0 {
+		for iNdEx := len(m.Stages) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Stages[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if m.Job != nil {
+		{
+			size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Stage) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Stage) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Stage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Output != nil {
+		{
+			size, err := m.Output.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.Input) > 0 {
+		for iNdEx := len(m.Input) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Input[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.Tasks) > 0 {
+		for iNdEx := len(m.Tasks) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Tasks[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
 		i = encodeVarintRpc(dAtA, i, uint64(len(m.Name)))
 		i--
-		dAtA[i] = 0x12
+		dAtA[i] = 0xa
 	}
-	if len(m.Id) > 0 {
-		i -= len(m.Id)
-		copy(dAtA[i:], m.Id)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Id)))
+	return len(dAtA) - i, nil
+}
+
+func (m *Task) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Task) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Task) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.PartitionID) > 0 {
+		i -= len(m.PartitionID)
+		copy(dAtA[i:], m.PartitionID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.PartitionID)))
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RunOnlineJobOutputToDriver) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RunOnlineJobOutputToDriver) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RunOnlineJobOutputToDriver) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Stacktrace) > 0 {
+		i -= len(m.Stacktrace)
+		copy(dAtA[i:], m.Stacktrace)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Stacktrace)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.Error) > 0 {
+		i -= len(m.Error)
+		copy(dAtA[i:], m.Error)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Error)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.TaskStatus != 0 {
+		i = encodeVarintRpc(dAtA, i, uint64(m.TaskStatus))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.Data) > 0 {
+		for iNdEx := len(m.Data) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Data[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if len(m.PartitionID) > 0 {
+		i -= len(m.PartitionID)
+		copy(dAtA[i:], m.PartitionID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.PartitionID)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Stage) > 0 {
+		i -= len(m.Stage)
+		copy(dAtA[i:], m.Stage)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Stage)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Type != 0 {
+		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetMetricRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetMetricRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetMetricRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.JobID) > 0 {
+		i -= len(m.JobID)
+		copy(dAtA[i:], m.JobID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.JobID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetMetricResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetMetricResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetMetricResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Metrics) > 0 {
+		keysForMetrics := make([]string, 0, len(m.Metrics))
+		for k := range m.Metrics {
+			keysForMetrics = append(keysForMetrics, string(k))
+		}
+		github_com_gogo_protobuf_sortkeys.Strings(keysForMetrics)
+		for iNdEx := len(keysForMetrics) - 1; iNdEx >= 0; iNdEx-- {
+			v := m.Metrics[string(keysForMetrics[iNdEx])]
+			baseI := i
+			i = encodeVarintRpc(dAtA, i, uint64(v))
+			i--
+			dAtA[i] = 0x10
+			i -= len(keysForMetrics[iNdEx])
+			copy(dAtA[i:], keysForMetrics[iNdEx])
+			i = encodeVarintRpc(dAtA, i, uint64(len(keysForMetrics[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintRpc(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
 	return len(dAtA) - i, nil
 }
@@ -1213,19 +1869,142 @@ func (m *CreateTasksRequest) Size() (n int) {
 	return n
 }
 
-func (m *Job) Size() (n int) {
+func (m *RunJobRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.Id)
-	if l > 0 {
+	if m.Job != nil {
+		l = m.Job.Size()
 		n += 1 + l + sovRpc(uint64(l))
 	}
+	if len(m.Stages) > 0 {
+		for _, e := range m.Stages {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if len(m.Broadcasts) > 0 {
+		for k, v := range m.Broadcasts {
+			_ = k
+			_ = v
+			l = 0
+			if len(v) > 0 {
+				l = 1 + len(v) + sovRpc(uint64(len(v)))
+			}
+			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
+func (m *Stage) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	l = len(m.Name)
 	if l > 0 {
 		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Tasks) > 0 {
+		for _, e := range m.Tasks {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if len(m.Input) > 0 {
+		for _, e := range m.Input {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if m.Output != nil {
+		l = m.Output.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *Task) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.PartitionID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *RunOnlineJobOutputToDriver) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Type != 0 {
+		n += 1 + sovRpc(uint64(m.Type))
+	}
+	l = len(m.Stage)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	l = len(m.PartitionID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Data) > 0 {
+		for _, e := range m.Data {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if m.TaskStatus != 0 {
+		n += 1 + sovRpc(uint64(m.TaskStatus))
+	}
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	l = len(m.Stacktrace)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *GetMetricRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	return n
+}
+
+func (m *GetMetricResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Metrics) > 0 {
+		for k, v := range m.Metrics {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + 1 + sovRpc(uint64(v))
+			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
+		}
 	}
 	return n
 }
@@ -1708,7 +2487,7 @@ func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Job) Unmarshal(dAtA []byte) error {
+func (m *RunJobRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1731,17 +2510,17 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Job: wiretype end group for non-group")
+			return fmt.Errorf("proto: RunJobRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Job: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RunJobRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Job", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowRpc
@@ -1751,25 +2530,241 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthRpc
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Id = string(dAtA[iNdEx:postIndex])
+			if m.Job == nil {
+				m.Job = &pbtypes.JSON{}
+			}
+			if err := m.Job.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Stages", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Stages = append(m.Stages, &Stage{})
+			if err := m.Stages[len(m.Stages)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Broadcasts", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Broadcasts == nil {
+				m.Broadcasts = make(map[string][]byte)
+			}
+			var mapkey string
+			mapvalue := []byte{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapbyteLen uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapbyteLen |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intMapbyteLen := int(mapbyteLen)
+					if intMapbyteLen < 0 {
+						return ErrInvalidLengthRpc
+					}
+					postbytesIndex := iNdEx + intMapbyteLen
+					if postbytesIndex < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if postbytesIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = make([]byte, mapbyteLen)
+					copy(mapvalue, dAtA[iNdEx:postbytesIndex])
+					iNdEx = postbytesIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipRpc(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Broadcasts[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Stage) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Stage: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Stage: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
 			}
@@ -1800,6 +2795,687 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Tasks", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Tasks = append(m.Tasks, &Task{})
+			if err := m.Tasks[len(m.Tasks)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Input", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Input = append(m.Input, &Input{})
+			if err := m.Input[len(m.Input)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Output", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Output == nil {
+				m.Output = &Output{}
+			}
+			if err := m.Output.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Task) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Task: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Task: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PartitionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RunOnlineJobOutputToDriver) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RunOnlineJobOutputToDriver: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RunOnlineJobOutputToDriver: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= RunOnlineJobOutputToDriver_Type(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Stage", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Stage = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PartitionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data, &lrdd.Row{})
+			if err := m.Data[len(m.Data)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskStatus", wireType)
+			}
+			m.TaskStatus = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TaskStatus |= RunOnlineJobOutputToDriver_TaskStatus(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Stacktrace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Stacktrace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetMetricRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetMetricRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetMetricRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetMetricResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetMetricResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetMetricResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metrics", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Metrics == nil {
+				m.Metrics = make(map[string]uint64)
+			}
+			var mapkey string
+			var mapvalue uint64
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipRpc(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthRpc
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Metrics[mapkey] = mapvalue
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

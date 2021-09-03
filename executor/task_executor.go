@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 
-	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/input"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
@@ -23,16 +22,12 @@ type TaskExecutor struct {
 
 	broadcast    serialization.Broadcast
 	localOptions map[string]interface{}
-
-	taskReporter *job.TaskReporter
 	taskError    error
 }
 
 func NewTaskExecutor(
-	clusterState cluster.State,
 	runningJob *runningJobHolder,
 	task *job.Task,
-	status *job.TaskStatus,
 	fn transformation.Transformation,
 	in *input.Reader,
 	out *output.Writer,
@@ -47,7 +42,6 @@ func NewTaskExecutor(
 		Output:       out,
 		broadcast:    broadcast,
 		localOptions: localOptions,
-		taskReporter: job.NewTaskReporter(clusterState, runningJob.Job, task.ID(), status),
 	}
 	return exec
 }
@@ -56,7 +50,6 @@ func (e *TaskExecutor) Run() {
 	ctx, cancel := newTaskContextWithCancel(e.job.Context(), e)
 	defer cancel()
 
-	go e.taskReporter.Start(ctx)
 	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
@@ -75,6 +68,7 @@ func (e *TaskExecutor) Run() {
 // reportStatus updates task status if failed.
 func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	// to flush outputs before the status report
+	log.Verbose("Closing output of {}", e.task.ID())
 	if err := e.Output.Close(); err != nil {
 		log.Error("Failed to close output: {}")
 	}
@@ -86,11 +80,11 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	}
 
 	if taskErr != nil {
-		if err := e.taskReporter.ReportFailure(ctx, taskErr); err != nil {
+		if err := e.job.Tracker.ReportTaskFailure(ctx, e.task.ID(), taskErr); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
 	} else if ctx.Err() == nil {
-		if err := e.taskReporter.ReportSuccess(ctx); err != nil {
+		if err := e.job.Tracker.ReportTaskSuccess(ctx, e.task.ID()); err != nil {
 			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 		}
 	}

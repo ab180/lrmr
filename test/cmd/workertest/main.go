@@ -18,10 +18,10 @@ func main() {
 			os.Exit(1)
 		}
 		url := fmt.Sprintf("127.0.0.1:%d", port)
-		opt.Worker.ListenHost = url
-		opt.Worker.AdvertisedHost = url
+		opt.Executor.ListenHost = url
+		opt.Executor.AdvertisedHost = url
 	}
-	if err := lrmr.RunWorker(opt); err != nil {
+	if err := lrmr.RunExecutor(opt); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
