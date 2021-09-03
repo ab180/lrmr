@@ -159,10 +159,6 @@ func (w *Executor) RunJobInBackground(ctx context.Context, req *lrmrpb.RunJobReq
 	return &empty.Empty{}, nil
 }
 
-func (w *Executor) GetMetric(ctx context.Context, req *lrmrpb.GetMetricRequest) (*lrmrpb.GetMetricResponse, error) {
-	panic("not implemented")
-}
-
 func (w *Executor) createTasks(req *lrmrpb.RunJobRequest, runningJob *runningJobHolder) error {
 	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)
 	if err != nil {
@@ -346,6 +342,17 @@ func (w *Executor) PollData(stream lrmrpb.Node_PollDataServer) error {
 		}
 	}
 	panic("implement me")
+}
+
+func (w *Executor) GetMetric(ctx context.Context, req *lrmrpb.GetMetricRequest) (*lrmrpb.GetMetricResponse, error) {
+	v, ok := w.runningJobs.Load(req.JobID)
+	if !ok {
+		return nil, status.Error(codes.NotFound, "job not found")
+	}
+	runningJob := v.(*runningJobHolder)
+	return &lrmrpb.GetMetricResponse{
+		Metrics: runningJob.Metric.Collect(),
+	}, nil
 }
 
 func (w *Executor) Close() error {

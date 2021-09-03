@@ -41,27 +41,11 @@ func (c taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	// c.executor.taskReporter.UpdateMetric(func(metrics lrmrmetric.Metrics) {
-	// 	metrics[name] += int(delta)
-	// })
+	c.executor.job.Metric.AddMetric(name, int64(delta))
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	// c.executor.taskReporter.UpdateMetric(func(metrics lrmrmetric.Metrics) {
-	// 	metrics[name] = val
-	// })
-}
-
-func (c *taskContext) SetGauge(name string, val float64) {
-	panic("implement me")
-}
-
-func (c *taskContext) ObserveHistogram(name string, val float64) {
-	panic("implement me")
-}
-
-func (c *taskContext) ObserveSummary(name string, val float64) {
-	panic("implement me")
+	c.executor.job.Metric.SetMetric(name, int64(val))
 }
 
 // taskContext implements transformation.Context.
