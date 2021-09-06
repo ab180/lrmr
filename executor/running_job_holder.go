@@ -5,7 +5,6 @@ import (
 
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
-	lrmrmetric "github.com/ab180/lrmr/metric"
 	"go.uber.org/atomic"
 )
 
@@ -14,7 +13,6 @@ type runningJobHolder struct {
 	Tasks      []*TaskExecutor
 	Broadcasts serialization.Broadcast
 	Reporter   StatusReporter
-	Metric     lrmrmetric.Repository
 	IsStarted  atomic.Bool
 
 	ctx    context.Context
@@ -26,7 +24,6 @@ func newRunningJobHolder(j *job.Job, broadcasts serialization.Broadcast) *runnin
 	return &runningJobHolder{
 		Job:        j,
 		Broadcasts: broadcasts,
-		Metric:     lrmrmetric.NewRepository(),
 		ctx:        ctx,
 		cancel:     cancel,
 	}

@@ -28,7 +28,6 @@ var log = logger.New("lrmr")
 type Driver interface {
 	RunSync(context.Context) (*CollectResult, error)
 	RunAsync(context.Context) error
-	CollectMetrics(context.Context) (lrmrmetric.Metrics, error)
 }
 
 type CollectResult struct {
@@ -175,10 +174,10 @@ JobRun:
 					PartitionID: msg.PartitionID,
 				}
 				if msg.TaskStatus == lrmrpb.JobOutput_FAILED {
-					_ = stateMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error))
+					_ = stateMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error), msg.Metrics)
 					continue
 				}
-				_ = stateMgr.MarkTaskAsSucceed(ctx, taskID)
+				_ = stateMgr.MarkTaskAsSucceed(ctx, taskID, msg.Metrics)
 			}
 
 		// 4.2. job is completed (success when err == nil)
@@ -194,9 +193,13 @@ JobRun:
 			return nil, ctx.Err()
 		}
 	}
+	metrics, err := stateMgr.CollectMetrics(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "collect metrics")
+	}
 	return &CollectResult{
 		Outputs: result,
-		Metrics: nil,
+		Metrics: metrics,
 	}, nil
 }
 
@@ -294,18 +297,4 @@ func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) 
 		return errors.Wrap(err, "write data")
 	}
 	return nil
-}
-
-func (m *Remote) CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error) {
-	metric := make(lrmrmetric.Metrics)
-	for _, rpc := range m.Connections {
-		resp, err := rpc.GetMetric(ctx, &lrmrpb.GetMetricRequest{
-			JobID: m.Job.ID,
-		})
-		if err != nil {
-			return lrmrmetric.Metrics{}, err
-		}
-		metric = metric.Sum(resp.Metrics)
-	}
-	return metric, nil
 }

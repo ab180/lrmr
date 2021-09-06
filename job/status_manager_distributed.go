@@ -9,6 +9,7 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/pkg/errors"
 )
 
@@ -16,6 +17,8 @@ const (
 	jobStatusFmt      = "status/jobs/%s"
 	stageStatusFmt    = "status/jobs/%s/stages/%s"
 	jobErrorNs        = "errors/jobs"
+	jobMetricsNs      = "metrics/jobs"
+	taskMetricsFmt    = "metrics/jobs/%s/%s/%s"
 	doneTasksSuffix   = "doneTasks"
 	failedTasksSuffix = "failedTasks"
 	doneStagesSuffix  = "doneStages"
@@ -38,7 +41,11 @@ func NewDistributedStatusManager(clusterState cluster.State, job *Job) StatusMan
 	return r
 }
 
-func (r *DistributedStatusManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID) error {
+func (r *DistributedStatusManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
+	if err := r.clusterState.Put(ctx, taskMetricsKey(taskID), metrics); err != nil {
+		return errors.Wrap(err, "write task metrics to etcd")
+	}
+
 	doneTasks, err := r.clusterState.IncrementCounter(ctx, doneTasksInStageKey(taskID))
 	if err != nil {
 		return errors.Wrap(err, "write etcd")
@@ -48,8 +55,9 @@ func (r *DistributedStatusManager) MarkTaskAsSucceed(ctx context.Context, taskID
 
 // MarkTaskAsFailed marks the task as failed. If the error is non-nil, it's added to the error list of the job.
 // Passing nil in error will only cancel the task.
-func (r *DistributedStatusManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, err error) error {
+func (r *DistributedStatusManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, err error, metrics lrmrmetric.Metrics) error {
 	txn := coordinator.NewTxn().
+		Put(taskMetricsKey(taskID), metrics).
 		IncrementCounter(doneTasksInStageKey(taskID)).
 		IncrementCounter(failedTasksInStageKey(taskID))
 
@@ -273,6 +281,22 @@ func (r *DistributedStatusManager) getJobErrors(ctx context.Context, jobID strin
 	return errs, nil
 }
 
+func (r *DistributedStatusManager) CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error) {
+	items, err := r.clusterState.Scan(ctx, path.Join(jobMetricsNs, r.job.ID))
+	if err != nil {
+		return nil, err
+	}
+	metrics := make(lrmrmetric.Metrics)
+	for _, item := range items {
+		var metric lrmrmetric.Metrics
+		if err := item.Unmarshal(&metric); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
+		}
+		metrics.Add(metric)
+	}
+	return metrics, nil
+}
+
 func jobStatusKey(jobID string, extra ...string) string {
 	base := fmt.Sprintf(jobStatusFmt, jobID)
 	return path.Join(append([]string{base}, extra...)...)
@@ -307,4 +331,11 @@ func failedTasksInStageKey(t TaskID) string {
 
 func doneStagesKey(jobID string) string {
 	return jobStatusKey(jobID, doneStagesSuffix)
+}
+
+func taskMetricsKey(task TaskID) string {
+	return path.Join(
+		fmt.Sprintf(taskMetricsFmt, task.JobID, task.StageName, task.PartitionID),
+		"/metrics",
+	)
 }

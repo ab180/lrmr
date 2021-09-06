@@ -41,11 +41,11 @@ func (c taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	c.executor.job.Metric.AddMetric(name, int64(delta))
+	c.executor.Metrics[name] = uint64(int(c.executor.Metrics[name]) + delta)
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	c.executor.job.Metric.SetMetric(name, int64(val))
+	c.executor.Metrics[name] = uint64(val)
 }
 
 // taskContext implements transformation.Context.

@@ -8,6 +8,7 @@ import (
 	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/therne/errorist"
 )
@@ -20,6 +21,7 @@ type TaskExecutor struct {
 	Stage        *stage.Stage
 	Output       *output.Writer
 	OutputDesc   *lrmrpb.Output
+	Metrics      lrmrmetric.Metrics
 	localOptions map[string]interface{}
 	taskError    error
 }
@@ -38,6 +40,7 @@ func NewTaskExecutor(
 		Input:        in,
 		Stage:        curStage,
 		OutputDesc:   outDesc,
+		Metrics:      make(lrmrmetric.Metrics),
 		localOptions: localOptions,
 	}
 	return exec
@@ -80,11 +83,11 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	}
 
 	if taskErr != nil {
-		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), taskErr); err != nil {
+		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), taskErr, e.Metrics); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
 	} else if ctx.Err() == nil {
-		if err := e.job.Reporter.ReportTaskSuccess(ctx, e.task.ID()); err != nil {
+		if err := e.job.Reporter.ReportTaskSuccess(ctx, e.task.ID(), e.Metrics); err != nil {
 			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 		}
 	}

@@ -7,13 +7,14 @@ import (
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 )
 
 type StatusReporter interface {
 	JobContext() context.Context
 	Collect([]*lrdd.Row) error
-	ReportTaskSuccess(context.Context, job.TaskID) error
-	ReportTaskFailure(context.Context, job.TaskID, error) error
+	ReportTaskSuccess(context.Context, job.TaskID, lrmrmetric.Metrics) error
+	ReportTaskFailure(context.Context, job.TaskID, error, lrmrmetric.Metrics) error
 }
 
 type foregroundJobStatusReporter struct {
@@ -35,22 +36,24 @@ func (f *foregroundJobStatusReporter) Collect(rows []*lrdd.Row) error {
 	})
 }
 
-func (f *foregroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID) error {
+func (f *foregroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error {
 	return f.stream.Send(&lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_SUCCEED,
 		Stage:       taskID.StageName,
 		PartitionID: taskID.PartitionID,
+		Metrics:     metrics,
 	})
 }
 
-func (f *foregroundJobStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error) error {
+func (f *foregroundJobStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
 	return f.stream.Send(&lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_FAILED,
 		Stage:       taskID.StageName,
 		PartitionID: taskID.PartitionID,
 		Error:       taskErr.Error(),
+		Metrics:     metrics,
 	})
 }
 
@@ -80,10 +83,10 @@ func (b *backgroundJobStatusReporter) Collect(rows []*lrdd.Row) error {
 	panic("collect not supported on backgroundJobStatusReporter")
 }
 
-func (b *backgroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID) error {
-	return b.statusManager.MarkTaskAsSucceed(ctx, id)
+func (b *backgroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID, metrics lrmrmetric.Metrics) error {
+	return b.statusManager.MarkTaskAsSucceed(ctx, id, metrics)
 }
 
-func (b *backgroundJobStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error) error {
-	return b.statusManager.MarkTaskAsFailed(ctx, id, err)
+func (b *backgroundJobStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error, metrics lrmrmetric.Metrics) error {
+	return b.statusManager.MarkTaskAsFailed(ctx, id, err, metrics)
 }

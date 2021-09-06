@@ -70,7 +70,7 @@ func (r *RunningJob) Status() job.RunningState {
 }
 
 func (r *RunningJob) Metrics() (lrmrmetric.Metrics, error) {
-	return r.driver.CollectMetrics(context.Background())
+	return r.statusManager.CollectMetrics(context.Background())
 }
 
 func (r *RunningJob) Wait() error {

@@ -76,5 +76,5 @@ func (lc *LocalCluster) Close() error {
 			return errors.Wrapf(err, "close executor #%d", i)
 		}
 	}
-	return nil
+	return lc.Cluster.Close()
 }

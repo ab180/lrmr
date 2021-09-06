@@ -9,16 +9,11 @@ import (
 
 type Metrics map[string]uint64
 
-// Sum merges two metrics. When a key collides, it sums two key.
-func (m Metrics) Sum(o Metrics) (merged Metrics) {
-	merged = make(Metrics)
-	for k, v := range m {
-		merged[k] += v
-	}
+// Add merges two metrics. When a key collides, it sums two key.
+func (m Metrics) Add(o Metrics) {
 	for k, v := range o {
-		merged[k] += v
+		m[k] += v
 	}
-	return
 }
 
 // Assign merges two metrics. When a key collides,

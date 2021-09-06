@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"go.uber.org/atomic"
 )
 
@@ -14,6 +15,7 @@ type LocalStatusManager struct {
 	jobStatus      *Status
 	stageStatuses  map[string]*StageStatus
 	doneStageCount atomic.Int32
+	metrics        lrmrmetric.Metrics
 
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)
@@ -27,12 +29,15 @@ func NewLocalStatusManager(j *Job) StatusManager {
 		job:           j,
 		jobStatus:     &jobStatus,
 		stageStatuses: make(map[string]*StageStatus),
+		metrics:       make(lrmrmetric.Metrics),
 	}
 }
 
-func (l *LocalStatusManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID) error {
+func (l *LocalStatusManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	l.mergeTaskMetricsIntoJobMetrics(metrics)
 
 	belongingStage, ok := l.stageStatuses[taskID.StageName]
 	if !ok {
@@ -73,7 +78,8 @@ func (l *LocalStatusManager) markJobAsSucceed() {
 	}
 }
 
-func (l *LocalStatusManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error) error {
+func (l *LocalStatusManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error {
+	l.mergeTaskMetricsIntoJobMetrics(metrics)
 	log.Verbose("Job {} failed", l.job.ID)
 
 	l.jobStatus.Complete(Failed)
@@ -89,7 +95,7 @@ func (l *LocalStatusManager) MarkTaskAsFailed(_ context.Context, causedTask Task
 }
 
 func (l *LocalStatusManager) Abort(ctx context.Context, abortedBy TaskID) error {
-	return l.MarkTaskAsFailed(ctx, abortedBy, errors.New("aborted"))
+	return l.MarkTaskAsFailed(ctx, abortedBy, errors.New("aborted"), nil)
 }
 
 // OnJobCompletion registers callback for completion events of given job.
@@ -106,4 +112,12 @@ func (l *LocalStatusManager) OnStageCompletion(callback func(stageName string, s
 // For performance, only the number of currently finished tasks in its stage is given to the callback.
 func (l *LocalStatusManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
 	l.taskSubscriptions = append(l.taskSubscriptions, callback)
+}
+
+func (l *LocalStatusManager) mergeTaskMetricsIntoJobMetrics(metrics lrmrmetric.Metrics) {
+	l.metrics.Add(metrics)
+}
+
+func (l *LocalStatusManager) CollectMetrics(context.Context) (lrmrmetric.Metrics, error) {
+	return l.metrics, nil
 }

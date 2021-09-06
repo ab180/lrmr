@@ -12,7 +12,6 @@ service Node {
 
     rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
-    rpc GetMetric (GetMetricRequest) returns (GetMetricResponse);
 }
 
 message CreateJobRequest {
@@ -61,14 +60,7 @@ message JobOutput {
     TaskStatus taskStatus = 6;
     string error = 7;
     string stacktrace = 8;
-}
-
-message GetMetricRequest {
-    string jobID = 1;
-}
-
-message GetMetricResponse {
-    map<string, uint64> metrics = 1;
+    map<string, uint64> metrics = 9; // metrics per task
 }
 
 message Input {
