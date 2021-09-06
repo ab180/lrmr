@@ -6,25 +6,16 @@ import "lrdd/row.proto";
 import "internal/pbtypes/types.proto";
 
 service Node {
-    rpc RunJobInBackground (RunJobRequest) returns (google.protobuf.Empty);
-    rpc RunJobInForeground (RunJobRequest) returns (stream RunOnlineJobOutputToDriver);
+    rpc CreateJob (CreateJobRequest) returns (google.protobuf.Empty);
+    rpc StartJobInBackground (StartJobRequest) returns (google.protobuf.Empty);
+    rpc StartJobInForeground (StartJobRequest) returns (stream JobOutput);
 
     rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
     rpc GetMetric (GetMetricRequest) returns (GetMetricResponse);
 }
 
-message CreateTasksRequest {
-    pbtypes.JSON job = 1;
-    string stage = 2;
-    repeated string partitionIDs = 3;
-
-    repeated Input input = 4;
-    Output output = 5;
-    map<string, bytes> broadcasts = 6;
-}
-
-message RunJobRequest {
+message CreateJobRequest {
     pbtypes.JSON job = 1;
     repeated Stage stages = 2;
     map<string, bytes> broadcasts = 3;
@@ -43,7 +34,11 @@ message Task {
     string partitionID = 1;
 }
 
-message RunOnlineJobOutputToDriver {
+message StartJobRequest {
+    string jobID = 1;
+}
+
+message JobOutput {
     enum Type {
         TASKS_READY = 0;
         COLLECT_DATA = 1;

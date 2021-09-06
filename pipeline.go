@@ -7,6 +7,7 @@ import (
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/driver"
+	"github.com/ab180/lrmr/executor"
 	"github.com/ab180/lrmr/input"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/internal/util"
@@ -157,11 +158,14 @@ func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "create job")
 	}
-	drv := driver.NewRemote(j, c, p.input, p.broadcasts)
+	drv, err := driver.NewRemote(context.Background(), j, c, p.input, p.broadcasts)
+	if err != nil {
+		return nil, errors.Wrap(err, "initiate job driver")
+	}
 	if err := drv.RunAsync(context.Background()); err != nil {
 		return nil, err
 	}
-	return newRunningJob(j, c.States()), nil
+	return newRunningJob(j, c.States(), drv), nil
 }
 
 func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*driver.CollectResult, error) {
@@ -169,6 +173,13 @@ func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*drive
 	if err != nil {
 		return nil, errors.Wrap(err, "create job")
 	}
-	drv := driver.NewRemote(j, c, p.input, p.broadcasts)
+	j.Stages[len(j.Stages)-1].Output = stage.Output{
+		Stage:       executor.CollectStageName,
+		Partitioner: partitions.WrapPartitioner(partitions.NewPreservePartitioner()),
+	}
+	drv, err := driver.NewRemote(context.Background(), j, c, p.input, p.broadcasts)
+	if err != nil {
+		return nil, errors.Wrap(err, "initiate job driver")
+	}
 	return drv.RunSync(ctx)
 }

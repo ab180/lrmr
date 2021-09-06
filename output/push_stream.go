@@ -41,6 +41,5 @@ func (p *PushStream) Write(data ...*lrdd.Row) (err error) {
 }
 
 func (p *PushStream) Close() error {
-	log.Verbose(" - Close send")
 	return p.stream.CloseSend()
 }

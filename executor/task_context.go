@@ -33,7 +33,7 @@ func (c taskContext) JobSubmittedAt() time.Time {
 }
 
 func (c taskContext) Broadcast(key string) interface{} {
-	return c.executor.broadcast[key]
+	return c.executor.job.Broadcasts[key]
 }
 
 func (c taskContext) WorkerLocalOption(key string) interface{} {

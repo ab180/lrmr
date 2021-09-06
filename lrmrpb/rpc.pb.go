@@ -29,28 +29,28 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type RunOnlineJobOutputToDriver_Type int32
+type JobOutput_Type int32
 
 const (
-	RunOnlineJobOutputToDriver_TASKS_READY            RunOnlineJobOutputToDriver_Type = 0
-	RunOnlineJobOutputToDriver_COLLECT_DATA           RunOnlineJobOutputToDriver_Type = 1
-	RunOnlineJobOutputToDriver_REPORT_TASK_COMPLETION RunOnlineJobOutputToDriver_Type = 2
+	JobOutput_TASKS_READY            JobOutput_Type = 0
+	JobOutput_COLLECT_DATA           JobOutput_Type = 1
+	JobOutput_REPORT_TASK_COMPLETION JobOutput_Type = 2
 )
 
-var RunOnlineJobOutputToDriver_Type_name = map[int32]string{
+var JobOutput_Type_name = map[int32]string{
 	0: "TASKS_READY",
 	1: "COLLECT_DATA",
 	2: "REPORT_TASK_COMPLETION",
 }
 
-var RunOnlineJobOutputToDriver_Type_value = map[string]int32{
+var JobOutput_Type_value = map[string]int32{
 	"TASKS_READY":            0,
 	"COLLECT_DATA":           1,
 	"REPORT_TASK_COMPLETION": 2,
 }
 
-func (x RunOnlineJobOutputToDriver_Type) String() string {
-	return proto.EnumName(RunOnlineJobOutputToDriver_Type_name, int32(x))
+func (x JobOutput_Type) String() string {
+	return proto.EnumName(JobOutput_Type_name, int32(x))
 }
 
 func (JobOutput_Type) EnumDescriptor() ([]byte, []int) {
@@ -61,25 +61,25 @@ func (JobOutput_Type) EnumDescriptor() ([]byte, []int) {
 type JobOutput_TaskStatus int32
 
 const (
-	RunOnlineJobOutputToDriver_SUCCEED RunOnlineJobOutputToDriver_TaskStatus = 0
-	RunOnlineJobOutputToDriver_FAILED  RunOnlineJobOutputToDriver_TaskStatus = 1
+	JobOutput_SUCCEED JobOutput_TaskStatus = 0
+	JobOutput_FAILED  JobOutput_TaskStatus = 1
 )
 
-var RunOnlineJobOutputToDriver_TaskStatus_name = map[int32]string{
+var JobOutput_TaskStatus_name = map[int32]string{
 	0: "SUCCEED",
 	1: "FAILED",
 }
 
-var RunOnlineJobOutputToDriver_TaskStatus_value = map[string]int32{
+var JobOutput_TaskStatus_value = map[string]int32{
 	"SUCCEED": 0,
 	"FAILED":  1,
 }
 
-func (x RunOnlineJobOutputToDriver_TaskStatus) String() string {
-	return proto.EnumName(RunOnlineJobOutputToDriver_TaskStatus_name, int32(x))
+func (x JobOutput_TaskStatus) String() string {
+	return proto.EnumName(JobOutput_TaskStatus_name, int32(x))
 }
 
-func (RunOnlineJobOutputToDriver_TaskStatus) EnumDescriptor() ([]byte, []int) {
+func (JobOutput_TaskStatus) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{4, 1}
 }
 
@@ -133,80 +133,68 @@ func (Output_Type) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{8, 0}
 }
 
-type CreateTasksRequest struct {
-	Job           *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
-	Stage         string            `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
-	PartitionIDs  []string          `protobuf:"bytes,3,rep,name=partitionIDs,proto3" json:"partitionIDs,omitempty"`
-	Input         []*Input          `protobuf:"bytes,4,rep,name=input,proto3" json:"input,omitempty"`
-	Output        *Output           `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
-	Broadcasts    map[string][]byte `protobuf:"bytes,6,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_sizecache int32             `json:"-"`
+type CreateJobRequest struct {
+	Job                  *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Stages               []*Stage          `protobuf:"bytes,2,rep,name=stages,proto3" json:"stages,omitempty"`
+	Broadcasts           map[string][]byte `protobuf:"bytes,3,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *CreateTasksRequest) Reset()         { *m = CreateTasksRequest{} }
-func (m *CreateTasksRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateTasksRequest) ProtoMessage()    {}
-func (*CreateTasksRequest) Descriptor() ([]byte, []int) {
+func (m *CreateJobRequest) Reset()         { *m = CreateJobRequest{} }
+func (m *CreateJobRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateJobRequest) ProtoMessage()    {}
+func (*CreateJobRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{0}
 }
-func (m *CreateTasksRequest) XXX_Unmarshal(b []byte) error {
+func (m *CreateJobRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *CreateTasksRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	b = b[:cap(b)]
-	n, err := m.MarshalToSizedBuffer(b)
-	if err != nil {
-		return nil, err
+func (m *CreateJobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateJobRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
 	}
-	return b[:n], nil
 }
-func (m *CreateTasksRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateTasksRequest.Merge(m, src)
+func (m *CreateJobRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateJobRequest.Merge(m, src)
 }
-func (m *CreateTasksRequest) XXX_Size() int {
+func (m *CreateJobRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *CreateTasksRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateTasksRequest.DiscardUnknown(m)
+func (m *CreateJobRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateJobRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateTasksRequest proto.InternalMessageInfo
+var xxx_messageInfo_CreateJobRequest proto.InternalMessageInfo
 
-type RunJobRequest struct {
-	Job           *pbtypes.JSON     `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
-	Stages        []*Stage          `protobuf:"bytes,2,rep,name=stages,proto3" json:"stages,omitempty"`
-	Broadcasts    map[string][]byte `protobuf:"bytes,3,rep,name=broadcasts,proto3" json:"broadcasts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_sizecache int32             `json:"-"`
-}
-
-func (m *RunJobRequest) Reset()         { *m = RunJobRequest{} }
-func (m *RunJobRequest) String() string { return proto.CompactTextString(m) }
-func (*RunJobRequest) ProtoMessage()    {}
-func (*RunJobRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f4e130d388338f6d, []int{1}
-}
-func (m *RunJobRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *RunJobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	b = b[:cap(b)]
-	n, err := m.MarshalToSizedBuffer(b)
-	if err != nil {
-		return nil, err
+func (m *CreateJobRequest) GetJob() *pbtypes.JSON {
+	if m != nil {
+		return m.Job
 	}
-	return b[:n], nil
-}
-func (m *RunJobRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RunJobRequest.Merge(m, src)
-}
-func (m *RunJobRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *RunJobRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_RunJobRequest.DiscardUnknown(m)
+	return nil
 }
 
-var xxx_messageInfo_RunJobRequest proto.InternalMessageInfo
+func (m *CreateJobRequest) GetStages() []*Stage {
+	if m != nil {
+		return m.Stages
+	}
+	return nil
+}
+
+func (m *CreateJobRequest) GetBroadcasts() map[string][]byte {
+	if m != nil {
+		return m.Broadcasts
+	}
+	return nil
+}
 
 type Stage struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -319,47 +307,156 @@ func (m *Task) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Task proto.InternalMessageInfo
 
-type RunOnlineJobOutputToDriver struct {
-	Type RunOnlineJobOutputToDriver_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.RunOnlineJobOutputToDriver_Type" json:"type,omitempty"`
+func (m *Task) GetPartitionID() string {
+	if m != nil {
+		return m.PartitionID
+	}
+	return ""
+}
+
+type StartJobRequest struct {
+	JobID                string   `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StartJobRequest) Reset()         { *m = StartJobRequest{} }
+func (m *StartJobRequest) String() string { return proto.CompactTextString(m) }
+func (*StartJobRequest) ProtoMessage()    {}
+func (*StartJobRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f4e130d388338f6d, []int{3}
+}
+func (m *StartJobRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StartJobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StartJobRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StartJobRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StartJobRequest.Merge(m, src)
+}
+func (m *StartJobRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *StartJobRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_StartJobRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StartJobRequest proto.InternalMessageInfo
+
+func (m *StartJobRequest) GetJobID() string {
+	if m != nil {
+		return m.JobID
+	}
+	return ""
+}
+
+type JobOutput struct {
+	Type JobOutput_Type `protobuf:"varint,1,opt,name=type,proto3,enum=lrmrpb.JobOutput_Type" json:"type,omitempty"`
 	// sender task
 	Stage       string `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
 	PartitionID string `protobuf:"bytes,3,opt,name=partitionID,proto3" json:"partitionID,omitempty"`
 	// on type == COLLECT_DATA
-	Data          []*lrdd.Row                           `protobuf:"bytes,5,rep,name=data,proto3" json:"data,omitempty"`
-	TaskStatus    RunOnlineJobOutputToDriver_TaskStatus `protobuf:"varint,6,opt,name=taskStatus,proto3,enum=lrmrpb.RunOnlineJobOutputToDriver_TaskStatus" json:"taskStatus,omitempty"`
-	Error         string                                `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
-	Stacktrace    string                                `protobuf:"bytes,8,opt,name=stacktrace,proto3" json:"stacktrace,omitempty"`
-	XXX_sizecache int32                                 `json:"-"`
+	Data                 []*lrdd.Row          `protobuf:"bytes,5,rep,name=data,proto3" json:"data,omitempty"`
+	TaskStatus           JobOutput_TaskStatus `protobuf:"varint,6,opt,name=taskStatus,proto3,enum=lrmrpb.JobOutput_TaskStatus" json:"taskStatus,omitempty"`
+	Error                string               `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	Stacktrace           string               `protobuf:"bytes,8,opt,name=stacktrace,proto3" json:"stacktrace,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
 }
 
-func (m *RunOnlineJobOutputToDriver) Reset()         { *m = RunOnlineJobOutputToDriver{} }
-func (m *RunOnlineJobOutputToDriver) String() string { return proto.CompactTextString(m) }
-func (*RunOnlineJobOutputToDriver) ProtoMessage()    {}
-func (*RunOnlineJobOutputToDriver) Descriptor() ([]byte, []int) {
+func (m *JobOutput) Reset()         { *m = JobOutput{} }
+func (m *JobOutput) String() string { return proto.CompactTextString(m) }
+func (*JobOutput) ProtoMessage()    {}
+func (*JobOutput) Descriptor() ([]byte, []int) {
 	return fileDescriptor_f4e130d388338f6d, []int{4}
 }
-func (m *RunOnlineJobOutputToDriver) XXX_Unmarshal(b []byte) error {
+func (m *JobOutput) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *RunOnlineJobOutputToDriver) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	b = b[:cap(b)]
-	n, err := m.MarshalToSizedBuffer(b)
-	if err != nil {
-		return nil, err
+func (m *JobOutput) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobOutput.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
 	}
-	return b[:n], nil
 }
-func (m *RunOnlineJobOutputToDriver) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RunOnlineJobOutputToDriver.Merge(m, src)
+func (m *JobOutput) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobOutput.Merge(m, src)
 }
-func (m *RunOnlineJobOutputToDriver) XXX_Size() int {
+func (m *JobOutput) XXX_Size() int {
 	return m.Size()
 }
-func (m *RunOnlineJobOutputToDriver) XXX_DiscardUnknown() {
-	xxx_messageInfo_RunOnlineJobOutputToDriver.DiscardUnknown(m)
+func (m *JobOutput) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobOutput.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_RunOnlineJobOutputToDriver proto.InternalMessageInfo
+var xxx_messageInfo_JobOutput proto.InternalMessageInfo
+
+func (m *JobOutput) GetType() JobOutput_Type {
+	if m != nil {
+		return m.Type
+	}
+	return JobOutput_TASKS_READY
+}
+
+func (m *JobOutput) GetStage() string {
+	if m != nil {
+		return m.Stage
+	}
+	return ""
+}
+
+func (m *JobOutput) GetPartitionID() string {
+	if m != nil {
+		return m.PartitionID
+	}
+	return ""
+}
+
+func (m *JobOutput) GetData() []*lrdd.Row {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+func (m *JobOutput) GetTaskStatus() JobOutput_TaskStatus {
+	if m != nil {
+		return m.TaskStatus
+	}
+	return JobOutput_SUCCEED
+}
+
+func (m *JobOutput) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+func (m *JobOutput) GetStacktrace() string {
+	if m != nil {
+		return m.Stacktrace
+	}
+	return ""
+}
 
 type GetMetricRequest struct {
 	JobID                string   `protobuf:"bytes,1,opt,name=jobID,proto3" json:"jobID,omitempty"`
@@ -544,7 +641,7 @@ func (m *Output) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Output proto.InternalMessageInfo
 
-func (m *Outeput) GetType() Output_Type {
+func (m *Output) GetType() Output_Type {
 	if m != nil {
 		return m.Type
 	}
@@ -874,13 +971,12 @@ func init() {
 	proto.RegisterEnum("lrmrpb.JobOutput_TaskStatus", JobOutput_TaskStatus_name, JobOutput_TaskStatus_value)
 	proto.RegisterEnum("lrmrpb.Input_Type", Input_Type_name, Input_Type_value)
 	proto.RegisterEnum("lrmrpb.Output_Type", Output_Type_name, Output_Type_value)
-	proto.RegisterType((*CreateTasksRequest)(nil), "lrmrpb.CreateTasksRequest")
-	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.CreateTasksRequest.BroadcastsEntry")
-	proto.RegisterType((*RunJobRequest)(nil), "lrmrpb.RunJobRequest")
-	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.RunJobRequest.BroadcastsEntry")
+	proto.RegisterType((*CreateJobRequest)(nil), "lrmrpb.CreateJobRequest")
+	proto.RegisterMapType((map[string][]byte)(nil), "lrmrpb.CreateJobRequest.BroadcastsEntry")
 	proto.RegisterType((*Stage)(nil), "lrmrpb.Stage")
 	proto.RegisterType((*Task)(nil), "lrmrpb.Task")
-	proto.RegisterType((*RunOnlineJobOutputToDriver)(nil), "lrmrpb.RunOnlineJobOutputToDriver")
+	proto.RegisterType((*StartJobRequest)(nil), "lrmrpb.StartJobRequest")
+	proto.RegisterType((*JobOutput)(nil), "lrmrpb.JobOutput")
 	proto.RegisterType((*GetMetricRequest)(nil), "lrmrpb.GetMetricRequest")
 	proto.RegisterType((*GetMetricResponse)(nil), "lrmrpb.GetMetricResponse")
 	proto.RegisterMapType((map[string]uint64)(nil), "lrmrpb.GetMetricResponse.MetricsEntry")
@@ -999,12 +1095,21 @@ func (c *nodeClient) CreateJob(ctx context.Context, in *CreateJobRequest, opts .
 	return out, nil
 }
 
-func (c *nodeClient) RunJobInForeground(ctx context.Context, in *RunJobRequest, opts ...grpc.CallOption) (Node_RunJobInForegroundClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/lrmrpb.Node/RunJobInForeground", opts...)
+func (c *nodeClient) StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/lrmrpb.Node/StartJobInBackground", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &nodeRunJobInForegroundClient{stream}
+	return out, nil
+}
+
+func (c *nodeClient) StartJobInForeground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (Node_StartJobInForegroundClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/lrmrpb.Node/StartJobInForeground", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeStartJobInForegroundClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -1014,17 +1119,17 @@ func (c *nodeClient) RunJobInForeground(ctx context.Context, in *RunJobRequest, 
 	return x, nil
 }
 
-type Node_RunJobInForegroundClient interface {
-	Recv() (*RunOnlineJobOutputToDriver, error)
+type Node_StartJobInForegroundClient interface {
+	Recv() (*JobOutput, error)
 	grpc.ClientStream
 }
 
-type nodeRunJobInForegroundClient struct {
+type nodeStartJobInForegroundClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodeRunJobInForegroundClient) Recv() (*RunOnlineJobOutputToDriver, error) {
-	m := new(RunOnlineJobOutputToDriver)
+func (x *nodeStartJobInForegroundClient) Recv() (*JobOutput, error) {
+	m := new(JobOutput)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -1107,8 +1212,9 @@ func (c *nodeClient) GetMetric(ctx context.Context, in *GetMetricRequest, opts .
 
 // NodeServer is the server API for Node service.
 type NodeServer interface {
-	RunJobInBackground(context.Context, *RunJobRequest) (*emptypb.Empty, error)
-	RunJobInForeground(*RunJobRequest, Node_RunJobInForegroundServer) error
+	CreateJob(context.Context, *CreateJobRequest) (*emptypb.Empty, error)
+	StartJobInBackground(context.Context, *StartJobRequest) (*emptypb.Empty, error)
+	StartJobInForeground(*StartJobRequest, Node_StartJobInForegroundServer) error
 	PushData(Node_PushDataServer) error
 	PollData(Node_PollDataServer) error
 	GetMetric(context.Context, *GetMetricRequest) (*GetMetricResponse, error)
@@ -1118,11 +1224,14 @@ type NodeServer interface {
 type UnimplementedNodeServer struct {
 }
 
-func (*UnimplementedNodeServer) RunJobInBackground(ctx context.Context, req *RunJobRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RunJobInBackground not implemented")
+func (*UnimplementedNodeServer) CreateJob(ctx context.Context, req *CreateJobRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateJob not implemented")
 }
-func (*UnimplementedNodeServer) RunJobInForeground(req *RunJobRequest, srv Node_RunJobInForegroundServer) error {
-	return status.Errorf(codes.Unimplemented, "method RunJobInForeground not implemented")
+func (*UnimplementedNodeServer) StartJobInBackground(ctx context.Context, req *StartJobRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartJobInBackground not implemented")
+}
+func (*UnimplementedNodeServer) StartJobInForeground(req *StartJobRequest, srv Node_StartJobInForegroundServer) error {
+	return status.Errorf(codes.Unimplemented, "method StartJobInForeground not implemented")
 }
 func (*UnimplementedNodeServer) PushData(srv Node_PushDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method PushData not implemented")
@@ -1138,38 +1247,56 @@ func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
 	s.RegisterService(&_Node_serviceDesc, srv)
 }
 
-func _Node_RunJobInBackground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RunJobRequest)
+func _Node_CreateJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).RunJobInBackground(ctx, in)
+		return srv.(NodeServer).CreateJob(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/lrmrpb.Node/RunJobInBackground",
+		FullMethod: "/lrmrpb.Node/CreateJob",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).RunJobInBackground(ctx, req.(*RunJobRequest))
+		return srv.(NodeServer).CreateJob(ctx, req.(*CreateJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_RunJobInForeground_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(RunJobRequest)
+func _Node_StartJobInBackground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).StartJobInBackground(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/lrmrpb.Node/StartJobInBackground",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).StartJobInBackground(ctx, req.(*StartJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_StartJobInForeground_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StartJobRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(NodeServer).RunJobInForeground(m, &nodeRunJobInForegroundServer{stream})
+	return srv.(NodeServer).StartJobInForeground(m, &nodeStartJobInForegroundServer{stream})
 }
 
-type Node_RunJobInForegroundServer interface {
-	Send(*RunOnlineJobOutputToDriver) error
+type Node_StartJobInForegroundServer interface {
+	Send(*JobOutput) error
 	grpc.ServerStream
 }
 
-type nodeRunJobInForegroundServer struct {
+type nodeStartJobInForegroundServer struct {
 	grpc.ServerStream
 }
 
@@ -1252,8 +1379,12 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "RunJobInBackground",
-			Handler:    _Node_RunJobInBackground_Handler,
+			MethodName: "CreateJob",
+			Handler:    _Node_CreateJob_Handler,
+		},
+		{
+			MethodName: "StartJobInBackground",
+			Handler:    _Node_StartJobInBackground_Handler,
 		},
 		{
 			MethodName: "GetMetric",
@@ -1262,8 +1393,8 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "RunJobInForeground",
-			Handler:       _Node_RunJobInForeground_Handler,
+			StreamName:    "StartJobInForeground",
+			Handler:       _Node_StartJobInForeground_Handler,
 			ServerStreams: true,
 		},
 		{
@@ -1281,7 +1412,7 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	Metadata: "lrmrpb/rpc.proto",
 }
 
-func (m *CreateTasksRequest) Marshal() (dAtA []byte, err error) {
+func (m *CreateJobRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1291,12 +1422,12 @@ func (m *CreateTasksRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *CreateTasksRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *CreateJobRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *CreateTasksRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *CreateJobRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1463,7 +1594,7 @@ func (m *Task) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *RunOnlineJobOutputToDriver) Marshal() (dAtA []byte, err error) {
+func (m *StartJobRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1473,12 +1604,46 @@ func (m *RunOnlineJobOutputToDriver) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *RunOnlineJobOutputToDriver) MarshalTo(dAtA []byte) (int, error) {
+func (m *StartJobRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *RunOnlineJobOutputToDriver) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *StartJobRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.JobID) > 0 {
+		i -= len(m.JobID)
+		copy(dAtA[i:], m.JobID)
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.JobID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobOutput) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobOutput) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobOutput) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1954,52 +2119,7 @@ func encodeVarintRpc(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *CreateTasksRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Job != nil {
-		l = m.Job.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	l = len(m.Stage)
-	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if len(m.PartitionIDs) > 0 {
-		for _, s := range m.PartitionIDs {
-			l = len(s)
-			n += 1 + l + sovRpc(uint64(l))
-		}
-	}
-	if len(m.Input) > 0 {
-		for _, e := range m.Input {
-			l = e.Size()
-			n += 1 + l + sovRpc(uint64(l))
-		}
-	}
-	if m.Output != nil {
-		l = m.Output.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if len(m.Broadcasts) > 0 {
-		for k, v := range m.Broadcasts {
-			_ = k
-			_ = v
-			l = 0
-			if len(v) > 0 {
-				l = 1 + len(v) + sovRpc(uint64(len(v)))
-			}
-			mapEntrySize := 1 + len(k) + sovRpc(uint64(len(k))) + l
-			n += mapEntrySize + 1 + sovRpc(uint64(mapEntrySize))
-		}
-	}
-	return n
-}
-
-func (m *RunJobRequest) Size() (n int) {
+func (m *CreateJobRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2081,7 +2201,23 @@ func (m *Task) Size() (n int) {
 	return n
 }
 
-func (m *RunOnlineJobOutputToDriver) Size() (n int) {
+func (m *StartJobRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobID)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *JobOutput) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2311,7 +2447,7 @@ func sovRpc(x uint64) (n int) {
 func sozRpc(x uint64) (n int) {
 	return sovRpc(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
+func (m *CreateJobRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2334,10 +2470,10 @@ func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: CreateTasksRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateJobRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CreateTasksRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateJobRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2378,71 +2514,7 @@ func (m *CreateTasksRequest) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Stage", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Stage = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PartitionIDs", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PartitionIDs = append(m.PartitionIDs, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Input", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Stages", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {

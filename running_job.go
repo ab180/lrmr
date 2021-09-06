@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ab180/lrmr/cluster"
+	"github.com/ab180/lrmr/driver"
 	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/metric"
@@ -20,6 +21,7 @@ import (
 
 type RunningJob struct {
 	*job.Job
+	driver        driver.Driver
 	statusManager job.StatusManager
 	finalStatus   atomic.Value
 	statusMu      sync.RWMutex
@@ -27,9 +29,10 @@ type RunningJob struct {
 	logger        logger.Logger
 }
 
-func newRunningJob(j *job.Job, c cluster.State) *RunningJob {
+func newRunningJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
 	runningJob := &RunningJob{
 		Job:           j,
+		driver:        drv,
 		statusManager: job.NewDistributedStatusManager(c, j),
 		startedAt:     time.Now(),
 		logger:        logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
@@ -67,7 +70,7 @@ func (r *RunningJob) Status() job.RunningState {
 }
 
 func (r *RunningJob) Metrics() (lrmrmetric.Metrics, error) {
-	panic("not implemented")
+	return r.driver.CollectMetrics(context.Background())
 }
 
 func (r *RunningJob) Wait() error {

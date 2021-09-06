@@ -2,46 +2,44 @@ package executor
 
 import (
 	"github.com/ab180/lrmr/lrdd"
-	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/partitions"
 )
 
 const (
-	collectStageName   = "__collect"
+	CollectStageName   = "__collect"
 	collectPartitionID = "__collect"
 )
 
 type Collector struct {
-	stream lrmrpb.Node_RunJobInForegroundServer
+	reporter StatusReporter
 }
 
-func NewCollector(stream lrmrpb.Node_RunJobInForegroundServer) *Collector {
+func NewCollector(reporter StatusReporter) *Collector {
 	return &Collector{
-		stream: stream,
+		reporter: reporter,
 	}
 }
 
-func (c *Collector) PlanNext(int) []partitions.Partition {
-	return partitions.PlanForNumberOf(1)
-}
-
-func (c *Collector) DeterminePartition(partitions.Context, *lrdd.Row, int) (id string, err error) {
-	return collectPartitionID, nil
-}
-
 func (c *Collector) Write(rows ...*lrdd.Row) error {
-	return c.stream.Send(&lrmrpb.RunOnlineJobOutputToDriver{
-		Type: lrmrpb.RunOnlineJobOutputToDriver_COLLECT_DATA,
-		Data: rows,
-	})
+	return c.reporter.Collect(rows)
 }
 
 func (c *Collector) Close() error {
 	return nil
 }
 
+type collectPartitioner struct{}
+
+func (collectPartitioner) PlanNext(int) []partitions.Partition {
+	return partitions.PlanForNumberOf(1)
+}
+
+func (collectPartitioner) DeterminePartition(partitions.Context, *lrdd.Row, int) (id string, err error) {
+	return collectPartitionID, nil
+}
+
 var (
-	_ partitions.Partitioner = (*Collector)(nil)
 	_ output.Output          = (*Collector)(nil)
+	_ partitions.Partitioner = (*collectPartitioner)(nil)
 )

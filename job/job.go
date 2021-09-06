@@ -9,13 +9,6 @@ import (
 	"github.com/thoas/go-funk"
 )
 
-type Mode int
-
-const (
-	Foreground Mode = iota
-	Background
-)
-
 type Job struct {
 	ID          string                   `json:"id"`
 	Stages      []*stage.Stage           `json:"stages"`

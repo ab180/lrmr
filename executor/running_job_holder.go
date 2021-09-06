@@ -3,28 +3,49 @@ package executor
 import (
 	"context"
 
+	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	lrmrmetric "github.com/ab180/lrmr/metric"
+	"go.uber.org/atomic"
 )
 
 type runningJobHolder struct {
-	Job     *job.Job
-	Tracker StatusReporter
+	Job        *job.Job
+	Tasks      []*TaskExecutor
+	Broadcasts serialization.Broadcast
+	Reporter   StatusReporter
+	Metric     lrmrmetric.Repository
+	IsStarted  atomic.Bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	metric lrmrmetric.Repository
 }
 
-func newRunningJobHolder(j *job.Job, tracker StatusReporter) *runningJobHolder {
+func newRunningJobHolder(j *job.Job, broadcasts serialization.Broadcast) *runningJobHolder {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &runningJobHolder{
-		Job:     j,
-		Tracker: tracker,
+		Job:        j,
+		Broadcasts: broadcasts,
+		Metric:     lrmrmetric.NewRepository(),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
+}
+
+func (rj *runningJobHolder) Start(reporter StatusReporter) {
+	rj.IsStarted.Store(true)
+	rj.Reporter = reporter
+
+	// make Context inherit job context from reporter
+	go rj.cancelJobContextByReporter()
+}
+
+func (rj *runningJobHolder) cancelJobContextByReporter() {
+	<-rj.Reporter.JobContext().Done()
+	rj.cancel()
 }
 
 // Context returns a Context which is cancelled after job completion.
 func (rj *runningJobHolder) Context() context.Context {
-	return rj.Tracker.JobContext()
+	return rj.ctx
 }

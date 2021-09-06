@@ -28,6 +28,7 @@ var log = logger.New("lrmr")
 type Driver interface {
 	RunSync(context.Context) (*CollectResult, error)
 	RunAsync(context.Context) error
+	CollectMetrics(context.Context) (lrmrmetric.Metrics, error)
 }
 
 type CollectResult struct {
@@ -36,76 +37,81 @@ type CollectResult struct {
 }
 
 type Remote struct {
-	Job       *job.Job
-	Cluster   cluster.Cluster
-	Input     input.Feeder
-	Broadcast serialization.Broadcast
+	Job         *job.Job
+	Connections map[string]lrmrpb.NodeClient
+	Input       input.Feeder
+	Broadcast   serialization.Broadcast
 }
 
-func NewRemote(j *job.Job, c cluster.Cluster, in input.Feeder, broadcasts serialization.Broadcast) Driver {
-	return &Remote{
-		Job:       j,
-		Cluster:   c,
-		Input:     in,
-		Broadcast: broadcasts,
+func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feeder, broadcasts serialization.Broadcast) (Driver, error) {
+	var (
+		conns = make(map[string]lrmrpb.NodeClient)
+		mu    sync.Mutex
+	)
+	wg, wctx := errgroup.WithContext(ctx)
+	for _, host := range j.Hostnames() {
+		host := host
+		wg.Go(func() error {
+			conn, err := c.Connect(wctx, host)
+			if err != nil {
+				return errors.Wrapf(err, "dial %s", host)
+			}
+			mu.Lock()
+			conns[host] = lrmrpb.NewNodeClient(conn)
+			mu.Unlock()
+			return nil
+		})
 	}
+	if err := wg.Wait(); err != nil {
+		return nil, err
+	}
+	return &Remote{
+		Job:         j,
+		Connections: conns,
+		Input:       in,
+		Broadcast:   broadcasts,
+	}, nil
 }
 
 func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	marshalledJob := pbtypes.MustMarshalJSON(m.Job)
-	serializedBroadcasts, err := serialization.SerializeBroadcast(m.Broadcast)
-	if err != nil {
-		return nil, errors.Wrap(err, "serialize broadcasts")
-	}
-
-	var (
-		streams = make(map[string]lrmrpb.Node_RunJobInForegroundClient)
-		rpcs    = make(map[string]lrmrpb.NodeClient)
-		mu      sync.Mutex
-	)
-
-	statusChan := make(chan *lrmrpb.RunOnlineJobOutputToDriver)
+	statusChan := make(chan *lrmrpb.JobOutput)
 	defer close(statusChan)
 
-	// 1. connect nodes
-	var wg errgroup.Group
-	for host, stages := range m.Job.BuildStageDefinitionPerNode() {
-		host, stages := host, stages
+	// 1. create the job in executors
+	if err := m.createJob(ctx); err != nil {
+		return nil, errors.Wrap(err, "create job")
+	}
+
+	// 2. start job and connect streams
+	var (
+		streams = make(map[string]lrmrpb.Node_StartJobInForegroundClient)
+		mu      sync.Mutex
+		wg      errgroup.Group
+	)
+	for host, rpc := range m.Connections {
+		host, rpc := host, rpc
 
 		wg.Go(func() error {
-			conn, err := m.Cluster.Connect(ctx, host)
-			if err != nil {
-				return errors.Wrapf(err, "dial %s", host)
+			req := &lrmrpb.StartJobRequest{
+				JobID: m.Job.ID,
 			}
-			rpc := lrmrpb.NewNodeClient(conn)
-			stream, err := rpc.RunJobInForeground(ctx, &lrmrpb.RunJobRequest{
-				Job:        marshalledJob,
-				Stages:     stages,
-				Broadcasts: serializedBroadcasts,
-			})
+			stream, err := rpc.StartJobInForeground(ctx, req)
 			if err != nil {
-				return errors.Wrapf(err, "call RunOnlineJob to %s", host)
+				return errors.Wrapf(err, "call StartJobInForeground to %s", host)
 			}
 			mu.Lock()
-			defer mu.Unlock()
-
 			streams[host] = stream
-			rpcs[host] = rpc
-
-			// wait for tasks to be created
-			msg, err := stream.Recv()
-			if err != nil {
-				return errors.Wrap(err, "received error while waiting for task creation")
-			}
-			if msg.Type != lrmrpb.RunOnlineJobOutputToDriver_TASKS_READY {
-				return errors.Errorf("invalid status order: expected TASKS_READY but received %s", msg.Type.String())
-			}
+			mu.Unlock()
 			return nil
 		})
 	}
+	// 2.1. feed inputs simultaneously
+	wg.Go(func() error {
+		return m.feedInput(ctx, m.Job, m.Input)
+	})
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
@@ -114,11 +120,6 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 			stream.CloseSend()
 		}
 	}()
-
-	// 2. feed inputs
-	if err := m.feedInput(ctx, m.Job, m.Input); err != nil {
-		return nil, errors.Wrap(err, "feed input")
-	}
 
 	// 3.1. monitor status
 	// we use error channel for centralized lifecycle management
@@ -132,7 +133,10 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 					if err == io.EOF || status.Code(err) == codes.Canceled || errors.Is(err, context.Canceled) {
 						return
 					}
-					errChan <- errors.Wrapf(err, "receive status from %s", host)
+					select {
+					case errChan <- errors.Wrapf(err, "receive status from %s", host):
+					default:
+					}
 					return
 				}
 				statusChan <- msg
@@ -161,17 +165,16 @@ JobRun:
 		// 4.1. received status report message from executor node
 		case msg := <-statusChan:
 			switch msg.Type {
-			case lrmrpb.RunOnlineJobOutputToDriver_COLLECT_DATA:
+			case lrmrpb.JobOutput_COLLECT_DATA:
 				result = append(result, msg.Data...)
 
-			case lrmrpb.RunOnlineJobOutputToDriver_REPORT_TASK_COMPLETION:
-				log.Verbose("REPORT_TASK_COMPLETION received: {}/{}/{}", m.Job.ID, msg.Stage, msg.PartitionID)
+			case lrmrpb.JobOutput_REPORT_TASK_COMPLETION:
 				taskID := job.TaskID{
 					JobID:       m.Job.ID,
 					StageName:   msg.Stage,
 					PartitionID: msg.PartitionID,
 				}
-				if msg.TaskStatus == lrmrpb.RunOnlineJobOutputToDriver_FAILED {
+				if msg.TaskStatus == lrmrpb.JobOutput_FAILED {
 					_ = stateMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error))
 					continue
 				}
@@ -201,40 +204,58 @@ func (m *Remote) RunAsync(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	serializedJob := pbtypes.MustMarshalJSON(m.Job)
-	serializedBroadcasts, err := serialization.SerializeBroadcast(m.Broadcast)
-	if err != nil {
-		return errors.Wrap(err, "serialize broadcasts")
+	if err := m.createJob(ctx); err != nil {
+		return errors.Wrap(err, "create job")
 	}
-
 	wg, wctx := errgroup.WithContext(ctx)
-	for host, stages := range m.Job.BuildStageDefinitionPerNode() {
-		host, stages := host, stages
-
+	for _, rpc := range m.Connections {
+		rpc := rpc
 		wg.Go(func() error {
-			conn, err := m.Cluster.Connect(wctx, host)
-			if err != nil {
-				return errors.Wrapf(err, "dial %s", host)
+			req := &lrmrpb.StartJobRequest{
+				JobID: m.Job.ID,
 			}
-			rpc := lrmrpb.NewNodeClient(conn)
-			req := &lrmrpb.RunJobRequest{
-				Job:        serializedJob,
-				Stages:     stages,
-				Broadcasts: serializedBroadcasts,
-			}
-			if _, err := rpc.RunJobInBackground(wctx, req); err != nil {
-				return errors.Wrapf(err, "call CreateTask on %s", host)
-			}
-			return nil
+			_, err := rpc.StartJobInBackground(wctx, req)
+			return err
 		})
 	}
 	if err := wg.Wait(); err != nil {
-		return err
+		return errors.Wrap(err, "start job")
 	}
 	if err := m.feedInput(ctx, m.Job, m.Input); err != nil {
 		return errors.Wrap(err, "feed input")
 	}
 	return nil
+}
+
+func (m *Remote) createJob(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	serializedJob := pbtypes.MustMarshalJSON(m.Job)
+	serializedBroadcasts, err := serialization.SerializeBroadcast(m.Broadcast)
+	if err != nil {
+		return errors.Wrap(err, "serialize broadcasts")
+	}
+	stagesProtoPerHost := m.Job.BuildStageDefinitionPerNode()
+
+	wg, wctx := errgroup.WithContext(ctx)
+	for host, rpc := range m.Connections {
+		host, rpc := host, rpc
+		stages := stagesProtoPerHost[host]
+
+		wg.Go(func() error {
+			req := &lrmrpb.CreateJobRequest{
+				Job:        serializedJob,
+				Stages:     stages,
+				Broadcasts: serializedBroadcasts,
+			}
+			if _, err := rpc.CreateJob(wctx, req); err != nil {
+				return errors.Wrapf(err, "call CreateTask on %s", host)
+			}
+			return nil
+		})
+	}
+	return wg.Wait()
 }
 
 func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) (err error) {
@@ -249,13 +270,11 @@ func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) 
 	)
 	for _, t := range targets {
 		assigned := t
+		rpc := m.Connections[assigned.Host]
+
 		wg.Go(func() error {
 			taskID := path.Join(j.ID, firstStage.Name, assigned.PartitionID)
-			conn, err := m.Cluster.Connect(ctx, assigned.Host)
-			if err != nil {
-				return errors.Wrapf(err, "dial %s", assigned.Host)
-			}
-			out, err := output.OpenPushStream(ctx, lrmrpb.NewNodeClient(conn), nil, assigned.Host, taskID)
+			out, err := output.OpenPushStream(ctx, rpc, nil, assigned.Host, taskID)
 			if err != nil {
 				return errors.Wrapf(err, "connect %s", assigned.Host)
 			}
@@ -277,17 +296,16 @@ func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) 
 	return nil
 }
 
-func (m *Remote) collectMetrics(ctx context.Context, j *job.Job, rpcs map[string]lrmrpb.NodeClient) lrmrmetric.Metrics {
+func (m *Remote) CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error) {
 	metric := make(lrmrmetric.Metrics)
-	for _, rpc := range rpcs {
+	for _, rpc := range m.Connections {
 		resp, err := rpc.GetMetric(ctx, &lrmrpb.GetMetricRequest{
-			JobID: j.ID,
+			JobID: m.Job.ID,
 		})
 		if err != nil {
-			log.Error("Failed to collect metrics: {}", err)
-			return lrmrmetric.Metrics{}
+			return lrmrmetric.Metrics{}, err
 		}
 		metric = metric.Sum(resp.Metrics)
 	}
-	return metric
+	return metric, nil
 }

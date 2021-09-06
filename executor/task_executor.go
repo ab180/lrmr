@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/ab180/lrmr/input"
-	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/output"
-	"github.com/ab180/lrmr/transformation"
 	"github.com/therne/errorist"
 )
 
@@ -16,11 +16,10 @@ type TaskExecutor struct {
 	task *job.Task
 	job  *runningJobHolder
 
-	Input    *input.Reader
-	function transformation.Transformation
-	Output   *output.Writer
-
-	broadcast    serialization.Broadcast
+	Input        *input.Reader
+	Stage        *stage.Stage
+	Output       *output.Writer
+	OutputDesc   *lrmrpb.Output
 	localOptions map[string]interface{}
 	taskError    error
 }
@@ -28,22 +27,24 @@ type TaskExecutor struct {
 func NewTaskExecutor(
 	runningJob *runningJobHolder,
 	task *job.Task,
-	fn transformation.Transformation,
+	curStage *stage.Stage,
 	in *input.Reader,
-	out *output.Writer,
-	broadcast serialization.Broadcast,
+	outDesc *lrmrpb.Output,
 	localOptions map[string]interface{},
 ) *TaskExecutor {
 	exec := &TaskExecutor{
 		task:         task,
 		job:          runningJob,
 		Input:        in,
-		function:     fn,
-		Output:       out,
-		broadcast:    broadcast,
+		Stage:        curStage,
+		OutputDesc:   outDesc,
 		localOptions: localOptions,
 	}
 	return exec
+}
+
+func (e *TaskExecutor) SetOutput(out *output.Writer) {
+	e.Output = out
 }
 
 func (e *TaskExecutor) Run() {
@@ -56,7 +57,7 @@ func (e *TaskExecutor) Run() {
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
 	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
-	if err := e.function.Apply(ctx, funcInputChan, e.Output); err != nil {
+	if err := e.Stage.Function.Apply(ctx, funcInputChan, e.Output); err != nil {
 		if ctx.Err() != nil {
 			// ignore errors caused by task cancellation
 			return
@@ -68,7 +69,6 @@ func (e *TaskExecutor) Run() {
 // reportStatus updates task status if failed.
 func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	// to flush outputs before the status report
-	log.Verbose("Closing output of {}", e.task.ID())
 	if err := e.Output.Close(); err != nil {
 		log.Error("Failed to close output: {}")
 	}
@@ -80,17 +80,17 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	}
 
 	if taskErr != nil {
-		if err := e.job.Tracker.ReportTaskFailure(ctx, e.task.ID(), taskErr); err != nil {
+		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), taskErr); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
 	} else if ctx.Err() == nil {
-		if err := e.job.Tracker.ReportTaskSuccess(ctx, e.task.ID()); err != nil {
+		if err := e.job.Reporter.ReportTaskSuccess(ctx, e.task.ID()); err != nil {
 			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 		}
 	}
 
 	// to help GC
-	e.function = nil
+	e.Stage = nil
 	e.Input = nil
 }
 
