@@ -33,6 +33,7 @@ func (w *Writer) Write(data ...*lrdd.Row) error {
 		}
 		return output.Write(data...)
 	}
+	// TODO: reuse
 	writes := make(map[string][]*lrdd.Row)
 	for _, row := range data {
 		id, err := w.partitioner.DeterminePartition(w.context, row, len(w.outputs))
