@@ -273,7 +273,7 @@ func (m *Remote) createJob(ctx context.Context) error {
 	return wg.Wait()
 }
 
-func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) (err error) {
+func (m *Remote) feedInput(ctx context.Context, j *job.Job, in input.Feeder) (err error) {
 	// feed input to first stage (ignore stage #0 because it is input stage itself)
 	firstStage, targets := j.Stages[1], j.Partitions[1]
 	partitioner := j.Stages[0].Output.Partitioner
@@ -302,10 +302,10 @@ func (m *Remote) feedInput(ctx context.Context, j *job.Job, input input.Feeder) 
 	if err := wg.Wait(); err != nil {
 		return err
 	}
-	writer := output.NewWriter("0", partitioner, outputsToFirstStage)
+	writer := output.NewWriter(input.FeederPartitionID, partitioner, outputsToFirstStage)
 	defer errorist.CloseWithErrCapture(writer, &err, errorist.Wrapf("close"))
 
-	if err := input.FeedInput(writer); err != nil {
+	if err := in.FeedInput(writer); err != nil {
 		return errors.Wrap(err, "write data")
 	}
 	return nil
