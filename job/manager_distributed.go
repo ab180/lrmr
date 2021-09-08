@@ -25,7 +25,7 @@ const (
 	doneStagesSuffix  = "doneStages"
 )
 
-type DistributedStatusManager struct {
+type DistributedManager struct {
 	clusterState       cluster.State
 	job                *Job
 	jobSubscriptions   []func(*Status)
@@ -34,8 +34,8 @@ type DistributedStatusManager struct {
 	subscriptionsMu    sync.RWMutex
 }
 
-func NewDistributedStatusManager(clusterState cluster.State, job *Job) StatusManager {
-	r := &DistributedStatusManager{
+func NewDistributedManager(clusterState cluster.State, job *Job) Manager {
+	r := &DistributedManager{
 		clusterState: clusterState,
 		job:          job,
 	}
@@ -43,7 +43,7 @@ func NewDistributedStatusManager(clusterState cluster.State, job *Job) StatusMan
 	return r
 }
 
-func (r *DistributedStatusManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
+func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
 	if err := r.clusterState.Put(ctx, taskMetricsKey(taskID), metrics); err != nil {
 		return errors.Wrap(err, "write task metrics to etcd")
 	}
@@ -57,7 +57,7 @@ func (r *DistributedStatusManager) MarkTaskAsSucceed(ctx context.Context, taskID
 
 // MarkTaskAsFailed marks the task as failed. If the error is non-nil, it's added to the error list of the job.
 // Passing nil in error will only cancel the task.
-func (r *DistributedStatusManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, err error, metrics lrmrmetric.Metrics) error {
+func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, err error, metrics lrmrmetric.Metrics) error {
 	txn := coordinator.NewTxn().
 		Put(taskMetricsKey(taskID), metrics).
 		IncrementCounter(doneTasksInStageKey(taskID)).
@@ -77,7 +77,7 @@ func (r *DistributedStatusManager) MarkTaskAsFailed(ctx context.Context, taskID 
 	return r.reportJobCompletion(ctx, Failed)
 }
 
-func (r *DistributedStatusManager) checkForStageCompletion(ctx context.Context, taskID TaskID, currentDoneTasks, currentFailedTasks int) error {
+func (r *DistributedManager) checkForStageCompletion(ctx context.Context, taskID TaskID, currentDoneTasks, currentFailedTasks int) error {
 	if currentFailedTasks == 1 {
 		// to prevent race between workers, the failure is only reported by the first worker failed
 		if err := r.reportStageCompletion(ctx, taskID.StageName, Failed); err != nil {
@@ -101,7 +101,7 @@ func (r *DistributedStatusManager) checkForStageCompletion(ctx context.Context, 
 	return nil
 }
 
-func (r *DistributedStatusManager) reportStageCompletion(ctx context.Context, stageName string, status RunningState) error {
+func (r *DistributedManager) reportStageCompletion(ctx context.Context, stageName string, status RunningState) error {
 	log.Verbose("Reporting {} stage {}", status, stageName)
 
 	s := newStageStatus()
@@ -124,7 +124,7 @@ func (r *DistributedStatusManager) reportStageCompletion(ctx context.Context, st
 	return nil
 }
 
-func (r *DistributedStatusManager) reportJobCompletion(ctx context.Context, status RunningState) error {
+func (r *DistributedManager) reportJobCompletion(ctx context.Context, status RunningState) error {
 	// var js Status
 	// if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
 	// 	return errors.Wrapf(err, "get status of job %s", r.job.ID)
@@ -142,7 +142,7 @@ func (r *DistributedStatusManager) reportJobCompletion(ctx context.Context, stat
 	return nil
 }
 
-func (r *DistributedStatusManager) Abort(ctx context.Context, abortedBy TaskID) error {
+func (r *DistributedManager) Abort(ctx context.Context, abortedBy TaskID) error {
 	// var js Status
 	// if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
 	// 	return errors.Wrapf(err, "get status of job %s", r.job.ID)
@@ -168,7 +168,7 @@ func (r *DistributedStatusManager) Abort(ctx context.Context, abortedBy TaskID) 
 }
 
 // OnJobCompletion registers callback for completion events of given job.
-func (r *DistributedStatusManager) OnJobCompletion(callback func(*Status)) {
+func (r *DistributedManager) OnJobCompletion(callback func(*Status)) {
 	r.subscriptionsMu.Lock()
 	defer r.subscriptionsMu.Unlock()
 
@@ -176,7 +176,7 @@ func (r *DistributedStatusManager) OnJobCompletion(callback func(*Status)) {
 }
 
 // OnStageCompletion registers callback for stage completion events in given job ID.
-func (r *DistributedStatusManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
+func (r *DistributedManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
 	r.subscriptionsMu.Lock()
 	defer r.subscriptionsMu.Unlock()
 
@@ -185,14 +185,14 @@ func (r *DistributedStatusManager) OnStageCompletion(callback func(stageName str
 
 // OnTaskCompletion registers callback for task completion events in given job ID.
 // For performance, only the number of currently finished tasks in its stage is given to the callback.
-func (r *DistributedStatusManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
+func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
 	r.subscriptionsMu.Lock()
 	defer r.subscriptionsMu.Unlock()
 
 	r.taskSubscriptions = append(r.taskSubscriptions, callback)
 }
 
-func (r *DistributedStatusManager) watch() {
+func (r *DistributedManager) watch() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -219,7 +219,7 @@ func (r *DistributedStatusManager) watch() {
 	}
 }
 
-func (r *DistributedStatusManager) handleTaskFinish(e coordinator.WatchEvent) {
+func (r *DistributedManager) handleTaskFinish(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
 		log.Warn("Unable to handle task finish event: {}", err)
@@ -233,7 +233,7 @@ func (r *DistributedStatusManager) handleTaskFinish(e coordinator.WatchEvent) {
 	}
 }
 
-func (r *DistributedStatusManager) handleStageStatusUpdate(e coordinator.WatchEvent) {
+func (r *DistributedManager) handleStageStatusUpdate(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
 		log.Warn("Unable to handle stage status update event: {}", err)
@@ -253,7 +253,7 @@ func (r *DistributedStatusManager) handleStageStatusUpdate(e coordinator.WatchEv
 	}
 }
 
-func (r *DistributedStatusManager) handleJobStatusChange() (finished bool) {
+func (r *DistributedManager) handleJobStatusChange() (finished bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -274,7 +274,7 @@ func (r *DistributedStatusManager) handleJobStatusChange() (finished bool) {
 	return false
 }
 
-func (r *DistributedStatusManager) getJobStatus(ctx context.Context, jobID string) (*Status, error) {
+func (r *DistributedManager) getJobStatus(ctx context.Context, jobID string) (*Status, error) {
 	s := new(Status)
 	if err := r.clusterState.Get(ctx, jobStatusKey(jobID), s); err != nil {
 		return nil, err
@@ -287,7 +287,7 @@ func (r *DistributedStatusManager) getJobStatus(ctx context.Context, jobID strin
 	return s, nil
 }
 
-func (r *DistributedStatusManager) getJobErrors(ctx context.Context, jobID string) ([]Error, error) {
+func (r *DistributedManager) getJobErrors(ctx context.Context, jobID string) ([]Error, error) {
 	items, err := r.clusterState.Scan(ctx, path.Join(jobErrorNs, jobID))
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ func (r *DistributedStatusManager) getJobErrors(ctx context.Context, jobID strin
 	return errs, nil
 }
 
-func (r *DistributedStatusManager) CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error) {
+func (r *DistributedManager) CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error) {
 	items, err := r.clusterState.Scan(ctx, path.Join(jobMetricsNs, r.job.ID))
 	if err != nil {
 		return nil, err

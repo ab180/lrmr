@@ -28,8 +28,8 @@ import (
 var log = logger.New("lrmr")
 
 type Driver interface {
-	RunSync(context.Context) (*CollectResult, error)
-	RunAsync(context.Context) error
+	RunAttached(context.Context) (*CollectResult, error)
+	RunDetached(context.Context) error
 }
 
 type CollectResult struct {
@@ -74,7 +74,7 @@ func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feed
 	}, nil
 }
 
-func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
+func (m *Remote) RunAttached(ctx context.Context) (*CollectResult, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -159,8 +159,8 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 	}
 
 	// 3.2. handle status
-	stateMgr := job.NewLocalStatusManager(m.Job)
-	stateMgr.OnJobCompletion(func(s *job.Status) {
+	jobMgr := job.NewLocalManager(m.Job)
+	jobMgr.OnJobCompletion(func(s *job.Status) {
 		if len(s.Errors) > 0 {
 			errChan.Send(s.Errors[0])
 			return
@@ -186,10 +186,10 @@ JobRun:
 					PartitionID: msg.PartitionID,
 				}
 				if msg.TaskStatus == lrmrpb.JobOutput_FAILED {
-					_ = stateMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error), msg.Metrics)
+					_ = jobMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error), msg.Metrics)
 					continue
 				}
-				_ = stateMgr.MarkTaskAsSucceed(ctx, taskID, msg.Metrics)
+				_ = jobMgr.MarkTaskAsSucceed(ctx, taskID, msg.Metrics)
 			}
 
 		// 4.2. job is completed (success when err == nil)
@@ -205,7 +205,7 @@ JobRun:
 			return nil, ctx.Err()
 		}
 	}
-	metrics, err := stateMgr.CollectMetrics(ctx)
+	metrics, err := jobMgr.CollectMetrics(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "collect metrics")
 	}
@@ -215,7 +215,7 @@ JobRun:
 	}, nil
 }
 
-func (m *Remote) RunAsync(ctx context.Context) error {
+func (m *Remote) RunDetached(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

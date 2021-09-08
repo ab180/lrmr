@@ -23,19 +23,19 @@ type RunningJob struct {
 	*job.Job
 	jobErrChan    chan error
 	driver        driver.Driver
-	statusManager job.StatusManager
+	statusManager job.Manager
 	finalStatus   atomic.Value
 	statusMu      sync.RWMutex
 	startedAt     time.Time
 	logger        logger.Logger
 }
 
-func startTrackBackgroundJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
+func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
 	runningJob := &RunningJob{
 		Job:           j,
 		jobErrChan:    make(chan error),
 		driver:        drv,
-		statusManager: job.NewDistributedStatusManager(c, j),
+		statusManager: job.NewDistributedManager(c, j),
 		startedAt:     time.Now(),
 		logger:        logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
 	}

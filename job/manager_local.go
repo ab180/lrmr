@@ -10,7 +10,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-type LocalStatusManager struct {
+type LocalManager struct {
 	job            *Job
 	jobStatus      *Status
 	stageStatuses  map[string]*StageStatus
@@ -23,9 +23,9 @@ type LocalStatusManager struct {
 	mu                 sync.RWMutex
 }
 
-func NewLocalStatusManager(j *Job) StatusManager {
+func NewLocalManager(j *Job) Manager {
 	jobStatus := newStatus()
-	return &LocalStatusManager{
+	return &LocalManager{
 		job:           j,
 		jobStatus:     &jobStatus,
 		stageStatuses: make(map[string]*StageStatus),
@@ -33,7 +33,7 @@ func NewLocalStatusManager(j *Job) StatusManager {
 	}
 }
 
-func (l *LocalStatusManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
+func (l *LocalManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -55,7 +55,7 @@ func (l *LocalStatusManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID,
 	return nil
 }
 
-func (l *LocalStatusManager) markStageAsSucceed(stage string, stageStatus *StageStatus) {
+func (l *LocalManager) markStageAsSucceed(stage string, stageStatus *StageStatus) {
 	log.Verbose("Stage {} succeed", stage)
 
 	stageStatus.Complete(Succeeded)
@@ -69,7 +69,7 @@ func (l *LocalStatusManager) markStageAsSucceed(stage string, stageStatus *Stage
 	}
 }
 
-func (l *LocalStatusManager) markJobAsSucceed() {
+func (l *LocalManager) markJobAsSucceed() {
 	log.Verbose("Job {} succeed", l.job.ID)
 
 	l.jobStatus.Complete(Succeeded)
@@ -78,7 +78,7 @@ func (l *LocalStatusManager) markJobAsSucceed() {
 	}
 }
 
-func (l *LocalStatusManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error {
+func (l *LocalManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error {
 	l.mergeTaskMetricsIntoJobMetrics(metrics)
 	log.Verbose("Job {} failed", l.job.ID)
 
@@ -94,30 +94,30 @@ func (l *LocalStatusManager) MarkTaskAsFailed(_ context.Context, causedTask Task
 	return nil
 }
 
-func (l *LocalStatusManager) Abort(ctx context.Context, abortedBy TaskID) error {
+func (l *LocalManager) Abort(ctx context.Context, abortedBy TaskID) error {
 	return l.MarkTaskAsFailed(ctx, abortedBy, errors.New("aborted"), nil)
 }
 
 // OnJobCompletion registers callback for completion events of given job.
-func (l *LocalStatusManager) OnJobCompletion(callback func(*Status)) {
+func (l *LocalManager) OnJobCompletion(callback func(*Status)) {
 	l.jobSubscriptions = append(l.jobSubscriptions, callback)
 }
 
 // OnStageCompletion registers callback for stage completion events in given job ID.
-func (l *LocalStatusManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
+func (l *LocalManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
 	l.stageSubscriptions = append(l.stageSubscriptions, callback)
 }
 
 // OnTaskCompletion registers callback for task completion events in given job ID.
 // For performance, only the number of currently finished tasks in its stage is given to the callback.
-func (l *LocalStatusManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
+func (l *LocalManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
 	l.taskSubscriptions = append(l.taskSubscriptions, callback)
 }
 
-func (l *LocalStatusManager) mergeTaskMetricsIntoJobMetrics(metrics lrmrmetric.Metrics) {
+func (l *LocalManager) mergeTaskMetricsIntoJobMetrics(metrics lrmrmetric.Metrics) {
 	l.metrics.Add(metrics)
 }
 
-func (l *LocalStatusManager) CollectMetrics(context.Context) (lrmrmetric.Metrics, error) {
+func (l *LocalManager) CollectMetrics(context.Context) (lrmrmetric.Metrics, error) {
 	return l.metrics, nil
 }

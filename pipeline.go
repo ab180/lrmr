@@ -165,8 +165,8 @@ func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}
-	runningJob := startTrackBackgroundJob(j, c.States(), drv)
-	if err := drv.RunAsync(ctx); err != nil {
+	runningJob := startTrackingDetachedJob(j, c.States(), drv)
+	if err := drv.RunDetached(ctx); err != nil {
 		return nil, err
 	}
 	return runningJob, nil
@@ -185,5 +185,5 @@ func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*drive
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}
-	return drv.RunSync(ctx)
+	return drv.RunAttached(ctx)
 }

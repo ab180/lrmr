@@ -157,7 +157,7 @@ func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmr
 	runningJob := v.(*runningJobHolder)
 	defer w.runningJobs.Delete(req.JobID)
 
-	if err := w.startJob(runningJob, newForegroundJobStatusReporter(stream)); err != nil {
+	if err := w.startJob(runningJob, newAttachedStatusReporter(stream)); err != nil {
 		return err
 	}
 	<-runningJob.Context().Done()
@@ -170,7 +170,7 @@ func (w *Executor) StartJobInBackground(ctx context.Context, req *lrmrpb.StartJo
 		return nil, status.Error(codes.NotFound, "job not found")
 	}
 	runningJob := v.(*runningJobHolder)
-	if err := w.startJob(runningJob, newBackgroundJobStatusReporter(w.Cluster.States(), runningJob.Job)); err != nil {
+	if err := w.startJob(runningJob, newDetachedStatusReporter(w.Cluster.States(), runningJob.Job)); err != nil {
 		return nil, err
 	}
 	go func() {

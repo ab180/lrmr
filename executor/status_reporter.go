@@ -17,26 +17,26 @@ type StatusReporter interface {
 	ReportTaskFailure(context.Context, job.TaskID, error, lrmrmetric.Metrics) error
 }
 
-type foregroundJobStatusReporter struct {
+type attachedStatusReporter struct {
 	stream lrmrpb.Node_StartJobInForegroundServer
 }
 
-func newForegroundJobStatusReporter(stream lrmrpb.Node_StartJobInForegroundServer) StatusReporter {
-	return &foregroundJobStatusReporter{stream: stream}
+func newAttachedStatusReporter(stream lrmrpb.Node_StartJobInForegroundServer) StatusReporter {
+	return &attachedStatusReporter{stream: stream}
 }
 
-func (f *foregroundJobStatusReporter) JobContext() context.Context {
+func (f *attachedStatusReporter) JobContext() context.Context {
 	return f.stream.Context()
 }
 
-func (f *foregroundJobStatusReporter) Collect(rows []*lrdd.Row) error {
+func (f *attachedStatusReporter) Collect(rows []*lrdd.Row) error {
 	return f.stream.Send(&lrmrpb.JobOutput{
 		Type: lrmrpb.JobOutput_COLLECT_DATA,
 		Data: rows,
 	})
 }
 
-func (f *foregroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error {
+func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error {
 	return f.stream.Send(&lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_SUCCEED,
@@ -46,7 +46,7 @@ func (f *foregroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, tas
 	})
 }
 
-func (f *foregroundJobStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
+func (f *attachedStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
 	return f.stream.Send(&lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_FAILED,
@@ -57,36 +57,36 @@ func (f *foregroundJobStatusReporter) ReportTaskFailure(ctx context.Context, tas
 	})
 }
 
-type backgroundJobStatusReporter struct {
-	statusManager job.StatusManager
-	jobContext    context.Context
+type detachedStatusReporter struct {
+	jobManager job.Manager
+	jobContext context.Context
 }
 
-func newBackgroundJobStatusReporter(clusterState cluster.State, j *job.Job) StatusReporter {
-	statusManager := job.NewDistributedStatusManager(clusterState, j)
+func newDetachedStatusReporter(clusterState cluster.State, j *job.Job) StatusReporter {
+	jobManager := job.NewDistributedManager(clusterState, j)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	statusManager.OnJobCompletion(func(status *job.Status) {
+	jobManager.OnJobCompletion(func(status *job.Status) {
 		cancel()
 	})
-	return &backgroundJobStatusReporter{
-		statusManager: statusManager,
-		jobContext:    ctx,
+	return &detachedStatusReporter{
+		jobManager: jobManager,
+		jobContext: ctx,
 	}
 }
 
-func (b *backgroundJobStatusReporter) JobContext() context.Context {
+func (b *detachedStatusReporter) JobContext() context.Context {
 	return b.jobContext
 }
 
-func (b *backgroundJobStatusReporter) Collect(rows []*lrdd.Row) error {
-	panic("collect not supported on backgroundJobStatusReporter")
+func (b *detachedStatusReporter) Collect(rows []*lrdd.Row) error {
+	panic("collect not supported on detachedStatusReporter")
 }
 
-func (b *backgroundJobStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID, metrics lrmrmetric.Metrics) error {
-	return b.statusManager.MarkTaskAsSucceed(ctx, id, metrics)
+func (b *detachedStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID, metrics lrmrmetric.Metrics) error {
+	return b.jobManager.MarkTaskAsSucceed(ctx, id, metrics)
 }
 
-func (b *backgroundJobStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error, metrics lrmrmetric.Metrics) error {
-	return b.statusManager.MarkTaskAsFailed(ctx, id, err, metrics)
+func (b *detachedStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error, metrics lrmrmetric.Metrics) error {
+	return b.jobManager.MarkTaskAsFailed(ctx, id, err, metrics)
 }

@@ -6,7 +6,8 @@ import (
 	lrmrmetric "github.com/ab180/lrmr/metric"
 )
 
-type StatusManager interface {
+// Manager controls a job.
+type Manager interface {
 	// MarkTaskAsSucceed marks a task as succeed.
 	// If all tasks in its belonging stage are also completed, it marks the stage as completed.
 	// If all stages in belonging job are also completed, it marks the job as completed.
