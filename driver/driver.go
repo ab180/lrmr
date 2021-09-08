@@ -8,6 +8,7 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/input"
+	"github.com/ab180/lrmr/internal/errchannel"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/pbtypes"
 	"github.com/ab180/lrmr/internal/serialization"
@@ -19,6 +20,7 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/errorist"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -76,9 +78,6 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	statusChan := make(chan *lrmrpb.JobOutput)
-	defer close(statusChan)
-
 	// 1. create the job in executors
 	if err := m.createJob(ctx); err != nil {
 		return nil, errors.Wrap(err, "create job")
@@ -116,29 +115,45 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 	}
 	defer func() {
 		for _, stream := range streams {
-			stream.CloseSend()
+			_ = stream.CloseSend()
 		}
 	}()
 
 	// 3.1. monitor status
 	// we use error channel for centralized lifecycle management
-	errChan := make(chan error)
+	var (
+		activeStreamCnt = atomic.NewInt32(0)
+		errChan         = errchannel.New()
+		statusChan      = make(chan *lrmrpb.JobOutput)
+	)
+	defer errChan.Close()
+
 	for host, stream := range streams {
 		host, stream := host, stream
+		activeStreamCnt.Add(1)
 		go func() {
+			defer func() {
+				if err := errorist.WrapPanic(recover()); err != nil {
+					errChan.Send(err)
+				}
+				cnt := activeStreamCnt.Dec()
+				if cnt == 0 {
+					close(statusChan)
+				}
+			}()
+
 			for ctx.Err() == nil {
 				msg, err := stream.Recv()
 				if err != nil {
 					if err == io.EOF || status.Code(err) == codes.Canceled || errors.Is(err, context.Canceled) {
 						return
 					}
-					select {
-					case errChan <- errors.Wrapf(err, "receive status from %s", host):
-					default:
-					}
+					errChan.Send(errors.Wrapf(err, "receive status from %s", host))
 					return
 				}
-				statusChan <- msg
+				if activeStreamCnt.Load() > 0 {
+					statusChan <- msg
+				}
 			}
 		}()
 	}
@@ -146,14 +161,11 @@ func (m *Remote) RunSync(ctx context.Context) (*CollectResult, error) {
 	// 3.2. handle status
 	stateMgr := job.NewLocalStatusManager(m.Job)
 	stateMgr.OnJobCompletion(func(s *job.Status) {
-		var err error
 		if len(s.Errors) > 0 {
-			err = s.Errors[0]
+			errChan.Send(s.Errors[0])
+			return
 		}
-		select {
-		case errChan <- err:
-		default:
-		}
+		errChan.Send(nil)
 	})
 
 	var result []*lrdd.Row
@@ -181,7 +193,7 @@ JobRun:
 			}
 
 		// 4.2. job is completed (success when err == nil)
-		case err := <-errChan:
+		case err := <-errChan.Recv():
 			if err != nil {
 				return nil, err
 			}
