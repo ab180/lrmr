@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ab180/lrmr/cluster"
@@ -30,6 +31,7 @@ type DistributedStatusManager struct {
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)
 	taskSubscriptions  []func(stageName string, doneCountInStage int)
+	subscriptionsMu    sync.RWMutex
 }
 
 func NewDistributedStatusManager(clusterState cluster.State, job *Job) StatusManager {
@@ -132,7 +134,7 @@ func (r *DistributedStatusManager) reportJobCompletion(ctx context.Context, stat
 	// }
 	js := newStatus()
 
-	log.Verbose("Reporting job {}", status)
+	log.Verbose("Reporting {} job", status)
 	js.Complete(status)
 	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
@@ -167,17 +169,26 @@ func (r *DistributedStatusManager) Abort(ctx context.Context, abortedBy TaskID) 
 
 // OnJobCompletion registers callback for completion events of given job.
 func (r *DistributedStatusManager) OnJobCompletion(callback func(*Status)) {
+	r.subscriptionsMu.Lock()
+	defer r.subscriptionsMu.Unlock()
+
 	r.jobSubscriptions = append(r.jobSubscriptions, callback)
 }
 
 // OnStageCompletion registers callback for stage completion events in given job ID.
 func (r *DistributedStatusManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
+	r.subscriptionsMu.Lock()
+	defer r.subscriptionsMu.Unlock()
+
 	r.stageSubscriptions = append(r.stageSubscriptions, callback)
 }
 
 // OnTaskCompletion registers callback for task completion events in given job ID.
 // For performance, only the number of currently finished tasks in its stage is given to the callback.
 func (r *DistributedStatusManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
+	r.subscriptionsMu.Lock()
+	defer r.subscriptionsMu.Unlock()
+
 	r.taskSubscriptions = append(r.taskSubscriptions, callback)
 }
 
@@ -214,6 +225,9 @@ func (r *DistributedStatusManager) handleTaskFinish(e coordinator.WatchEvent) {
 		log.Warn("Unable to handle task finish event: {}", err)
 		return
 	}
+	r.subscriptionsMu.RLock()
+	defer r.subscriptionsMu.RUnlock()
+
 	for _, callback := range r.taskSubscriptions {
 		go callback(stageName, int(e.Counter))
 	}
@@ -231,6 +245,9 @@ func (r *DistributedStatusManager) handleStageStatusUpdate(e coordinator.WatchEv
 		log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
 		return
 	}
+	r.subscriptionsMu.RLock()
+	defer r.subscriptionsMu.RUnlock()
+
 	for _, callback := range r.stageSubscriptions {
 		go callback(stageName, st)
 	}
@@ -246,6 +263,9 @@ func (r *DistributedStatusManager) handleJobStatusChange() (finished bool) {
 		return false
 	}
 	if jobStatus.Status == Succeeded || jobStatus.Status == Failed {
+		r.subscriptionsMu.RLock()
+		defer r.subscriptionsMu.RUnlock()
+
 		for _, callback := range r.jobSubscriptions {
 			go callback(jobStatus)
 		}
