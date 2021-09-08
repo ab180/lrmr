@@ -10,6 +10,7 @@ import (
 	"github.com/ab180/lrmr/lrmrpb"
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
+	"github.com/ab180/lrmr/transformation"
 	"github.com/therne/errorist"
 )
 
@@ -60,7 +61,12 @@ func (e *TaskExecutor) Run() {
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
 	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
-	if err := e.Stage.Function.Apply(ctx, funcInputChan, e.Output); err != nil {
+	// hard copy. TODO: a better way to do it!
+	fnData, _ := e.Stage.Function.MarshalJSON()
+	var function transformation.Serializable
+	_ = function.UnmarshalJSON(fnData)
+
+	if err := function.Apply(ctx, funcInputChan, e.Output); err != nil {
 		if ctx.Err() != nil {
 			// ignore errors caused by task cancellation
 			return
