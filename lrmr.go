@@ -17,13 +17,13 @@ var (
 )
 
 // Parallelize creates new Pipeline with given value as an input.
-func Parallelize(val interface{}) *Pipeline {
-	return NewPipeline(&parallelizedInput{data: lrdd.From(val)})
+func Parallelize(val interface{}, options ...PipelineOption) *Pipeline {
+	return NewPipeline(&parallelizedInput{data: lrdd.From(val)}, options...)
 }
 
 // FromLocalFile creates new Pipeline, with reading files under given path an input.
-func FromLocalFile(path string) *Pipeline {
-	return NewPipeline(&localInput{Path: path})
+func FromLocalFile(path string, options ...PipelineOption) *Pipeline {
+	return NewPipeline(&localInput{Path: path}, options...)
 }
 
 // ConnectToCluster connects to remote cluster.

@@ -30,10 +30,10 @@ type Pipeline struct {
 	nextStagePlan partitions.Plan
 
 	broadcasts serialization.Broadcast
-	options    SessionOptions
+	options    PipelineOptions
 }
 
-func NewPipeline(in input.Feeder, opts ...SessionOption) *Pipeline {
+func NewPipeline(in input.Feeder, opts ...PipelineOption) *Pipeline {
 	return &Pipeline{
 		input: in,
 		stages: []*stage.Stage{
@@ -154,18 +154,21 @@ func (p *Pipeline) listExecutors(ctx context.Context, c cluster.Cluster) ([]*nod
 }
 
 func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
-	j, err := p.createJob(context.Background(), c)
+	ctx, cancel := context.WithTimeout(context.Background(), p.options.StartTimeout)
+	defer cancel()
+
+	j, err := p.createJob(ctx, c)
 	if err != nil {
 		return nil, errors.Wrap(err, "create job")
 	}
-	drv, err := driver.NewRemote(context.Background(), j, c, p.input, p.broadcasts)
+	drv, err := driver.NewRemote(ctx, j, c, p.input, p.broadcasts)
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}
 	if err := drv.RunAsync(context.Background()); err != nil {
 		return nil, err
 	}
-	return newRunningJob(j, c.States(), drv), nil
+	return runningJob, nil
 }
 
 func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*driver.CollectResult, error) {
