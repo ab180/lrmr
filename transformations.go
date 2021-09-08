@@ -89,6 +89,9 @@ type mapTransformation struct {
 
 func (m *mapTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	for row := range in {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		outRow, err := m.mapper.Map(ctx, row)
 		if err != nil {
 			return err
@@ -123,6 +126,9 @@ type flatMapTransformation struct {
 
 func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	for row := range in {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		outRows, err := f.flatMapper.FlatMap(ctx, row)
 		if err != nil {
 			return err
@@ -158,6 +164,9 @@ type sortTransformation struct {
 
 func (s *sortTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	for row := range in {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		s.rows = append(s.rows, row)
 	}
 	// implemented sort.Interface by self
