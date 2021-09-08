@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"runtime"
 	"testing"
 
@@ -49,7 +50,7 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 		start := new(runtime.MemStats)
 		runtime.ReadMemStats(start)
 
-		if _, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster); err != nil {
+		if _, err := ds.RunAndCollect(context.TODO(), cluster); err != nil {
 			b.Fatalf("Failed to collect: %v", err)
 		}
 		end := new(runtime.MemStats)

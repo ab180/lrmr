@@ -55,7 +55,7 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 	}, nil
 }
 
-func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.SessionOption) func() {
+func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.PipelineOption) func() {
 	return func() {
 		c, err := NewLocalCluster(numWorkers)
 		if err != nil {
