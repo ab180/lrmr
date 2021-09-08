@@ -165,7 +165,8 @@ func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}
-	if err := drv.RunAsync(context.Background()); err != nil {
+	runningJob := startTrackBackgroundJob(j, c.States(), drv)
+	if err := drv.RunAsync(ctx); err != nil {
 		return nil, err
 	}
 	return runningJob, nil

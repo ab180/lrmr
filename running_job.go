@@ -21,6 +21,7 @@ import (
 
 type RunningJob struct {
 	*job.Job
+	jobErrChan    chan error
 	driver        driver.Driver
 	statusManager job.StatusManager
 	finalStatus   atomic.Value
@@ -29,9 +30,10 @@ type RunningJob struct {
 	logger        logger.Logger
 }
 
-func newRunningJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
+func startTrackBackgroundJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
 	runningJob := &RunningJob{
 		Job:           j,
+		jobErrChan:    make(chan error),
 		driver:        drv,
 		statusManager: job.NewDistributedStatusManager(c, j),
 		startedAt:     time.Now(),
@@ -52,10 +54,13 @@ func newRunningJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
 			runningJob.logger.Info(" - Error caused by [{}]: {}", strings.Join(tasks, ", "), errMsg)
 		}
 		runningJob.finalStatus.Store(status)
-		err := runningJob.logMetrics()
-		if err != nil {
-			runningJob.logger.Warn("Failed to log metrics: {}", err)
+		runningJob.logMetrics()
+
+		if status.Status == job.Failed {
+			runningJob.jobErrChan <- status.Errors[0]
+			return
 		}
+		runningJob.jobErrChan <- nil
 	})
 	return runningJob
 }
@@ -84,17 +89,8 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	errChan := make(chan error, 1)
-	r.statusManager.OnJobCompletion(func(status *job.Status) {
-		if status.Status == job.Failed {
-			errChan <- status.Errors[0]
-			return
-		}
-		errChan <- nil
-	})
-
 	select {
-	case err := <-errChan:
+	case err := <-r.jobErrChan:
 		return err
 
 	case <-ctx.Done():
@@ -122,23 +118,12 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		return errors.Wrap(err, "abort")
 	}
 
-	wait := make(chan struct{})
-	r.statusManager.OnJobCompletion(func(status *job.Status) {
-		wait <- struct{}{}
-	})
-	<-wait
+	<-r.jobErrChan
 	return nil
 }
 
-func (r *RunningJob) logMetrics() error {
+func (r *RunningJob) logMetrics() {
 	jobDuration := time.Now().Sub(r.startedAt)
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()
-	metrics, err := r.Metrics()
-	if err != nil {
-		return err
-	}
-	r.logger.Info("Job metrics:\n{}", metrics.String())
-
-	return nil
 }
