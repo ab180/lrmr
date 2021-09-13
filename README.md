@@ -8,35 +8,69 @@ Online MapReduce framework for Go, which is capable for jobs in sub-second.
  * Easily embeddable to existing applications
  * Uses **etcd** for cluster management / coordination
 
+### Example (Driver)
+
 ```go
 package main
 
 import (
-    "context"
-    "fmt"
-    "github.com/ab180/lrmr"
-    . "github.com/ab180/lrmr/test"
+	"context"
+	"fmt"
+
+	"github.com/ab180/lrmr"
+	. "github.com/ab180/lrmr/test"
 )
 
 func main() {
-    m, err := lrmr.RunMaster()
-    if err != nil {
-        panic(err)
-    }
-    m.Start()
-    defer m.Stop()
+	cluster, err := lrmr.ConnectToCluster()
+	if err != nil {
+		panic(err)
+	}
+	defer cluster.Close()
 
-    result, err := lrmr.NewSession(context.TODO(), m).
-        FromFile("./testdata/").
-        FlatMap(DecodeCSV()).
-        GroupByKey().
-        Reduce(Count()).
-        Collect()
+	result, err := lrmr.FromLocalFile("./test/testdata/unpacked/").
+		FlatMap(DecodeCSV()).
+		GroupByKey().
+		Reduce(Count()).
+		RunAndCollect(context.Background(), cluster)
 
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Done!", result)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Outputs:", result.Ouptuts)
+	fmt.Println("Metrics:", result.Metrics.String())
+}
+```
+
+### Example (Executor)
+
+Executor is a worker in a distributed cluster which runs jobs submitted from the driver.
+
+```
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ab180/lrmr"
+	. "github.com/ab180/lrmr/test"
+)
+
+func main() {
+	c, err := lrmr.ConnectToCluster()
+	if err != nil {
+		log.Fatalf("failed to join cluster: %v", err)
+	}
+	exec, err := lrmr.NewExecutor(c, opt)
+	if err != nil {
+		log.Fatalf("failed to initiate executor: %v", err)
+	}
+	defer exec.Close()
+
+	if err := exec.Start(); err != nil {
+		log.Fatalf("failed to start executor: %v", err)
+	}
 }
 ```
 
