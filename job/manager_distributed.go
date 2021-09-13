@@ -12,9 +12,13 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/pkg/errors"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 const (
+	// jobLogRetention specifies the lifespan of job state data on coordinator.
+	jobLogRetention = 24 * time.Hour
+
 	jobStatusFmt      = "status/jobs/%s"
 	stageStatusFmt    = "status/jobs/%s/stages/%s"
 	jobErrorNs        = "errors/jobs"
@@ -31,7 +35,8 @@ type DistributedManager struct {
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)
 	taskSubscriptions  []func(stageName string, doneCountInStage int)
-	subscriptionsMu    sync.RWMutex
+	mu                 sync.RWMutex
+	logRetentionLease  clientv3.LeaseID
 }
 
 func NewDistributedManager(clusterState cluster.State, job *Job) Manager {
@@ -43,8 +48,26 @@ func NewDistributedManager(clusterState cluster.State, job *Job) Manager {
 	return r
 }
 
+func (r *DistributedManager) getLeaseForLogRetention(ctx context.Context) (clientv3.LeaseID, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.logRetentionLease != clientv3.NoLease {
+		return r.logRetentionLease, nil
+	}
+	l, err := r.clusterState.GrantLease(ctx, jobLogRetention)
+	if err != nil {
+		return clientv3.NoLease, err
+	}
+	return l, nil
+}
+
 func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
-	if err := r.clusterState.Put(ctx, taskMetricsKey(taskID), metrics); err != nil {
+	l, err := r.getLeaseForLogRetention(ctx)
+	if err != nil {
+		return errors.Wrap(err, "grant lease for job log retention")
+	}
+	if err := r.clusterState.Put(ctx, taskMetricsKey(taskID), metrics, coordinator.WithLease(l)); err != nil {
 		return errors.Wrap(err, "write task metrics to etcd")
 	}
 
@@ -57,19 +80,24 @@ func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskI
 
 // MarkTaskAsFailed marks the task as failed. If the error is non-nil, it's added to the error list of the job.
 // Passing nil in error will only cancel the task.
-func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, err error, metrics lrmrmetric.Metrics) error {
-	txn := coordinator.NewTxn().
-		Put(taskMetricsKey(taskID), metrics).
-		IncrementCounter(doneTasksInStageKey(taskID)).
-		IncrementCounter(failedTasksInStageKey(taskID))
-
+func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
+	l, err := r.getLeaseForLogRetention(ctx)
 	if err != nil {
+		return errors.Wrap(err, "grant lease for job log retention")
+	}
+
+	txn := coordinator.NewTxn().
+		Put(taskMetricsKey(taskID), metrics, clientv3.WithLease(l)).
+		IncrementCounter(doneTasksInStageKey(taskID), clientv3.WithLease(l)).
+		IncrementCounter(failedTasksInStageKey(taskID), clientv3.WithLease(l))
+
+	if taskErr != nil {
 		errDesc := Error{
 			Task:       taskID.String(),
-			Message:    err.Error(),
+			Message:    taskErr.Error(),
 			Stacktrace: fmt.Sprintf("%+v", err),
 		}
-		txn = txn.Put(jobErrorKey(taskID), errDesc)
+		txn = txn.Put(jobErrorKey(taskID), errDesc, clientv3.WithLease(l))
 	}
 	if _, err := r.clusterState.Commit(ctx, txn); err != nil {
 		return errors.Wrap(err, "write etcd")
@@ -106,7 +134,7 @@ func (r *DistributedManager) reportStageCompletion(ctx context.Context, stageNam
 
 	s := newStageStatus()
 	s.Complete(status)
-	if err := r.clusterState.Put(ctx, stageStatusKey(r.job.ID, stageName), s); err != nil {
+	if err := r.clusterState.Put(ctx, stageStatusKey(r.job.ID, stageName), s, coordinator.WithLease(r.logRetentionLease)); err != nil {
 		return errors.Wrap(err, "update stage status")
 	}
 	if status == Failed {
@@ -136,13 +164,18 @@ func (r *DistributedManager) reportJobCompletion(ctx context.Context, status Run
 
 	log.Verbose("Reporting {} job", status)
 	js.Complete(status)
-	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js); err != nil {
+	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js, coordinator.WithLease(r.logRetentionLease)); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
 	}
 	return nil
 }
 
 func (r *DistributedManager) Abort(ctx context.Context, abortedBy TaskID) error {
+	l, err := r.getLeaseForLogRetention(ctx)
+	if err != nil {
+		return errors.Wrap(err, "grant lease for job log retention")
+	}
+
 	// var js Status
 	// if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
 	// 	return errors.Wrapf(err, "get status of job %s", r.job.ID)
@@ -158,8 +191,8 @@ func (r *DistributedManager) Abort(ctx context.Context, abortedBy TaskID) error 
 		Message: "aborted",
 	}
 	txn := coordinator.NewTxn().
-		Put(jobErrorKey(abortedBy), errDesc).
-		Put(jobStatusKey(r.job.ID), js)
+		Put(jobErrorKey(abortedBy), errDesc, clientv3.WithLease(l)).
+		Put(jobStatusKey(r.job.ID), js, clientv3.WithLease(l))
 
 	if _, err := r.clusterState.Commit(ctx, txn); err != nil {
 		return errors.Wrap(err, "write etcd")
@@ -169,16 +202,16 @@ func (r *DistributedManager) Abort(ctx context.Context, abortedBy TaskID) error 
 
 // OnJobCompletion registers callback for completion events of given job.
 func (r *DistributedManager) OnJobCompletion(callback func(*Status)) {
-	r.subscriptionsMu.Lock()
-	defer r.subscriptionsMu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	r.jobSubscriptions = append(r.jobSubscriptions, callback)
 }
 
 // OnStageCompletion registers callback for stage completion events in given job ID.
 func (r *DistributedManager) OnStageCompletion(callback func(stageName string, stageStatus *StageStatus)) {
-	r.subscriptionsMu.Lock()
-	defer r.subscriptionsMu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	r.stageSubscriptions = append(r.stageSubscriptions, callback)
 }
@@ -186,8 +219,8 @@ func (r *DistributedManager) OnStageCompletion(callback func(stageName string, s
 // OnTaskCompletion registers callback for task completion events in given job ID.
 // For performance, only the number of currently finished tasks in its stage is given to the callback.
 func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, doneCountInStage int)) {
-	r.subscriptionsMu.Lock()
-	defer r.subscriptionsMu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	r.taskSubscriptions = append(r.taskSubscriptions, callback)
 }
@@ -225,8 +258,8 @@ func (r *DistributedManager) handleTaskFinish(e coordinator.WatchEvent) {
 		log.Warn("Unable to handle task finish event: {}", err)
 		return
 	}
-	r.subscriptionsMu.RLock()
-	defer r.subscriptionsMu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	for _, callback := range r.taskSubscriptions {
 		go callback(stageName, int(e.Counter))
@@ -245,8 +278,8 @@ func (r *DistributedManager) handleStageStatusUpdate(e coordinator.WatchEvent) {
 		log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
 		return
 	}
-	r.subscriptionsMu.RLock()
-	defer r.subscriptionsMu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	for _, callback := range r.stageSubscriptions {
 		go callback(stageName, st)
@@ -263,8 +296,8 @@ func (r *DistributedManager) handleJobStatusChange() (finished bool) {
 		return false
 	}
 	if jobStatus.Status == Succeeded || jobStatus.Status == Failed {
-		r.subscriptionsMu.RLock()
-		defer r.subscriptionsMu.RUnlock()
+		r.mu.RLock()
+		defer r.mu.RUnlock()
 
 		for _, callback := range r.jobSubscriptions {
 			go callback(jobStatus)
