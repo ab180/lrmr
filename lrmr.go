@@ -2,8 +2,6 @@ package lrmr
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
@@ -28,8 +26,8 @@ func FromLocalFile(path string, options ...PipelineOption) *Pipeline {
 
 // ConnectToCluster connects to remote cluster.
 // A job sharing a same cluster object also shares gRPC connections to the executor nodes.
-func ConnectToCluster(optionalOpt ...Options) (cluster.Cluster, error) {
-	opt := DefaultOptions()
+func ConnectToCluster(optionalOpt ...ConnectClusterOptions) (cluster.Cluster, error) {
+	opt := DefaultConnectClusterOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
 	}
@@ -41,35 +39,11 @@ func ConnectToCluster(optionalOpt ...Options) (cluster.Cluster, error) {
 	return cluster.OpenRemote(etcd, cluster.DefaultOptions())
 }
 
-// RunExecutor starts a new Executor. Executor can run tasks start
-func RunExecutor(optionalOpt ...Options) error {
-	opt := DefaultOptions()
+// NewExecutor creates a new Executor. Executor can run LRMR jobs on a distributed remote cluster.
+func NewExecutor(c cluster.Cluster, optionalOpt ...executor.Options) (*executor.Executor, error) {
+	opt := executor.DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
 	}
-
-	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace, opt.EtcdOptions)
-	if err != nil {
-		return fmt.Errorf("connect etcd: %w", err)
-	}
-	w, err := executor.New(etcd, opt.Executor)
-	if err != nil {
-		return fmt.Errorf("init executor: %w", err)
-	}
-	go func() {
-		if err := w.Start(); err != nil {
-			log.Wtf("failed to start executor", err)
-			return
-		}
-	}()
-
-	waitForExit := make(chan os.Signal)
-	signal.Notify(waitForExit, os.Interrupt, os.Kill)
-	<-waitForExit
-
-	if err := w.Close(); err != nil {
-		log.Error("failed to shutdown executor node", err)
-	}
-	log.Info("Bye")
-	return nil
+	return executor.New(c, opt)
 }

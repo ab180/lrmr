@@ -1,21 +1,24 @@
 // Inspired by https://github.com/jandos/gofine
 // +build linux
 
-package executor
+package cpuaffinity
 
 import (
 	"math"
 	"runtime"
 	"sync"
 
+	"github.com/airbloc/logger"
 	"golang.org/x/sys/unix"
 )
+
+var log = logger.New("cpuaffinity")
 
 // maxNumCPUs value ported from gofine
 const maxNumCPUs = 1 << 10
 
-// CPUAffinityScheduler balances executor goroutines to available CPU cores.
-type CPUAffinityScheduler struct {
+// Scheduler balances executor goroutines to available CPU cores.
+type Scheduler struct {
 	originalAffinity unix.CPUSet
 	availableCores   []*core
 	mu               sync.Mutex
@@ -28,12 +31,12 @@ type core struct {
 	disableSchedule bool
 }
 
-// NewCPUAffinityScheduler creates a new CPU scheduler.
+// NewScheduler creates a new CPU scheduler.
 // It may panic if a system call to read current CPU core / affinity information fails.
-func NewCPUAffinityScheduler() CPUAffinityScheduler {
+func NewScheduler() Scheduler {
 	var currentCPUs unix.CPUSet
 	if err := unix.SchedGetaffinity(0, &currentCPUs); err != nil {
-		panic("initialize CPUAffinityScheduler: read current affinity: " + err.Error())
+		panic("initialize cpuaffinity.Scheduler: read current affinity: " + err.Error())
 	}
 
 	availableCores := make([]*core, 0, currentCPUs.Count())
@@ -46,7 +49,7 @@ func NewCPUAffinityScheduler() CPUAffinityScheduler {
 	// reserve core #0 for go runtime
 	availableCores[0].disableSchedule = true
 
-	return CPUAffinityScheduler{
+	return Scheduler{
 		originalAffinity: currentCPUs,
 		availableCores:   availableCores,
 	}
@@ -54,7 +57,7 @@ func NewCPUAffinityScheduler() CPUAffinityScheduler {
 
 // Occupy sticks current goroutine to freest CPU cores. Also, it locks the goroutine to current OS thread.
 // Returned occupation value can be used to release the goroutine from the core.
-func (s *CPUAffinityScheduler) Occupy(name string) (occupation interface{}) {
+func (s *Scheduler) Occupy(name string) (occupation interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -90,7 +93,7 @@ func (s *CPUAffinityScheduler) Occupy(name string) (occupation interface{}) {
 
 // Release releases current goroutine from to freest CPU cores.
 // The occupation value returned from Occupy is needed for release.
-func (s *CPUAffinityScheduler) Release(occupation interface{}) {
+func (s *Scheduler) Release(occupation interface{}) {
 	// 1. unlock current goroutine from the OS thread
 	defer runtime.UnlockOSThread()
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/driver"
+	"github.com/ab180/lrmr/internal/errchannel"
 	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/metric"
@@ -21,7 +22,7 @@ import (
 
 type RunningJob struct {
 	*job.Job
-	jobErrChan    chan error
+	jobErrChan    *errchannel.ErrChannel
 	driver        driver.Driver
 	statusManager job.Manager
 	finalStatus   atomic.Value
@@ -33,7 +34,7 @@ type RunningJob struct {
 func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
 	runningJob := &RunningJob{
 		Job:           j,
-		jobErrChan:    make(chan error),
+		jobErrChan:    errchannel.New(),
 		driver:        drv,
 		statusManager: job.NewDistributedManager(c, j),
 		startedAt:     time.Now(),
@@ -57,10 +58,10 @@ func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *R
 		runningJob.logMetrics()
 
 		if status.Status == job.Failed {
-			runningJob.jobErrChan <- status.Errors[0]
+			runningJob.jobErrChan.Send(status.Errors[0])
 			return
 		}
-		runningJob.jobErrChan <- nil
+		runningJob.jobErrChan.Send(nil)
 	})
 	return runningJob
 }
@@ -90,7 +91,7 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 	defer cancel()
 
 	select {
-	case err := <-r.jobErrChan:
+	case err := <-r.jobErrChan.Recv():
 		return err
 
 	case <-ctx.Done():
@@ -118,7 +119,7 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		return errors.Wrap(err, "abort")
 	}
 
-	<-r.jobErrChan
+	<-r.jobErrChan.Recv()
 	return nil
 }
 

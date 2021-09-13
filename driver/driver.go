@@ -17,15 +17,12 @@ import (
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/errorist"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var log = logger.New("lrmr")
 
 type Driver interface {
 	RunAttached(context.Context) (*CollectResult, error)

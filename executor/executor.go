@@ -11,8 +11,8 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
-	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/input"
+	"github.com/ab180/lrmr/internal/cpuaffinity"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
@@ -41,15 +41,11 @@ type Executor struct {
 	runningTasks    sync.Map
 	runningJobs     sync.Map
 	workerLocalOpts map[string]interface{}
-	cpuScheduler    CPUAffinityScheduler
+	cpuScheduler    cpuaffinity.Scheduler
 	opt             Options
 }
 
-func New(crd coordinator.Coordinator, opt Options) (*Executor, error) {
-	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
-	if err != nil {
-		return nil, err
-	}
+func New(c cluster.Cluster, opt Options) (*Executor, error) {
 	srv := grpc.NewServer(
 		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
 		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
@@ -62,7 +58,7 @@ func New(crd coordinator.Coordinator, opt Options) (*Executor, error) {
 		Cluster:         c,
 		RPCServer:       srv,
 		workerLocalOpts: make(map[string]interface{}),
-		cpuScheduler:    NewCPUAffinityScheduler(),
+		cpuScheduler:    cpuaffinity.NewScheduler(),
 		opt:             opt,
 	}
 	if err := w.register(); err != nil {
