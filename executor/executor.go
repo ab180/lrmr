@@ -87,7 +87,7 @@ func (w *Executor) register() error {
 		_, actualPort, _ := net.SplitHostPort(lis.Addr().String())
 		advHost += actualPort
 	}
-	n := node.New(advHost, w.opt.NodeType)
+	n := node.New(advHost)
 	n.Tag = w.opt.NodeTags
 	n.Executors = w.opt.Concurrency
 
