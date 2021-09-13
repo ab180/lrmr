@@ -6,26 +6,17 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 )
 
-type Type string
-
-const (
-	Master Type = "master"
-	Worker Type = "executor"
-)
-
 type Node struct {
 	Host      string `json:"host"`
-	Type      Type   `json:"type"`
 	Executors int    `json:"executors"`
 
 	// Tag is used for affinity rules (e.g. resource locality, ...)
 	Tag map[string]string `json:"tag,omitempty"`
 }
 
-func New(host string, typ Type) *Node {
+func New(host string) *Node {
 	return &Node{
 		Host:      host,
-		Type:      typ,
 		Executors: runtime.NumCPU(),
 	}
 }
