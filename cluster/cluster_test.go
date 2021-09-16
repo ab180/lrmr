@@ -33,15 +33,6 @@ func TestCluster_List(t *testing.T) {
 				So(listedNodes, ShouldHaveLength, len(nodes))
 			})
 
-			Convey("With filter, should return nodes with specific type", func() {
-				listedNodes, err := c.List(ctx, cluster.ListOption{Type: node.Worker})
-				So(err, ShouldBeNil)
-				So(listedNodes, ShouldHaveLength, len(nodes)-1)
-				for _, n := range listedNodes {
-					So(n.Type, ShouldEqual, node.Worker)
-				}
-			})
-
 			Convey("With selector, should match nodes by a tag", func() {
 				listedNodes, err := c.List(ctx, cluster.ListOption{Tag: map[string]string{"No": "2"}})
 				So(err, ShouldBeNil)
@@ -57,7 +48,6 @@ func TestCluster_Register(t *testing.T) {
 		Convey("Node information should be registered", func() {
 			_, err := c.Register(ctx, &node.Node{
 				Host: "test",
-				Type: node.Worker,
 			})
 			So(err, ShouldBeNil)
 		})
@@ -65,7 +55,6 @@ func TestCluster_Register(t *testing.T) {
 		Convey("Registered node information should be removed after unregister", func() {
 			nr, err := c.Register(ctx, &node.Node{
 				Host: "test",
-				Type: node.Worker,
 			})
 			So(err, ShouldBeNil)
 
@@ -120,7 +109,6 @@ func TestCluster_NodeStates(t *testing.T) {
 	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
 		nodeReg, err := c.Register(ctx, &node.Node{
 			Host: "test",
-			Type: node.Worker,
 		})
 		if err != nil {
 			So(err, ShouldBeNil)
@@ -147,16 +135,18 @@ func TestCluster_NodeStates(t *testing.T) {
 func WithCluster(fn func(context.Context, cluster.Cluster)) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		etcd, closeEtcd := integration.ProvideEtcd()
 
 		opt := cluster.DefaultOptions()
 		opt.LivenessProbeInterval = tick
-		c, err := cluster.OpenRemote(integration.ProvideEtcd(), opt)
+		c, err := cluster.OpenRemote(etcd, opt)
 		So(err, ShouldBeNil)
 
 		Reset(func() {
 			err = c.Close()
 			So(err, ShouldBeNil)
 			cancel()
+			closeEtcd()
 			So(goleak.Find(), ShouldBeNil)
 		})
 
@@ -181,13 +171,9 @@ func WithTestNodes(cluster cluster.Cluster, fn func(nodes []node.Registration)) 
 
 			n := &node.Node{
 				Host: lis.Addr().String(),
-				Type: node.Worker,
 				Tag: map[string]string{
 					"No": strconv.Itoa(i),
 				},
-			}
-			if i == 0 {
-				n.Type = node.Master
 			}
 			nodes[i], err = cluster.Register(context.TODO(), n)
 			So(err, ShouldBeNil)

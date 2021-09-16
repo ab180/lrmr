@@ -3,7 +3,6 @@ package executor
 import (
 	"runtime"
 
-	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/output"
 	"github.com/creasty/defaults"
 )
@@ -18,7 +17,6 @@ type Options struct {
 
 	// NodeTags is used for partitioner.
 	NodeTags map[string]string `default:"{}"`
-	NodeType node.Type         `default:"executor"`
 
 	Input struct {
 		QueueLength int `default:"1000"`

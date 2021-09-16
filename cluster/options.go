@@ -3,7 +3,6 @@ package cluster
 import (
 	"time"
 
-	"github.com/ab180/lrmr/cluster/node"
 	"github.com/creasty/defaults"
 )
 
@@ -26,6 +25,5 @@ func DefaultOptions() (o Options) {
 }
 
 type ListOption struct {
-	Type node.Type
-	Tag  map[string]string
+	Tag map[string]string
 }
