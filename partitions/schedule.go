@@ -45,7 +45,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		if len(plan.DesiredNodeAffinity) > 0 {
 			slot := 0
 			for i := 0; i < lenCandidates; i++ {
-				n, nextSlot := selectNextNodeWithAffinity(nodes, opts.Master, plan.DesiredNodeAffinity, slot)
+				n, nextSlot := selectNextNodeWithAffinity(nodes, plan.DesiredNodeAffinity, slot)
 				if n != nil {
 					candidates = append(candidates, *n)
 				}
@@ -104,7 +104,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		for j, p := range partitions {
 			var selected *nodeWithStats
 			if len(p.AssignmentAffinity) > 0 {
-				selected, curSlot = selectNextNodeWithAffinity(candidates, opts.Master, p.AssignmentAffinity, curSlot)
+				selected, curSlot = selectNextNodeWithAffinity(candidates, p.AssignmentAffinity, curSlot)
 				if selected == nil {
 					log.Warn("Unable to find node satisfying affinity rule {} for partition {}.", p.AssignmentAffinity, p.ID)
 					selected, curSlot = selectNextNode(candidates, plan, curSlot)
@@ -139,11 +139,7 @@ func selectNextNode(nn []nodeWithStats, plan *Plan, curSlot int) (selected *node
 	return &nn[curSlot%len(nn)], curSlot + 1
 }
 
-func selectNextNodeWithAffinity(nn []nodeWithStats, maybeMaster *node.Node, rules map[string]string, curSlot int) (selected *nodeWithStats, next int) {
-	if expectedTyp, ok := rules["Type"]; ok && expectedTyp == string(node.Master) && maybeMaster != nil {
-		// explicit selection of master node
-		return &nodeWithStats{Node: maybeMaster, currentTasks: 0}, curSlot
-	}
+func selectNextNodeWithAffinity(nn []nodeWithStats, rules map[string]string, curSlot int) (selected *nodeWithStats, next int) {
 	for slot := curSlot; slot < curSlot+len(nn); slot++ {
 		n := &nn[slot%len(nn)]
 		if satisfiesAffinity(n.Node, rules) {
@@ -170,7 +166,6 @@ func satisfiesAffinity(n *node.Node, rules map[string]string) bool {
 
 type ScheduleOptions struct {
 	DisableShufflingNodes bool
-	Master                *node.Node
 }
 
 type ScheduleOption func(o *ScheduleOptions)
@@ -178,15 +173,6 @@ type ScheduleOption func(o *ScheduleOptions)
 func WithoutShufflingNodes() ScheduleOption {
 	return func(o *ScheduleOptions) {
 		o.DisableShufflingNodes = true
-	}
-}
-
-func WithMaster(n *node.Node) ScheduleOption {
-	if n.Type != node.Master {
-		panic("given node " + n.Host + " is not a master")
-	}
-	return func(o *ScheduleOptions) {
-		o.Master = n
 	}
 }
 

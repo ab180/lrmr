@@ -109,7 +109,7 @@ func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration
 	if err := nodeReg.States().Put(ctx, path.Join(nodeNs, n.Host), n); err != nil {
 		return nil, errors.Wrap(err, "register node info")
 	}
-	log.Info("{} node registered as {} (Tag: {})", n.Type, n.Host, n.Tag)
+	log.Info("executor node registered as {} (Tag: {})", n.Host, n.Tag)
 	return nodeReg, nil
 }
 
@@ -163,9 +163,6 @@ func (c *cluster) List(ctx context.Context, option ...ListOption) ([]*node.Node,
 		n := new(node.Node)
 		if err := item.Unmarshal(n); err != nil {
 			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
-		}
-		if opt.Type != "" && n.Type != opt.Type {
-			continue
 		}
 		if opt.Tag != nil && !n.TagMatches(opt.Tag) {
 			continue

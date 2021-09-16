@@ -5,6 +5,8 @@ package cpuaffinity
 
 import (
 	"sync"
+
+	"github.com/airbloc/logger"
 )
 
 var log = logger.New("cpuaffinity")

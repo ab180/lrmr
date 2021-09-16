@@ -139,7 +139,7 @@ func (p *Pipeline) createJob(ctx context.Context, c cluster.Cluster) (*job.Job, 
 }
 
 func (p *Pipeline) listExecutors(ctx context.Context, c cluster.Cluster) ([]*node.Node, error) {
-	listOpts := cluster.ListOption{Type: node.Worker}
+	listOpts := cluster.ListOption{}
 	if p.options.NodeSelector != nil {
 		listOpts.Tag = p.options.NodeSelector
 	}
