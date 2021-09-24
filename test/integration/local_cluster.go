@@ -15,14 +15,15 @@ import (
 type LocalCluster struct {
 	cluster.Cluster
 	crd       coordinator.Coordinator
+	closeEtcd func()
 	Executors []*executor.Executor
 	testCtx   C
 }
 
 func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 	workers := make([]*executor.Executor, numWorkers)
-	crd := ProvideEtcd()
-	c, err := cluster.OpenRemote(crd, cluster.DefaultOptions())
+	etcd, closeEtcd := ProvideEtcd()
+	c, err := cluster.OpenRemote(etcd, cluster.DefaultOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 		opt.Concurrency = 2
 		opt.NodeTags["No"] = strconv.Itoa(i + 1)
 
-		w, err := executor.New(crd, opt)
+		w, err := executor.New(c, opt)
 		if err != nil {
 			return nil, errors.Wrapf(err, "init executor #%d", i)
 		}
@@ -50,7 +51,8 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 
 	return &LocalCluster{
 		Cluster:   c,
-		crd:       crd,
+		closeEtcd: closeEtcd,
+		crd:       etcd,
 		Executors: workers,
 	}, nil
 }
@@ -71,6 +73,8 @@ func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.
 }
 
 func (lc *LocalCluster) Close() error {
+	defer lc.closeEtcd()
+
 	for i, w := range lc.Executors {
 		if err := w.Close(); err != nil {
 			return errors.Wrapf(err, "close executor #%d", i)

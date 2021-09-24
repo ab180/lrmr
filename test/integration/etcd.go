@@ -19,9 +19,9 @@ const (
 
 // ProvideEtcd provides coordinator.Etcd on integration tests.
 // Otherwise, coordinator.LocalMemory is provided.
-func ProvideEtcd() coordinator.Coordinator {
+func ProvideEtcd() (crd coordinator.Coordinator, closer func()) {
 	if !IsIntegrationTest {
-		return coordinator.NewLocalMemory()
+		return coordinator.NewLocalMemory(), func() {}
 	}
 	rand.Seed(time.Now().Unix())
 	testNs := fmt.Sprintf("lrmr_test_%s/", funk.RandomString(10))
@@ -36,7 +36,7 @@ func ProvideEtcd() coordinator.Coordinator {
 	}
 
 	// clean all items under test namespace
-	Reset(func() {
+	closer = func() {
 		time.Sleep(400 * time.Millisecond)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -49,6 +49,6 @@ func ProvideEtcd() coordinator.Coordinator {
 		if err := etcd.Close(); err != nil {
 			So(err, ShouldBeNil)
 		}
-	})
-	return etcd
+	}
+	return etcd, closer
 }

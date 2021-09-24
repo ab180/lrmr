@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"runtime"
+	"runtime/debug"
 	"testing"
 
 	"github.com/ab180/lrmr/metric"
@@ -61,6 +62,13 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 	b.StopTimer()
 	_ = cluster.Close()
 	b.Logf("Total Memory Used: Average %dMiB", allocSum/uint64(b.N)/1024/1024)
+
+	runtime.GC()
+	debug.FreeOSMemory()
+
+	final := new(runtime.MemStats)
+	runtime.ReadMemStats(final)
+	b.Logf("Memory left after test: Average %dMiB", final.HeapAlloc/1024/1024)
 }
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
