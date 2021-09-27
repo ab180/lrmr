@@ -1,13 +1,12 @@
 package lrmr
 
 import (
-	"fmt"
-
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/executor"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -34,9 +33,30 @@ func ConnectToCluster(optionalOpt ...ConnectClusterOptions) (cluster.Cluster, er
 
 	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace, opt.EtcdOptions)
 	if err != nil {
-		return nil, fmt.Errorf("connect etcd: %w", err)
+		return nil, errors.Wrap(err, "connect etcd")
 	}
-	return cluster.OpenRemote(etcd, cluster.DefaultOptions())
+	clu, err := cluster.OpenRemote(etcd, opt.ClusterOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &clusterWithEtcd{
+		etcd:    etcd,
+		Cluster: clu,
+	}, nil
+}
+
+// clusterWithEtcd is for closing cluster with etcd.
+type clusterWithEtcd struct {
+	etcd coordinator.Coordinator
+	cluster.Cluster
+}
+
+// Close closes etcd after closing cluster.
+func (c *clusterWithEtcd) Close() error {
+	if err := c.Cluster.Close(); err != nil {
+		return err
+	}
+	return c.etcd.Close()
 }
 
 // NewExecutor creates a new Executor. Executor can run LRMR jobs on a distributed remote cluster.
