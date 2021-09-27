@@ -1,10 +1,9 @@
-package worker
+package executor
 
 import (
 	"context"
 	"time"
 
-	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/transformation"
 )
 
@@ -34,7 +33,7 @@ func (c taskContext) JobSubmittedAt() time.Time {
 }
 
 func (c taskContext) Broadcast(key string) interface{} {
-	return c.executor.broadcast[key]
+	return c.executor.job.Broadcasts[key]
 }
 
 func (c taskContext) WorkerLocalOption(key string) interface{} {
@@ -42,27 +41,11 @@ func (c taskContext) WorkerLocalOption(key string) interface{} {
 }
 
 func (c *taskContext) AddMetric(name string, delta int) {
-	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
-		metrics[name] += int(delta)
-	})
+	c.executor.Metrics[name] = uint64(int(c.executor.Metrics[name]) + delta)
 }
 
 func (c *taskContext) SetMetric(name string, val int) {
-	c.executor.taskReporter.UpdateMetric(func(metrics job.Metrics) {
-		metrics[name] = val
-	})
-}
-
-func (c *taskContext) SetGauge(name string, val float64) {
-	panic("implement me")
-}
-
-func (c *taskContext) ObserveHistogram(name string, val float64) {
-	panic("implement me")
-}
-
-func (c *taskContext) ObserveSummary(name string, val float64) {
-	panic("implement me")
+	c.executor.Metrics[name] = uint64(val)
 }
 
 // taskContext implements transformation.Context.

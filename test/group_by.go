@@ -5,26 +5,26 @@ import (
 	"github.com/ab180/lrmr/test/testdata"
 )
 
-func BasicGroupByKey(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.FromFile(testdata.Path()).
+func BasicGroupByKey() *lrmr.Pipeline {
+	return lrmr.FromLocalFile(testdata.Path()).
 		FlatMap(DecodeCSV()).
 		GroupByKey().
 		Reduce(Count())
 }
 
-func BasicGroupByKnownKeys(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.FromFile(testdata.Path()).
+func BasicGroupByKnownKeys() *lrmr.Pipeline {
+	return lrmr.FromLocalFile(testdata.Path()).
 		FlatMap(DecodeCSV()).
 		GroupByKnownKeys([]string{"8263", "9223", "8636", "3962"}).
 		Reduce(Count())
 }
 
-func SimpleCount(sess *lrmr.Session) *lrmr.Dataset {
+func SimpleCount() *lrmr.Pipeline {
 	d := map[string][]string{
 		"foo": {"goo", "hoo"},
 		"bar": {"baz"},
 	}
-	return sess.Parallelize(d).
+	return lrmr.Parallelize(d).
 		GroupByKey().
 		Reduce(Count())
 }

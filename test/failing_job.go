@@ -19,6 +19,6 @@ func (f FailingStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*
 	return nil
 }
 
-func FailingJob(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.Parallelize([]int{1, 2, 3, 4, 5}).Do(FailingStage{})
+func FailingJob() *lrmr.Pipeline {
+	return lrmr.Parallelize([]int{1, 2, 3, 4, 5}).Do(FailingStage{})
 }

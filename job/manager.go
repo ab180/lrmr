@@ -2,197 +2,33 @@ package job
 
 import (
 	"context"
-	"fmt"
-	"path"
-	"strings"
 
-	"github.com/ab180/lrmr/cluster"
-	"github.com/ab180/lrmr/coordinator"
-	"github.com/ab180/lrmr/partitions"
-	"github.com/ab180/lrmr/stage"
-	"github.com/airbloc/logger"
-	"github.com/pkg/errors"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 )
 
-const (
-	jobNs          = "jobs/"
-	taskNs         = "tasks/"
-	stageStatusFmt = "status/jobs/%s/stages/%s"
-	taskStatusFmt  = "status/jobs/%s/tasks/%s/%s"
-	jobStatusFmt   = "status/jobs/%s"
-	jobErrorNs     = "errors/jobs"
-)
+// Manager controls a job.
+type Manager interface {
+	// MarkTaskAsSucceed marks a task as succeed.
+	// If all tasks in its belonging stage are also completed, it marks the stage as completed.
+	// If all stages in belonging job are also completed, it marks the job as completed.
+	MarkTaskAsSucceed(context.Context, TaskID, lrmrmetric.Metrics) error
 
-type Manager struct {
-	clusterState cluster.State
-	log          logger.Logger
-}
+	// MarkTaskAsFailed marks task and its belonging job as failed.
+	MarkTaskAsFailed(context.Context, TaskID, error, lrmrmetric.Metrics) error
 
-func NewManager(cs cluster.State) *Manager {
-	return &Manager{
-		clusterState: cs,
-		log:          logger.New("lrmr/job.Manager"),
-	}
-}
+	// Abort cancels the job.
+	Abort(ctx context.Context, abortedBy TaskID) error
 
-func (m *Manager) CreateJob(ctx context.Context, name string, stages []stage.Stage, assignments []partitions.Assignments) (*Job, error) {
-	js := newStatus()
-	j := &Job{
-		ID:          name,
-		Stages:      stages,
-		Partitions:  assignments,
-		SubmittedAt: js.SubmittedAt,
-	}
-	txn := coordinator.NewTxn().
-		Put(path.Join(jobNs, j.ID), j).
-		Put(jobStatusKey(j.ID), js)
+	// OnJobCompletion registers callback for completion events of given job.
+	OnJobCompletion(callback func(*Status))
 
-	for _, s := range j.Stages {
-		txn.Put(stageStatusKey(j.ID, s.Name), newStageStatus())
-	}
-	if _, err := m.clusterState.Commit(ctx, txn); err != nil {
-		return nil, errors.Wrap(err, "etcd write")
-	}
-	return j, nil
-}
+	// OnStageCompletion registers callback for stage completion events in given job ID.
+	OnStageCompletion(callback func(stageName string, stageStatus *StageStatus))
 
-func (m *Manager) GetJob(ctx context.Context, jobID string) (*Job, error) {
-	job := &Job{}
-	if err := m.clusterState.Get(ctx, path.Join(jobNs, jobID), job); err != nil {
-		return nil, err
-	}
-	return job, nil
-}
+	// OnTaskCompletion registers callback for task completion events in given job ID.
+	// For performance, only the number of currently finished tasks in its stage is given to the callback.
+	OnTaskCompletion(callback func(stageName string, doneCountInStage int))
 
-func (m *Manager) GetJobStatus(ctx context.Context, jobID string) (Status, error) {
-	var js Status
-	if err := m.clusterState.Get(ctx, jobStatusKey(jobID), &js); err != nil {
-		return Status{}, err
-	}
-	errs, err := m.GetJobErrors(ctx, jobID)
-	if err != nil {
-		return Status{}, err
-	}
-	js.Errors = errs
-	return js, nil
-}
-
-func (m *Manager) SetJobStatus(ctx context.Context, jobID string, js Status) error {
-	// errors are stored in separate namespace. omit it on /job/status/:jobID
-	js.Errors = nil
-	return m.clusterState.Put(ctx, jobStatusKey(jobID), &js)
-}
-
-func (m *Manager) GetJobErrors(ctx context.Context, jobID string) ([]Error, error) {
-	items, err := m.clusterState.Scan(ctx, path.Join(jobErrorNs, jobID))
-	if err != nil {
-		return nil, err
-	}
-	errs := make([]Error, len(items))
-	for i, item := range items {
-		if err := item.Unmarshal(&errs[i]); err != nil {
-			return nil, errors.Wrapf(err, "unmarshal item %s", item.Key)
-		}
-	}
-	return errs, nil
-}
-
-func (m *Manager) ListJobs(ctx context.Context, prefixFormat string, args ...interface{}) ([]*Job, error) {
-	keyPrefix := path.Join(jobNs, fmt.Sprintf(prefixFormat, args...))
-	results, err := m.clusterState.Scan(ctx, keyPrefix)
-	if err != nil {
-		return nil, err
-	}
-	jobs := make([]*Job, len(results))
-	for i, item := range results {
-		job := &Job{}
-		if err := item.Unmarshal(job); err != nil {
-			return nil, fmt.Errorf("unmarshal %s: %w", item.Key, err)
-		}
-		jobs[i] = job
-	}
-	return jobs, nil
-}
-
-func (m *Manager) CreateTask(ctx context.Context, task *Task) (*TaskStatus, error) {
-	status := NewTaskStatus()
-	if err := m.clusterState.Put(ctx, taskStatusKey(task.ID()), status); err != nil {
-		return nil, fmt.Errorf("task write: %w", err)
-	}
-	return status, nil
-}
-
-func (m *Manager) GetTaskStatus(ctx context.Context, ref TaskID) (*TaskStatus, error) {
-	status := &TaskStatus{}
-	if err := m.clusterState.Get(ctx, taskStatusKey(ref), status); err != nil {
-		return nil, errors.Wrap(err, "get task")
-	}
-	return status, nil
-}
-
-func (m *Manager) ListTaskStatusesInJob(ctx context.Context, jobID string) ([]*TaskStatus, error) {
-	items, err := m.clusterState.Scan(ctx, jobStatusKey(jobID, "tasks"))
-	if err != nil {
-		return nil, errors.Wrap(err, "get task")
-	}
-	statuses := make([]*TaskStatus, len(items))
-	for i, item := range items {
-		statuses[i] = new(TaskStatus)
-		if err := item.Unmarshal(statuses[i]); err != nil {
-			return nil, errors.Wrapf(err, "unmarshal task status %s", item.Key)
-		}
-	}
-	return statuses, nil
-}
-
-func (m *Manager) Track(j *Job) *Tracker {
-	return newJobTracker(m, j)
-}
-
-func jobStatusKey(jobID string, extra ...string) string {
-	base := fmt.Sprintf(jobStatusFmt, jobID)
-	return path.Join(append([]string{base}, extra...)...)
-}
-
-// stageStatusKey returns a key of stage summary entry with given name.
-func stageStatusKey(jobID, stageName string, extra ...string) string {
-	base := fmt.Sprintf(stageStatusFmt, jobID, stageName)
-	return path.Join(append([]string{base}, extra...)...)
-}
-
-func stageNameFromStageStatusKey(stageStatusKey string) (string, error) {
-	pathFrags := strings.Split(stageStatusKey, "/")
-	if len(pathFrags) < 5 {
-		return "", errors.Errorf("invalid stage status key format: %s", stageStatusKey)
-	}
-	return pathFrags[4], nil
-}
-
-// taskStatusKey returns a key of task status entry with given name.
-func taskStatusKey(id TaskID, extra ...string) string {
-	base := fmt.Sprintf(taskStatusFmt, id.JobID, id.StageName, id.PartitionID)
-	return path.Join(append([]string{base}, extra...)...)
-}
-
-// jobErrorKey returns a key of job error entry with given name.
-func jobErrorKey(ref TaskID) string {
-	return path.Join(jobErrorNs, ref.String())
-}
-
-const (
-	doneTasksSuffix   = "doneTasks"
-	failedTasksSuffix = "failedTasks"
-	doneStagesSuffix  = "doneStages"
-)
-
-func doneTasksInStageKey(t TaskID) string {
-	return stageStatusKey(t.JobID, t.StageName, "doneTasks")
-}
-
-func failedTasksInStageKey(t TaskID) string {
-	return stageStatusKey(t.JobID, t.StageName, "failedTasks")
-}
-
-func doneStagesKey(jobID string) string {
-	return jobStatusKey(jobID, "doneStages")
+	// CollectMetrics collects task metrics in a job.
+	CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error)
 }

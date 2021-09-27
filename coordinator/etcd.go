@@ -19,6 +19,11 @@ const (
 	// counterMark is value used for counter keys. If a key's value equals to counterMark,
 	// it means the key is counter and its value would be its version.
 	counterMark = "__counter"
+
+	// below settings is for disaster recovery / distributed cluster
+	keepAliveInterval = 5 * time.Second
+	keepAliveTimeout  = 3 * time.Second
+	autoSyncInterval  = time.Minute
 )
 
 type Etcd struct {
@@ -51,10 +56,14 @@ func NewEtcd(endpoints []string, nsPrefix string, opts ...EtcdOptions) (Coordina
 	}
 
 	cfg := clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: option.DialTimeout,
-		DialOptions: []grpc.DialOption{grpc.WithBlock()},
-		Logger:      zap.NewNop(),
+		Endpoints:            endpoints,
+		DialTimeout:          option.DialTimeout,
+		DialOptions:          []grpc.DialOption{grpc.WithBlock()},
+		DialKeepAliveTime:    keepAliveInterval,
+		DialKeepAliveTimeout: keepAliveTimeout,
+		AutoSyncInterval:     autoSyncInterval,
+		PermitWithoutStream:  true,
+		Logger:               zap.NewNop(),
 	}
 	cli, err := clientv3.New(cfg)
 	if err != nil {

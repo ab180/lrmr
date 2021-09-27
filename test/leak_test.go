@@ -14,12 +14,11 @@ func TestLeakOnShortRunning(t *testing.T) {
 
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running short-running job", func() {
-			ds := AssignTaskOnMaster(cluster.Session)
+			ds := SimpleCount()
 
 			Convey("It should not leak any goroutines", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
+				_, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				So(rows, ShouldHaveLength, 1)
 			})
 		})
 	}))

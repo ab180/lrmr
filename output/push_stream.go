@@ -2,9 +2,7 @@ package output
 
 import (
 	"context"
-	"io"
 
-	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
@@ -15,15 +13,9 @@ import (
 
 type PushStream struct {
 	stream lrmrpb.Node_PushDataClient
-	conn   io.Closer
 }
 
-func OpenPushStream(ctx context.Context, cluster cluster.Cluster, n *node.Node, host, taskID string) (*PushStream, error) {
-	conn, err := cluster.Connect(ctx, host)
-	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s", host)
-	}
-
+func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, host, taskID string) (Output, error) {
 	header := &lrmrpb.DataHeader{
 		TaskID: taskID,
 	}
@@ -35,14 +27,12 @@ func OpenPushStream(ctx context.Context, cluster cluster.Cluster, n *node.Node, 
 	rawHead, _ := jsoniter.MarshalToString(header)
 	runCtx := metadata.AppendToOutgoingContext(ctx, "dataHeader", rawHead)
 
-	worker := lrmrpb.NewNodeClient(conn)
-	stream, err := worker.PushData(runCtx)
+	stream, err := rpc.PushData(runCtx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "open stream to %s", host)
 	}
 	return &PushStream{
 		stream: stream,
-		conn:   conn,
 	}, nil
 }
 
@@ -51,5 +41,6 @@ func (p *PushStream) Write(data ...*lrdd.Row) (err error) {
 }
 
 func (p *PushStream) Close() error {
-	return p.stream.CloseSend()
+	_, err := p.stream.CloseAndRecv()
+	return err
 }

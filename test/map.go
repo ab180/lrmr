@@ -16,12 +16,12 @@ func (m *Multiply) Map(ctx lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
 	return lrdd.Value(n * 2), nil
 }
 
-func Map(sess *lrmr.Session) *lrmr.Dataset {
+func Map() *lrmr.Pipeline {
 	data := make([]int, 1000)
 	for i := 0; i < len(data); i++ {
 		data[i] = i + 1
 	}
-	return sess.Parallelize(data).
+	return lrmr.Parallelize(data).
 		Map(&Multiply{}).
 		Map(&Multiply{}).
 		Map(&Multiply{})

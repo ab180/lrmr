@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 type RunningState string
@@ -46,7 +48,7 @@ func newStatus() Status {
 
 type StageStatus struct {
 	baseStatus
-	Errors []string `json:"errors,omitempty"`
+	DoneTasks atomic.Int32 `json:"doneTasks"`
 }
 
 func newStageStatus() *StageStatus {

@@ -1,13 +1,14 @@
-package worker
+package executor
 
 import (
 	"context"
 
-	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/input"
-	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/lrdd"
+	"github.com/ab180/lrmr/lrmrpb"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/transformation"
 	"github.com/therne/errorist"
@@ -17,53 +18,55 @@ type TaskExecutor struct {
 	task *job.Task
 	job  *runningJobHolder
 
-	Input    *input.Reader
-	function transformation.Transformation
-	Output   *output.Writer
-
-	broadcast    serialization.Broadcast
+	Input        *input.Reader
+	Stage        *stage.Stage
+	Output       *output.Writer
+	OutputDesc   *lrmrpb.Output
+	Metrics      lrmrmetric.Metrics
 	localOptions map[string]interface{}
-
-	taskReporter *job.TaskReporter
 	taskError    error
 }
 
 func NewTaskExecutor(
-	clusterState cluster.State,
 	runningJob *runningJobHolder,
 	task *job.Task,
-	status *job.TaskStatus,
-	fn transformation.Transformation,
+	curStage *stage.Stage,
 	in *input.Reader,
-	out *output.Writer,
-	broadcast serialization.Broadcast,
+	outDesc *lrmrpb.Output,
 	localOptions map[string]interface{},
 ) *TaskExecutor {
 	exec := &TaskExecutor{
 		task:         task,
 		job:          runningJob,
 		Input:        in,
-		function:     fn,
-		Output:       out,
-		broadcast:    broadcast,
+		Stage:        curStage,
+		OutputDesc:   outDesc,
+		Metrics:      make(lrmrmetric.Metrics),
 		localOptions: localOptions,
-		taskReporter: job.NewTaskReporter(clusterState, runningJob.Job, task.ID(), status),
 	}
 	return exec
+}
+
+func (e *TaskExecutor) SetOutput(out *output.Writer) {
+	e.Output = out
 }
 
 func (e *TaskExecutor) Run() {
 	ctx, cancel := newTaskContextWithCancel(e.job.Context(), e)
 	defer cancel()
 
-	go e.taskReporter.Start(ctx)
 	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
 	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
-	if err := e.function.Apply(ctx, funcInputChan, e.Output); err != nil {
+	// hard copy. TODO: a better way to do it!
+	fnData, _ := e.Stage.Function.MarshalJSON()
+	var function transformation.Serializable
+	_ = function.UnmarshalJSON(fnData)
+
+	if err := function.Apply(ctx, funcInputChan, e.Output); err != nil {
 		if ctx.Err() != nil {
 			// ignore errors caused by task cancellation
 			return
@@ -86,17 +89,17 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	}
 
 	if taskErr != nil {
-		if err := e.taskReporter.ReportFailure(ctx, taskErr); err != nil {
+		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), taskErr, e.Metrics); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
 	} else if ctx.Err() == nil {
-		if err := e.taskReporter.ReportSuccess(ctx); err != nil {
+		if err := e.job.Reporter.ReportTaskSuccess(ctx, e.task.ID(), e.Metrics); err != nil {
 			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
 		}
 	}
 
 	// to help GC
-	e.function = nil
+	e.Stage = nil
 	e.Input = nil
 }
 

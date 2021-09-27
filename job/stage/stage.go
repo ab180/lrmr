@@ -10,7 +10,7 @@ type Stage struct {
 	Name string `json:"name"`
 
 	// Input are list of stages need to be executed before this stage.
-	Inputs []Input `json:"inputs"`
+	Inputs []*Input `json:"inputs"`
 
 	// Function is a transformation the stage executes.
 	Function transformation.Serializable `json:"function"`
@@ -19,15 +19,15 @@ type Stage struct {
 }
 
 // New creates a new stage.
-func New(name string, fn transformation.Transformation, in ...Input) Stage {
-	return Stage{
+func New(name string, fn transformation.Transformation, in ...*Input) *Stage {
+	return &Stage{
 		Name:     name,
 		Inputs:   in,
 		Function: transformation.Serializable{Transformation: fn},
 	}
 }
 
-func (s *Stage) SetOutputTo(dest Stage) {
+func (s *Stage) SetOutputTo(dest *Stage) {
 	s.Output.Stage = dest.Name
 	// s.Output.Type
 }
@@ -37,8 +37,8 @@ type Input struct {
 	Type  serialization.Type `json:"type"`
 }
 
-func InputFrom(s Stage) Input {
-	return Input{
+func InputFrom(s *Stage) *Input {
+	return &Input{
 		Stage: s.Name,
 		// Type:  s.Output.Type,
 	}

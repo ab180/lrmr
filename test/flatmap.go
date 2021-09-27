@@ -16,12 +16,12 @@ func (m *MultiplyAndDouble) FlatMap(ctx lrmr.Context, row *lrdd.Row) ([]*lrdd.Ro
 	return lrdd.From([]int{n * 2, n * 2}), nil
 }
 
-func FlatMap(sess *lrmr.Session) *lrmr.Dataset {
+func FlatMap() *lrmr.Pipeline {
 	data := make([]int, 1000)
 	for i := 0; i < len(data); i++ {
 		data[i] = i + 1
 	}
-	return sess.Parallelize(data).
+	return lrmr.Parallelize(data).
 		FlatMap(&MultiplyAndDouble{}).
 		FlatMap(&MultiplyAndDouble{}).
 		FlatMap(&MultiplyAndDouble{})

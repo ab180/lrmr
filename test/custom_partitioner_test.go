@@ -11,13 +11,13 @@ import (
 func TestCustomPartitioner(t *testing.T) {
 	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("When running stage with custom partitioner", func() {
-			ds := PartitionerWithNodeAffinityTest(cluster.Session)
+			ds := PartitionerWithNodeAffinityTest()
 
 			Convey("It should assign rows with its designated partitions and physical nodes", func() {
-				rows, err := ds.Collect(testutils.ContextWithTimeout())
-				res := testutils.GroupRowsByKey(rows)
-
+				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
+
+				res := testutils.GroupRowsByKey(result.Outputs)
 				So(res, ShouldHaveLength, 2)
 				So(res["1"], ShouldHaveLength, 2)
 				So(res["2"], ShouldHaveLength, 2)

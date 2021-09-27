@@ -11,22 +11,19 @@ import (
 var log = logger.New("master")
 
 func main() {
-	m, err := lrmr.RunMaster()
+	cluster, err := lrmr.ConnectToCluster()
 	if err != nil {
 		log.Fatal("failed to start master", err)
 	}
-	m.Start()
-	defer m.Stop()
+	defer cluster.Close()
 
-	sess := lrmr.NewSession(m, lrmr.WithName("GroupByApp"))
-
-	ds := sess.FromFile(testdata.Path()).
+	j, err := lrmr.FromLocalFile(testdata.Path()).
 		WithWorkerCount(8).
 		FlatMap(test.DecodeCSV()).
 		GroupByKnownKeys([]string{"1737", "777", "1364", "6038"}).
-		Reduce(test.Count())
+		Reduce(test.Count()).
+		RunInBackground(cluster)
 
-	j, err := ds.Run()
 	if err != nil {
 		log.Fatal("failed to run session", err)
 	}

@@ -6,16 +6,9 @@ import (
 
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/output"
-	"github.com/ab180/lrmr/partitions"
 )
 
-type InputProvider interface {
-	partitions.Partitioner
-	FeedInput(out output.Output) error
-}
-
 type localInput struct {
-	partitions.ShuffledPartitioner
 	Path string
 }
 
@@ -29,7 +22,6 @@ func (l localInput) FeedInput(out output.Output) error {
 }
 
 type parallelizedInput struct {
-	partitions.ShuffledPartitioner
 	data []*lrdd.Row
 }
 

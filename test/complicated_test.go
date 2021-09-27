@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/ab180/lrmr/lrmrmetric"
+	"github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testdata"
 	"github.com/ab180/lrmr/test/testutils"
@@ -17,8 +17,8 @@ func TestComplicatedQuery(t *testing.T) {
 
 	Convey("Given running nodes", t, integration.WithLocalCluster(4, func(cluster *integration.LocalCluster) {
 		Convey("When doing ComplicatedQuery", func() {
-			ds := ComplicatedQuery(cluster.Session)
-			j, err := ds.Run()
+			ds := ComplicatedQuery()
+			j, err := ds.RunInBackground(cluster)
 			So(err, ShouldBeNil)
 
 			Convey("It should be run without error", func() {
@@ -34,7 +34,7 @@ func TestComplicatedQuery(t *testing.T) {
 
 					// check prometheus metric; number of running tasks should be 0
 					metric := &dto.Metric{}
-					for _, w := range cluster.Workers {
+					for _, w := range cluster.Executors {
 						err := lrmrmetric.RunningTasksGauge.
 							With(lrmrmetric.WorkerLabelValuesFrom(w.Node.Info())).
 							Write(metric)

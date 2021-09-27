@@ -11,8 +11,8 @@ import (
 
 var _ = lrmr.RegisterTypes(&BroadcastStage{})
 
-func BroadcastTester(sess *lrmr.Session) *lrmr.Dataset {
-	return sess.Parallelize("dummy").
+func BroadcastTester() *lrmr.Pipeline {
+	return lrmr.Parallelize("dummy").
 		Broadcast("ThroughContext", "bar").
 		Broadcast("AnyType", time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)).
 		Map(&BroadcastStage{ThroughStruct: "foo"})

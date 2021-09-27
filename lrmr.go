@@ -2,12 +2,11 @@ package lrmr
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 
+	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/ab180/lrmr/master"
-	"github.com/ab180/lrmr/worker"
+	"github.com/ab180/lrmr/executor"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
 )
 
@@ -15,8 +14,20 @@ var (
 	log = logger.New("lrmr")
 )
 
-func RunMaster(optionalOpt ...Options) (*master.Master, error) {
-	opt := DefaultOptions()
+// Parallelize creates new Pipeline with given value as an input.
+func Parallelize(val interface{}, options ...PipelineOption) *Pipeline {
+	return NewPipeline(&parallelizedInput{data: lrdd.From(val)}, options...)
+}
+
+// FromLocalFile creates new Pipeline, with reading files under given path an input.
+func FromLocalFile(path string, options ...PipelineOption) *Pipeline {
+	return NewPipeline(&localInput{Path: path}, options...)
+}
+
+// ConnectToCluster connects to remote cluster.
+// A job sharing a same cluster object also shares gRPC connections to the executor nodes.
+func ConnectToCluster(optionalOpt ...ConnectClusterOptions) (cluster.Cluster, error) {
+	opt := DefaultConnectClusterOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
 	}
@@ -25,37 +36,14 @@ func RunMaster(optionalOpt ...Options) (*master.Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect etcd: %w", err)
 	}
-	return master.New(etcd, opt.Master)
+	return cluster.OpenRemote(etcd, cluster.DefaultOptions())
 }
 
-func RunWorker(optionalOpt ...Options) error {
-	opt := DefaultOptions()
+// NewExecutor creates a new Executor. Executor can run LRMR jobs on a distributed remote cluster.
+func NewExecutor(c cluster.Cluster, optionalOpt ...executor.Options) (*executor.Executor, error) {
+	opt := executor.DefaultOptions()
 	if len(optionalOpt) > 0 {
 		opt = optionalOpt[0]
 	}
-
-	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace, opt.EtcdOptions)
-	if err != nil {
-		return fmt.Errorf("connect etcd: %w", err)
-	}
-	w, err := worker.New(etcd, opt.Worker)
-	if err != nil {
-		return fmt.Errorf("init worker: %w", err)
-	}
-	go func() {
-		if err := w.Start(); err != nil {
-			log.Wtf("failed to start worker", err)
-			return
-		}
-	}()
-
-	waitForExit := make(chan os.Signal)
-	signal.Notify(waitForExit, os.Interrupt, os.Kill)
-	<-waitForExit
-
-	if err := w.Close(); err != nil {
-		log.Error("failed to shutdown worker node", err)
-	}
-	log.Info("Bye")
-	return nil
+	return executor.New(c, opt)
 }

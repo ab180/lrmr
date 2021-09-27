@@ -1,4 +1,4 @@
-package worker
+package executor
 
 import (
 	"runtime"
@@ -12,13 +12,13 @@ type Options struct {
 	ListenHost     string `default:"127.0.0.1:7466"`
 	AdvertisedHost string `default:"127.0.0.1:7466"`
 
-	// Concurrency is desired number of the executor threads in a worker.
+	// Concurrency is desired number of the executor threads in a executor.
 	// By default, it will be number of CPUs in the machine.
 	Concurrency int `default:"-"`
 
 	// NodeTags is used for partitioner.
 	NodeTags map[string]string `default:"{}"`
-	NodeType node.Type         `default:"worker"`
+	NodeType node.Type         `default:"executor"`
 
 	Input struct {
 		QueueLength int `default:"1000"`

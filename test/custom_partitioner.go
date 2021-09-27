@@ -10,14 +10,14 @@ import (
 
 var _ = lrmr.RegisterTypes(&dummyMapper{}, &nodeAffinityTester{})
 
-func PartitionerWithNodeAffinityTest(sess *lrmr.Session) *lrmr.Dataset {
+func PartitionerWithNodeAffinityTest() *lrmr.Pipeline {
 	in := map[string]string{
 		"key1-1": "",
 		"key1-2": "",
 		"key2-1": "",
 		"key2-2": "",
 	}
-	return sess.Parallelize(in).
+	return lrmr.Parallelize(in).
 		PartitionedBy(&nodeAffinityTester{}).
 		Map(&dummyMapper{})
 }

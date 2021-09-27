@@ -1,39 +1,66 @@
 syntax = "proto3";
 package lrmrpb;
 
-import "gogoproto/gogo.proto";
-option (gogoproto.goproto_unrecognized_all) = false;
-option (gogoproto.goproto_unkeyed_all) = false;
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.stable_marshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
-
 import "google/protobuf/empty.proto";
-import "google/protobuf/any.proto";
 import "lrdd/row.proto";
 import "internal/pbtypes/types.proto";
 
 service Node {
-    rpc CreateTasks (CreateTasksRequest) returns (google.protobuf.Empty);
+    rpc CreateJob (CreateJobRequest) returns (google.protobuf.Empty);
+    rpc StartJobInBackground (StartJobRequest) returns (google.protobuf.Empty);
+    rpc StartJobInForeground (StartJobRequest) returns (stream JobOutput);
+
     rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
 }
 
-message CreateTasksRequest {
+message CreateJobRequest {
     pbtypes.JSON job = 1;
-    string stage = 2;
-    repeated string partitionIDs = 3;
+    repeated Stage stages = 2;
+    map<string, bytes> broadcasts = 3;
+}
+
+message Stage {
+    string name = 1;
+    repeated Task tasks = 2;
+    reserved 3;
 
     repeated Input input = 4;
     Output output = 5;
-    map<string, bytes> broadcasts = 6;
 }
 
-message Job {
-    string id = 1;
-    string name = 2;
+message Task {
+    string partitionID = 1;
+}
+
+message StartJobRequest {
+    string jobID = 1;
+}
+
+message JobOutput {
+    enum Type {
+        TASKS_READY = 0;
+        COLLECT_DATA = 1;
+        REPORT_TASK_COMPLETION = 2;
+    }
+    Type type = 1;
+
+    // sender task
+    string stage = 2;
+    string partitionID = 3;
+
+    // on type == COLLECT_DATA
+    repeated lrdd.Row data = 5;
+
+    // on type == REPORT_TASK_COMPLETION
+    enum TaskStatus {
+        SUCCEED = 0;
+        FAILED = 1;
+    }
+    TaskStatus taskStatus = 6;
+    string error = 7;
+    string stacktrace = 8;
+    map<string, uint64> metrics = 9; // metrics per task
 }
 
 message Input {
