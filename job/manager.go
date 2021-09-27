@@ -2,12 +2,28 @@ package job
 
 import (
 	"context"
+	"errors"
 
 	lrmrmetric "github.com/ab180/lrmr/metric"
 )
 
+// ErrNotFound is returned on FetchStatus.
+var ErrNotFound = errors.New("job not found")
+
 // Manager controls a job.
 type Manager interface {
+	// RegisterStatus stores a job's status at the first time.
+	//
+	// NOTE THAT the functionality is only available on DistributedManager
+	// since it's the only manager stores a job's status on the persistent storage.
+	RegisterStatus(ctx context.Context) (*Status, error)
+
+	// FetchStatus retrieves a job's current status.
+	//
+	// NOTE THAT the functionality is only available on DistributedManager
+	// since it's the only manager stores a job's status on the persistent storage.
+	FetchStatus(ctx context.Context) (*Status, error)
+
 	// MarkTaskAsSucceed marks a task as succeed.
 	// If all tasks in its belonging stage are also completed, it marks the stage as completed.
 	// If all stages in belonging job are also completed, it marks the job as completed.

@@ -42,8 +42,8 @@ type Status struct {
 	Errors []Error `json:"errors,omitempty"`
 }
 
-func newStatus() Status {
-	return Status{baseStatus: newBaseStatus()}
+func newStatus() *Status {
+	return &Status{baseStatus: newBaseStatus()}
 }
 
 type StageStatus struct {

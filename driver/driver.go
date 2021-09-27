@@ -36,6 +36,7 @@ type CollectResult struct {
 
 type Remote struct {
 	Job         *job.Job
+	Cluster     cluster.Cluster
 	Connections map[string]lrmrpb.NodeClient
 	Input       input.Feeder
 	Broadcast   serialization.Broadcast
@@ -65,6 +66,7 @@ func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feed
 	}
 	return &Remote{
 		Job:         j,
+		Cluster:     c,
 		Connections: conns,
 		Input:       in,
 		Broadcast:   broadcasts,
@@ -219,6 +221,11 @@ func (m *Remote) RunDetached(ctx context.Context) error {
 	if err := m.createJob(ctx); err != nil {
 		return errors.Wrap(err, "create job")
 	}
+	jobMgr := job.NewDistributedManager(m.Cluster.States(), m.Job)
+	if _, err := jobMgr.RegisterStatus(ctx); err != nil {
+		return errors.Wrap(err, "register job status")
+	}
+
 	wg, wctx := errgroup.WithContext(ctx)
 	for _, rpc := range m.Connections {
 		rpc := rpc

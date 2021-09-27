@@ -62,6 +62,30 @@ func (r *DistributedManager) getLeaseForLogRetention(ctx context.Context) (clien
 	return l, nil
 }
 
+func (r *DistributedManager) RegisterStatus(ctx context.Context) (*Status, error) {
+	l, err := r.getLeaseForLogRetention(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "grant lease for job log retention")
+	}
+
+	js := newStatus()
+	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js, coordinator.WithLease(l)); err != nil {
+		return nil, errors.Wrap(err, "write status to etcd")
+	}
+	return js, nil
+}
+
+func (r *DistributedManager) FetchStatus(ctx context.Context) (*Status, error) {
+	var js Status
+	if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
+		if err == coordinator.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, errors.Wrapf(err, "get status of job %s", r.job.ID)
+	}
+	return &js, nil
+}
+
 func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
 	l, err := r.getLeaseForLogRetention(ctx)
 	if err != nil {
@@ -153,14 +177,13 @@ func (r *DistributedManager) reportStageCompletion(ctx context.Context, stageNam
 }
 
 func (r *DistributedManager) reportJobCompletion(ctx context.Context, status RunningState) error {
-	// var js Status
-	// if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
-	// 	return errors.Wrapf(err, "get status of job %s", r.job.ID)
-	// }
-	// if js.Status == status {
-	// 	return nil
-	// }
-	js := newStatus()
+	js, err := r.FetchStatus(ctx)
+	if err != nil {
+		return err
+	}
+	if js.Status == status {
+		return nil
+	}
 
 	log.Verbose("Reporting {} job", status)
 	js.Complete(status)
@@ -176,14 +199,13 @@ func (r *DistributedManager) Abort(ctx context.Context, abortedBy TaskID) error 
 		return errors.Wrap(err, "grant lease for job log retention")
 	}
 
-	// var js Status
-	// if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
-	// 	return errors.Wrapf(err, "get status of job %s", r.job.ID)
-	// }
-	// if js.Status == Failed {
-	// 	return nil
-	// }
-	js := newStatus()
+	js, err := r.FetchStatus(ctx)
+	if err != nil {
+		return err
+	}
+	if js.Status == Failed {
+		return nil
+	}
 	js.Complete(Failed)
 
 	errDesc := Error{

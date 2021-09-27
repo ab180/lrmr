@@ -24,13 +24,20 @@ type LocalManager struct {
 }
 
 func NewLocalManager(j *Job) Manager {
-	jobStatus := newStatus()
 	return &LocalManager{
 		job:           j,
-		jobStatus:     &jobStatus,
+		jobStatus:     newStatus(),
 		stageStatuses: make(map[string]*StageStatus),
 		metrics:       make(lrmrmetric.Metrics),
 	}
+}
+
+func (l *LocalManager) RegisterStatus(ctx context.Context) (*Status, error) {
+	panic("not supported")
+}
+
+func (l *LocalManager) FetchStatus(ctx context.Context) (*Status, error) {
+	return l.jobStatus, nil
 }
 
 func (l *LocalManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
