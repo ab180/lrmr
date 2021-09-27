@@ -128,3 +128,31 @@ func (r *RunningJob) logMetrics() {
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()
 }
+
+// AbortDetachedJob stops a job's execution.
+func AbortDetachedJob(ctx context.Context, cluster cluster.Cluster, jobID string) error {
+	ref := job.TaskID{
+		JobID:       jobID,
+		StageName:   "master",
+		PartitionID: "_",
+	}
+
+	jobErrChan := errchannel.New()
+	defer jobErrChan.Close()
+
+	jobManager := job.NewDistributedManager(cluster.States(), &job.Job{ID: jobID})
+	jobManager.OnJobCompletion(func(*job.Status) {
+		jobErrChan.Send(nil)
+	})
+	if err := jobManager.Abort(ctx, ref); err != nil {
+		return errors.Wrap(err, "abort")
+	}
+
+	// wait until the job to be cancelled
+	select {
+	case <-jobErrChan.Recv():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
