@@ -20,6 +20,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// abortTimeout specifies how long it need to be waited for actual job abort.
+const abortTimeout = 5 * time.Second
+
 type RunningJob struct {
 	*job.Job
 	jobErrChan    *errchannel.ErrChannel
@@ -95,7 +98,12 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 		return err
 
 	case <-ctx.Done():
-		if err := r.AbortWithContext(context.Background()); err != nil {
+		log.Verbose("Context cancelled while waiting. Aborting...")
+
+		abortCtx, abortCancel := context.WithTimeout(ctx, abortTimeout)
+		defer abortCancel()
+
+		if err := r.AbortWithContext(abortCtx); err != nil {
 			return errors.Wrap(err, "during abort")
 		}
 		return ctx.Err()
@@ -119,8 +127,12 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 		return errors.Wrap(err, "abort")
 	}
 
-	<-r.jobErrChan.Recv()
-	return nil
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.jobErrChan.Recv():
+		return nil
+	}
 }
 
 func (r *RunningJob) logMetrics() {
