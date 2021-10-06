@@ -147,6 +147,10 @@ func (m *Remote) RunAttached(ctx context.Context) (*CollectResult, error) {
 					if err == io.EOF || status.Code(err) == codes.Canceled || errors.Is(err, context.Canceled) {
 						return
 					}
+					if status.Code(err) == codes.DeadlineExceeded {
+						errChan.Send(context.DeadlineExceeded)
+						return
+					}
 					errChan.Send(errors.Wrapf(err, "receive status from %s", host))
 					return
 				}
@@ -174,6 +178,10 @@ JobRun:
 		select {
 		// 4.1. received status report message from executor node
 		case msg := <-statusChan:
+			if msg == nil {
+				// channel is closed before job completion
+				continue
+			}
 			switch msg.Type {
 			case lrmrpb.JobOutput_COLLECT_DATA:
 				result = append(result, msg.Data...)
