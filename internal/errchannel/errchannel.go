@@ -10,7 +10,7 @@ type ErrChannel struct {
 
 func New() *ErrChannel {
 	return &ErrChannel{
-		channel: make(chan error),
+		channel: make(chan error, 1),
 	}
 }
 
