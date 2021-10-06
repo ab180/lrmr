@@ -128,3 +128,5 @@ func (l *LocalManager) mergeTaskMetricsIntoJobMetrics(metrics lrmrmetric.Metrics
 func (l *LocalManager) CollectMetrics(context.Context) (lrmrmetric.Metrics, error) {
 	return l.metrics, nil
 }
+
+func (*LocalManager) Close() {}

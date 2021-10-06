@@ -10,9 +10,11 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/internal/util"
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -37,14 +39,20 @@ type DistributedManager struct {
 	taskSubscriptions  []func(stageName string, doneCountInStage int)
 	mu                 sync.RWMutex
 	logRetentionLease  clientv3.LeaseID
+	cancelWatch        context.CancelFunc
+	closed             atomic.Bool
+	id                 string
 }
 
 func NewDistributedManager(clusterState cluster.State, job *Job) Manager {
+	watchCtx, cancelWatch := context.WithCancel(context.Background())
 	r := &DistributedManager{
 		clusterState: clusterState,
 		job:          job,
+		cancelWatch:  cancelWatch,
+		id:           util.GenerateID("DM"),
 	}
-	go r.watch()
+	go r.watch(watchCtx)
 	return r
 }
 
@@ -247,11 +255,10 @@ func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, do
 	r.taskSubscriptions = append(r.taskSubscriptions, callback)
 }
 
-func (r *DistributedManager) watch() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func (r *DistributedManager) watch(ctx context.Context) {
 	defer log.Recover()
+	log.Verbose("{} for {} Started", r.id, r.job.ID)
+	defer r.Close()
 
 	prefix := jobStatusKey(r.job.ID)
 	for event := range r.clusterState.Watch(ctx, prefix) {
@@ -268,6 +275,7 @@ func (r *DistributedManager) watch() {
 		} else if event.Item.Key == jobStatusKey(r.job.ID) {
 			finished := r.handleJobStatusChange()
 			if finished {
+				log.Verbose("Finished {} for {}", r.id, r.job.ID)
 				return
 			}
 		}
@@ -370,6 +378,14 @@ func (r *DistributedManager) CollectMetrics(ctx context.Context) (lrmrmetric.Met
 		metrics.Add(metric)
 	}
 	return metrics, nil
+}
+
+func (r *DistributedManager) Close() {
+	if swapped := r.closed.CAS(false, true); !swapped {
+		return
+	}
+	log.Verbose("{} for {} closed", r.id, r.job.ID)
+	r.cancelWatch()
 }
 
 func jobStatusKey(jobID string, extra ...string) string {

@@ -47,4 +47,7 @@ type Manager interface {
 
 	// CollectMetrics collects task metrics in a job.
 	CollectMetrics(ctx context.Context) (lrmrmetric.Metrics, error)
+
+	// Close stops tracking the job.
+	Close()
 }

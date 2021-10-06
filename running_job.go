@@ -153,6 +153,8 @@ func AbortDetachedJob(ctx context.Context, cluster cluster.Cluster, jobID string
 	defer jobErrChan.Close()
 
 	jobManager := job.NewDistributedManager(cluster.States(), &job.Job{ID: jobID})
+	defer jobManager.Close()
+
 	jobManager.OnJobCompletion(func(*job.Status) {
 		jobErrChan.Send(nil)
 	})
