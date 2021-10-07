@@ -47,11 +47,11 @@ func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feed
 		conns = make(map[string]lrmrpb.NodeClient)
 		mu    sync.Mutex
 	)
-	wg, wctx := errgroup.WithContext(ctx)
+	var wg errgroup.Group
 	for _, host := range j.Hostnames() {
 		host := host
 		wg.Go(func() error {
-			conn, err := c.Connect(wctx, host)
+			conn, err := c.Connect(ctx, host)
 			if err != nil {
 				return errors.Wrapf(err, "dial %s", host)
 			}
