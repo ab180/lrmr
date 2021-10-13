@@ -28,3 +28,13 @@ func SimpleCount() *lrmr.Pipeline {
 		GroupByKey().
 		Reduce(Count())
 }
+
+func GroupByWithPartitionsWithNoInput() *lrmr.Pipeline {
+	d := map[string][]string{
+		"foo": {"goo"},
+	}
+	return lrmr.Parallelize(d).
+		Repartition(10).
+		GroupByKey().
+		Reduce(Count())
+}

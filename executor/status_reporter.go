@@ -2,12 +2,14 @@ package executor
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
 	lrmrmetric "github.com/ab180/lrmr/metric"
+	"go.uber.org/atomic"
 )
 
 type StatusReporter interface {
@@ -18,11 +20,50 @@ type StatusReporter interface {
 }
 
 type attachedStatusReporter struct {
-	stream lrmrpb.Node_StartJobInForegroundServer
+	jobID      string
+	stream     lrmrpb.Node_StartJobInForegroundServer
+	outputChan chan *lrmrpb.JobOutput
+	closed     atomic.Bool
 }
 
-func newAttachedStatusReporter(stream lrmrpb.Node_StartJobInForegroundServer) StatusReporter {
-	return &attachedStatusReporter{stream: stream}
+func newAttachedStatusReporter(jobID string, stream lrmrpb.Node_StartJobInForegroundServer) StatusReporter {
+	reporter := &attachedStatusReporter{
+		jobID:      jobID,
+		stream:     stream,
+		outputChan: make(chan *lrmrpb.JobOutput),
+	}
+	go reporter.pipeChannelToStream()
+	return reporter
+}
+
+// send emits lrmrpb.JobOutput into the stream, with protecting from channel closes.
+func (f *attachedStatusReporter) send(ctx context.Context, out *lrmrpb.JobOutput) error {
+	if f.closed.Load() {
+		return errors.New("job is already completed")
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case f.outputChan <- out:
+		return nil
+	}
+}
+
+// pipeChannelToStream fans in lrmrpb.JobOutput from multiple task executor goroutines into the stream,
+// because writing to a gRPC stream is not concurrent-safe.
+func (f *attachedStatusReporter) pipeChannelToStream() {
+	defer f.closed.Store(true)
+	for {
+		select {
+		case out := <-f.outputChan:
+			if err := f.stream.Send(out); err != nil {
+				log.Error("Failed to report status of job {}: {}", f.jobID, err)
+			}
+		case <-f.stream.Context().Done():
+			close(f.outputChan)
+			return
+		}
+	}
 }
 
 func (f *attachedStatusReporter) JobContext() context.Context {
@@ -30,14 +71,14 @@ func (f *attachedStatusReporter) JobContext() context.Context {
 }
 
 func (f *attachedStatusReporter) Collect(rows []*lrdd.Row) error {
-	return f.stream.Send(&lrmrpb.JobOutput{
+	return f.send(f.stream.Context(), &lrmrpb.JobOutput{
 		Type: lrmrpb.JobOutput_COLLECT_DATA,
 		Data: rows,
 	})
 }
 
 func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error {
-	return f.stream.Send(&lrmrpb.JobOutput{
+	return f.send(ctx, &lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_SUCCEED,
 		Stage:       taskID.StageName,
@@ -47,7 +88,7 @@ func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID j
 }
 
 func (f *attachedStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
-	return f.stream.Send(&lrmrpb.JobOutput{
+	return f.send(ctx, &lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_FAILED,
 		Stage:       taskID.StageName,

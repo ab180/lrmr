@@ -153,7 +153,7 @@ func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmr
 	runningJob := v.(*runningJobHolder)
 	defer w.runningJobs.Delete(req.JobID)
 
-	if err := w.startJob(runningJob, newAttachedStatusReporter(stream)); err != nil {
+	if err := w.startJob(runningJob, newAttachedStatusReporter(req.JobID, stream)); err != nil {
 		return err
 	}
 	<-runningJob.Context().Done()

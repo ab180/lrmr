@@ -131,3 +131,21 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 		})
 	}))
 }
+
+func TestGroupByWithPartitionsWithNoInput(t *testing.T) {
+	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+		Convey("When there are partitions with no inputs", func() {
+			ds := GroupByWithPartitionsWithNoInput()
+
+			Convey("Calling Collect() should return results with no error", func() {
+				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+				So(err, ShouldBeNil)
+
+				res := testutils.GroupRowsByKey(rows.Outputs)
+				So(res, ShouldHaveLength, 1)
+				So(res["foo"], ShouldHaveLength, 1)
+				So(testutils.IntValue(res["foo"][0]), ShouldEqual, 1)
+			})
+		})
+	}))
+}
