@@ -12,6 +12,7 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/test/integration"
+	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
@@ -100,6 +101,23 @@ func TestCluster_Connect(t *testing.T) {
 				}
 				So(wg.Wait(), ShouldBeNil)
 				// leak is detected within WithCluster HoF
+			})
+
+			Convey("Should be reconnected automatically", func() {
+				for i := 0; i < numNodes; i++ {
+					failingCtx, cancelFailingCtx := context.WithCancel(testutils.ContextWithTimeout())
+					initial, err := c.Connect(failingCtx, nodes[i].Info().Host)
+					So(err, ShouldBeNil)
+					cancelFailingCtx()
+
+					_ = initial.Close()
+					time.Sleep(100 * time.Millisecond)
+
+					after, err := c.Connect(ctx, nodes[i].Info().Host)
+					So(err, ShouldBeNil)
+
+					So(initial, ShouldNotEqual, after)
+				}
 			})
 		}))
 	}))

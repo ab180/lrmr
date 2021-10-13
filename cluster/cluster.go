@@ -126,7 +126,8 @@ func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 	if !ok {
 		return c.establishNewConnection(dialCtx, host)
 	}
-	if conn.GetState() == connectivity.TransientFailure {
+	if conn.GetState() != connectivity.Ready {
+		log.Verbose("Connection to {} was on {}. reconnecting...", host, conn.GetState())
 		// TODO: retry limit
 		delete(c.grpcConns, host)
 		return c.establishNewConnection(dialCtx, host)
