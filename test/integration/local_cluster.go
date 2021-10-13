@@ -63,11 +63,11 @@ func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.
 		if err != nil {
 			So(err, ShouldBeNil)
 		}
-		Reset(func() {
+		defer func() {
 			if err := c.Close(); err != nil {
 				So(err, ShouldBeNil)
 			}
-		})
+		}()
 		fn(c)
 	}
 }
