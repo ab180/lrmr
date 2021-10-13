@@ -334,7 +334,7 @@ func (w *Executor) PollData(stream lrmrpb.Node_PollDataServer) error {
 func (w *Executor) Close() error {
 	w.RPCServer.GracefulStop()
 	w.Node.Unregister()
-	return w.Cluster.Close()
+	return nil
 }
 
 func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
