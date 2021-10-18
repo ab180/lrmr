@@ -5,8 +5,8 @@ import (
 	"github.com/ab180/lrmr/test/testdata"
 )
 
-func BasicGroupByKey() *lrmr.Pipeline {
-	return lrmr.FromLocalFile(testdata.Path()).
+func BasicGroupByKey(options ...lrmr.PipelineOption) *lrmr.Pipeline {
+	return lrmr.FromLocalFile(testdata.Path(), options...).
 		FlatMap(DecodeCSV()).
 		GroupByKey().
 		Reduce(Count())
