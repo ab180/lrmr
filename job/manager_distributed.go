@@ -162,8 +162,6 @@ func (r *DistributedManager) checkForStageCompletion(ctx context.Context, taskID
 }
 
 func (r *DistributedManager) reportStageCompletion(ctx context.Context, stageName string, status RunningState) error {
-	log.Verbose("Reporting {} stage {}", status, stageName)
-
 	s := newStageStatus()
 	s.Complete(status)
 	if err := r.clusterState.Put(ctx, stageStatusKey(r.job.ID, stageName), s, coordinator.WithLease(r.logRetentionLease)); err != nil {
@@ -257,7 +255,6 @@ func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, do
 
 func (r *DistributedManager) watch(ctx context.Context) {
 	defer log.Recover()
-	log.Verbose("{} for {} Started", r.id, r.job.ID)
 	defer r.Close()
 
 	prefix := jobStatusKey(r.job.ID)
@@ -275,7 +272,6 @@ func (r *DistributedManager) watch(ctx context.Context) {
 		} else if event.Item.Key == jobStatusKey(r.job.ID) {
 			finished := r.handleJobStatusChange()
 			if finished {
-				log.Verbose("Finished {} for {}", r.id, r.job.ID)
 				return
 			}
 		}
@@ -384,7 +380,6 @@ func (r *DistributedManager) Close() {
 	if swapped := r.closed.CAS(false, true); !swapped {
 		return
 	}
-	log.Verbose("{} for {} closed", r.id, r.job.ID)
 	r.cancelWatch()
 }
 
