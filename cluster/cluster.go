@@ -63,7 +63,13 @@ type cluster struct {
 }
 
 func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, error) {
-	var grpcOpts []grpc.DialOption
+	grpcOpts := []grpc.DialOption{
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(opt.MaxMessageSize),
+			grpc.MaxCallSendMsgSize(opt.MaxMessageSize),
+		),
+	}
 	if opt.TLSCertPath != "" {
 		cert, err := credentials.NewClientTLSFromFile(opt.TLSCertPath, opt.TLSCertServerName)
 		if err != nil {
@@ -74,7 +80,6 @@ func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, err
 		// log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
-	grpcOpts = append(grpcOpts, grpc.WithBlock())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cluster{
@@ -177,7 +182,7 @@ func (c *cluster) List(ctx context.Context, option ...ListOption) ([]*node.Node,
 // It returns cluster.ErrNotFound if node with given host does not exist.
 func (c *cluster) Get(ctx context.Context, host string) (*node.Node, error) {
 	n := new(node.Node)
-	if err := c.clusterState.Get(ctx, path.Join(nodeNs, n.Host), n); err != nil {
+	if err := c.clusterState.Get(ctx, path.Join(nodeNs, host), n); err != nil {
 		if err == coordinator.ErrNotFound {
 			return nil, ErrNotFound
 		}
