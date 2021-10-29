@@ -177,7 +177,7 @@ func (c *cluster) List(ctx context.Context, option ...ListOption) ([]*node.Node,
 // It returns cluster.ErrNotFound if node with given host does not exist.
 func (c *cluster) Get(ctx context.Context, host string) (*node.Node, error) {
 	n := new(node.Node)
-	if err := c.clusterState.Get(ctx, path.Join(nodeNs, n.Host), n); err != nil {
+	if err := c.clusterState.Get(ctx, path.Join(nodeNs, host), n); err != nil {
 		if err == coordinator.ErrNotFound {
 			return nil, ErrNotFound
 		}
