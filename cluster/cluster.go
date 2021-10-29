@@ -63,7 +63,13 @@ type cluster struct {
 }
 
 func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, error) {
-	var grpcOpts []grpc.DialOption
+	grpcOpts := []grpc.DialOption{
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(opt.MaxMessageSize),
+			grpc.MaxCallSendMsgSize(opt.MaxMessageSize),
+		),
+	}
 	if opt.TLSCertPath != "" {
 		cert, err := credentials.NewClientTLSFromFile(opt.TLSCertPath, opt.TLSCertServerName)
 		if err != nil {
@@ -74,7 +80,6 @@ func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, err
 		// log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
 	}
-	grpcOpts = append(grpcOpts, grpc.WithBlock())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cluster{
