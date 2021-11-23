@@ -46,6 +46,70 @@ func TestLocalMemoryCoordinator_Scan(t *testing.T) {
 	})
 }
 
+func TestLocalMemoryCoordinator_CAS(t *testing.T) {
+	Convey("Given LocalMemoryCoordinator", t, func() {
+		crd := NewLocalMemory()
+		ctx := gocontext.Background()
+
+		So(crd.Put(ctx, "testKey1", "testValue1"), ShouldBeNil)
+
+		Convey("It should put new key", func() {
+			swapped, err := crd.CAS(ctx, "testKey2", nil, "testValue2")
+			So(swapped, ShouldBeTrue)
+			So(err, ShouldBeNil)
+
+			var val string
+			err = crd.Get(ctx, "testKey2", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue2")
+		})
+
+		Convey("It should update old value", func() {
+			var val string
+			err := crd.Get(ctx, "testKey1", &val)
+            So(err, ShouldBeNil)
+            So(val, ShouldEqual, "testValue1")
+
+            swapped, err := crd.CAS(ctx, "testKey1", "testValue1", "testValue2")
+			So(swapped, ShouldBeTrue)
+            So(err, ShouldBeNil)
+
+            err = crd.Get(ctx, "testKey1", &val)
+            So(err, ShouldBeNil)
+            So(val, ShouldEqual, "testValue2")
+        })
+
+		Convey("It should not update old value", func() {
+			var val string
+			err := crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue1")
+
+			swapped, err := crd.CAS(ctx, "testKey1", "testValue2", "testValue3")
+			So(swapped, ShouldBeFalse)
+			So(err, ShouldBeNil)
+
+			err = crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue1")
+		})
+
+		Convey("It should delete the key", func() {
+			var val string
+			err := crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue1")
+
+			swapped, err := crd.CAS(ctx, "testKey1", "testValue1", nil)
+			So(swapped, ShouldBeTrue)
+			So(err, ShouldBeNil)
+
+			err = crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeError, ErrNotFound)
+		})
+	})
+}
+
 func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
 	Convey("Given LocalMemoryCoordinator", t, func() {
 		crd := NewLocalMemory()

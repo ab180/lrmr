@@ -45,6 +45,11 @@ type KV interface {
 	IncrementCounter(ctx context.Context, key string) (count int64, err error)
 	ReadCounter(ctx context.Context, key string) (count int64, err error)
 
+	// CAS is an atomic compare-and-swap operation.
+	// If the old is nil, it puts only if the key does not exist.
+	// If the new is nil, it performs a delete operation instead of putting null to etcd. (In this case, opts is ignored)
+	CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (swapped bool, err error)
+
 	// Commit apply changes of the transaction.
 	// The transaction will be failed if one of the operation in the transaction fails.
 	Commit(ctx context.Context, t *Txn, opts ...WriteOption) ([]TxnResult, error)

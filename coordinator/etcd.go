@@ -184,6 +184,46 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...W
 	return err
 }
 
+func (e *Etcd) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
+	defer cancel()
+
+	var cmp clientv3.Cmp
+	if old != nil {
+		oldB, err := jsoniter.MarshalToString(old)
+		if err != nil {
+			return false, err
+		}
+		cmp = clientv3.Compare(clientv3.Value(key), "=", oldB)
+	} else {
+		cmp = clientv3.Compare(clientv3.CreateRevision(key), "=", 0)
+	}
+
+	var etcdOpts []clientv3.OpOption
+	opt := buildWriteOption(append(e.option.WriteOptions, opts...))
+	if opt.Lease != clientv3.NoLease {
+		etcdOpts = append(etcdOpts, clientv3.WithLease(opt.Lease))
+	}
+
+	var op clientv3.Op
+	if new != nil {
+		newJSON, err := jsoniter.MarshalToString(new)
+		if err != nil {
+			return false, err
+		}
+		op = clientv3.OpPut(key, newJSON, etcdOpts...)
+	} else {
+		op = clientv3.OpDelete(key)
+	}
+
+	res, err := e.KV.Txn(ctx).If(cmp).Then(op).Commit()
+	if err != nil {
+		return false, err
+	}
+
+	return res.Succeeded, nil
+}
+
 func (e *Etcd) Commit(ctx context.Context, txn *Txn, opts ...WriteOption) ([]TxnResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
 	defer cancel()

@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
 	"math/rand"
 	"strings"
@@ -113,6 +114,42 @@ func (lmc *localMemoryCoordinator) put(k string, v interface{}, lease clientv3.L
 	return nil
 }
 
+func (lmc *localMemoryCoordinator) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (bool, error) {
+	if err := lmc.simulate(ctx); err != nil {
+		return false, err
+	}
+	opt := buildWriteOption(append(lmc.optsApplied, opts...))
+
+	v, _ := lmc.data.Load(key)
+	e, ok := v.(entry)
+	if ok {
+		if lmc.isAfterDeadline(e.lease) {
+			lmc.expireLease(key, e.lease)
+			if old != nil {
+				return false, nil
+			}
+		}
+		oldB, err := jsoniter.Marshal(old)
+		if err != nil {
+			return false, err
+		}
+		if !bytes.Equal(e.item.Value, oldB) {
+            return false, nil
+        }
+	} else {
+		if old != nil {
+			return false, nil
+		}
+	}
+
+	if new == nil {
+		lmc.delete(key)
+		return true, nil
+	}
+
+	return true, lmc.put(key, new, opt.Lease)
+}
+
 func (lmc *localMemoryCoordinator) IncrementCounter(ctx context.Context, key string) (count int64, err error) {
 	if err = lmc.simulate(ctx); err != nil {
 		return
@@ -161,7 +198,7 @@ func (lmc *localMemoryCoordinator) Commit(ctx context.Context, txn *Txn, opts ..
 		case CounterEvent:
 			results[i].Counter = lmc.incrementCounter(op.Key)
 		case DeleteEvent:
-			results[i].Deleted = lmc.delete(op.Key)
+			results[i].Deleted = lmc.deleteWithPrefix(op.Key)
 		}
 		results[i].Type = op.Type
 	}
@@ -172,30 +209,39 @@ func (lmc *localMemoryCoordinator) Delete(ctx context.Context, prefix string) (d
 	if err = lmc.simulate(ctx); err != nil {
 		return
 	}
-	deleted = lmc.delete(prefix)
+	deleted = lmc.deleteWithPrefix(prefix)
 	return
 }
 
-func (lmc *localMemoryCoordinator) delete(prefix string) (deleted int64) {
+func (lmc *localMemoryCoordinator) deleteWithPrefix(prefix string) (deleted int64) {
 	lmc.data.Range(func(key, value interface{}) bool {
 		k := key.(string)
 		if strings.HasPrefix(k, prefix) {
-			lmc.data.Delete(k)
-			lmc.counterLock.Lock()
-			if _, ok := lmc.counter[k]; ok {
-				delete(lmc.counter, k)
-			}
-			lmc.counterLock.Unlock()
-
-			go lmc.notifySubscribers(WatchEvent{
-				Type: DeleteEvent,
-				Item: RawItem{Key: k},
-			})
-			deleted += 1
+			lmc.delete(k)
 		}
 		return true
 	})
 	return deleted
+}
+
+func (lmc *localMemoryCoordinator) delete(key string) bool {
+	_, ok := lmc.data.LoadAndDelete(key)
+	if !ok {
+		return false
+	}
+
+	lmc.counterLock.Lock()
+	if _, ok := lmc.counter[key]; ok {
+		delete(lmc.counter, key)
+	}
+	lmc.counterLock.Unlock()
+
+	go lmc.notifySubscribers(WatchEvent{
+		Type: DeleteEvent,
+		Item: RawItem{Key: key},
+	})
+
+	return true
 }
 
 func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
