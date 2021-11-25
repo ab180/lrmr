@@ -84,14 +84,14 @@ func (r *DistributedManager) RegisterStatus(ctx context.Context) (*Status, error
 }
 
 func (r *DistributedManager) FetchStatus(ctx context.Context) (*Status, error) {
-	var js Status
-	if err := r.clusterState.Get(ctx, jobStatusKey(r.job.ID), &js); err != nil {
+	js, err := r.getJobStatus(ctx, r.job.ID)
+	if err != nil {
 		if err == coordinator.ErrNotFound {
 			return nil, ErrNotFound
 		}
 		return nil, errors.Wrapf(err, "get status of job %s", r.job.ID)
 	}
-	return &js, nil
+	return js, nil
 }
 
 func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskID, metrics lrmrmetric.Metrics) error {
