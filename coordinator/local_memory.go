@@ -217,7 +217,9 @@ func (lmc *localMemoryCoordinator) deleteWithPrefix(prefix string) (deleted int6
 	lmc.data.Range(func(key, value interface{}) bool {
 		k := key.(string)
 		if strings.HasPrefix(k, prefix) {
-			lmc.delete(k)
+			if lmc.delete(k) {
+				deleted++
+			}
 		}
 		return true
 	})
