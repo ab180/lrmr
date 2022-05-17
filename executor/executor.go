@@ -47,7 +47,8 @@ type Executor struct {
 
 func New(c cluster.Cluster, opt Options) (*Executor, error) {
 	srv := grpc.NewServer(
-		grpc.MaxRecvMsgSize(opt.Input.MaxRecvSize),
+		grpc.MaxRecvMsgSize(opt.MaxMessageSize),
+		grpc.MaxSendMsgSize(opt.MaxMessageSize),
 		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 			errorLogMiddleware,

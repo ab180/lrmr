@@ -18,9 +18,12 @@ type Options struct {
 	// NodeTags is used for partitioner.
 	NodeTags map[string]string `default:"{}"`
 
+	// MaxMessageSize specifies the maximum message size in bytes the gRPC server can receive/send.
+	// The default value is 500mb.
+	MaxMessageSize int `default:"524288000"`
+
 	Input struct {
 		QueueLength int `default:"1000"`
-		MaxRecvSize int `default:"67108864"`
 	}
 	Output output.Options
 

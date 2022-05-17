@@ -5,8 +5,7 @@ import (
 )
 
 type Options struct {
-	BufferLength   int `default:"10000"`
-	MaxSendMsgSize int `default:"2147483647"`
+	BufferLength int `default:"10000"`
 }
 
 func DefaultOptions() (o Options) {
