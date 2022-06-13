@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/airbloc/logger v1.4.7
 	github.com/creasty/defaults v1.3.0
-	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
@@ -16,6 +15,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/segmentio/fasthash v1.0.1
 	github.com/smartystreets/goconvey v1.6.4
+	github.com/stretchr/testify v1.7.2
 	github.com/therne/errorist v0.1.1
 	github.com/thoas/go-funk v0.5.0
 	github.com/vmihailenco/msgpack/v5 v5.2.0
@@ -36,6 +36,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/maruel/panicparse v1.5.0 // indirect
@@ -45,7 +46,6 @@ require (
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
-	github.com/stretchr/testify v1.7.2 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
