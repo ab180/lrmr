@@ -8,6 +8,27 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func BenchmarkRow_Marshal(b *testing.B) {
+	originRow := &Row{
+		Key:   "foo",
+		Value: []byte("bar"),
+	}
+
+	for i := 0; i < b.N; i++ {
+		bs, err := proto.Marshal(originRow)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		var row Row
+
+		err = proto.Unmarshal(bs, &row)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestRow_Encode(t *testing.T) {
 	Convey("When encoding a row", t, func() {
 		row := new(Row)
