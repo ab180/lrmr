@@ -13,7 +13,6 @@ func TestSerializeStruct(t *testing.T) {
 		Convey("On a plain struct", func() {
 			expected := node.Node{
 				Host: "world",
-				Type: "foo",
 			}
 			actual := serializeAndDeserialize(expected)
 			Convey("It should be same after serialization", func() {
@@ -24,7 +23,6 @@ func TestSerializeStruct(t *testing.T) {
 		Convey("On a struct pointer", func() {
 			expected := &node.Node{
 				Host: "world",
-				Type: "foo",
 			}
 			actual := serializeAndDeserialize(expected)
 			Convey("It should be same after serialization", func() {
