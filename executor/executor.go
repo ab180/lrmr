@@ -33,6 +33,8 @@ import (
 var log = logger.New("lrmr")
 
 type Executor struct {
+	lrmrpb.UnimplementedNodeServer
+
 	Cluster   cluster.Cluster
 	Node      node.Registration
 	RPCServer *grpc.Server

@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	. "github.com/smartystreets/goconvey/convey"
+	"google.golang.org/protobuf/proto"
 )
 
 func BenchmarkRow_Marshal(b *testing.B) {
@@ -23,6 +23,27 @@ func BenchmarkRow_Marshal(b *testing.B) {
 		var row Row
 
 		err = proto.Unmarshal(bs, &row)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRow_MarshalVT(b *testing.B) {
+	originRow := &Row{
+		Key:   "foo",
+		Value: []byte("bar"),
+	}
+
+	for i := 0; i < b.N; i++ {
+		bs, err := originRow.MarshalVT()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		var row Row
+
+		err = row.UnmarshalVT(bs)
 		if err != nil {
 			b.Fatal(err)
 		}

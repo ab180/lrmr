@@ -21,9 +21,14 @@ fbs:
 
 proto:
 	@for PROTO in $(PROTO_SRCS); do \
-	  protoc -I/usr/local/include --proto_path=$(go list -f '{{ .Dir }}' -m github.com/gogo/protobuf) -I. \
-	  		-I$(GOGOPROTO) \
-			--gofast_out=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types,plugins=grpc,paths=source_relative:. \
+		protoc \
+			--go_out=../../.. \
+			--plugin protoc-gen-go="${GOBIN}/protoc-gen-go" \
+			--go-grpc_out=../../.. \
+			--plugin protoc-gen-go-grpc="${GOBIN}/protoc-gen-go-grpc" \
+			--go-vtproto_out=../../.. \
+			--plugin protoc-gen-go-vtproto="${GOBIN}/protoc-gen-go-vtproto" \
+			--go-vtproto_opt=features=marshal+unmarshal+size \
 			$$PROTO; \
 	done
 

@@ -1,6 +1,8 @@
 syntax = "proto3";
 package lrmrpb;
 
+option go_package = "github.com/ab180/lrmr/lrmrpb";
+
 import "google/protobuf/empty.proto";
 import "lrdd/row.proto";
 import "internal/pbtypes/types.proto";
