@@ -28,6 +28,4 @@ jobs:
         run: go mod download
 
       - name: Run Unit Test
-        env:
-          LOG: *,lrmr@DEBUG
         run: go test -v ./...
