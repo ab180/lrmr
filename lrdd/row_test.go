@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -106,6 +107,26 @@ func TestRow_Encode(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestMarshalVT(t *testing.T) {
+	originRow := &Row{
+		Key:   "foo",
+		Value: []byte("bar"),
+	}
+
+	bs, err := originRow.MarshalVT()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var row Row
+	err = row.UnmarshalVT(bs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, originRow.String(), row.String())
 }
 
 type testStruct struct {
