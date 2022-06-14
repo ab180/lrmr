@@ -15,7 +15,7 @@ import (
 func TestAbortDetachedJob(t *testing.T) {
 	Convey("Calling lrmr.AbortDetachedJob", t, integration.WithLocalCluster(1, func(c *integration.LocalCluster) {
 		Convey("When the job is normal detached job", func() {
-			runningJob, err := ContextCancel(time.Second).
+			runningJob, err := ContextCancel(time.Second * 10).
 				RunInBackground(c)
 			So(err, ShouldBeNil)
 
