@@ -787,7 +787,9 @@ func (m *PollDataResponse) ResetVT() {
 	for _, mm := range m.Data {
 		mm.ResetVT()
 	}
+	f0 := m.Data[:0]
 	m.Reset()
+	m.Data = f0
 }
 func (m *PollDataResponse) ReturnToVTPool() {
 	if m != nil {
