@@ -12,6 +12,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	bits "math/bits"
+	sync "sync"
 )
 
 const (
@@ -774,6 +775,28 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	}
 	dAtA[offset] = uint8(v)
 	return base
+}
+
+var vtprotoPool_PollDataResponse = sync.Pool{
+	New: func() interface{} {
+		return &PollDataResponse{}
+	},
+}
+
+func (m *PollDataResponse) ResetVT() {
+	for _, mm := range m.Data {
+		mm.ResetVT()
+	}
+	m.Reset()
+}
+func (m *PollDataResponse) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_PollDataResponse.Put(m)
+	}
+}
+func PollDataResponseFromVTPool() *PollDataResponse {
+	return vtprotoPool_PollDataResponse.Get().(*PollDataResponse)
 }
 func (m *CreateJobRequest) SizeVT() (n int) {
 	if m == nil {
@@ -2764,7 +2787,14 @@ func (m *PollDataResponse) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &lrdd.Row{})
+			if len(m.Data) == cap(m.Data) {
+				m.Data = append(m.Data, &lrdd.Row{})
+			} else {
+				m.Data = m.Data[:len(m.Data)+1]
+				if m.Data[len(m.Data)-1] == nil {
+					m.Data[len(m.Data)-1] = &lrdd.Row{}
+				}
+			}
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {

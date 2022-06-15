@@ -9,6 +9,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	bits "math/bits"
+	sync "sync"
 )
 
 const (
@@ -75,6 +76,27 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	}
 	dAtA[offset] = uint8(v)
 	return base
+}
+
+var vtprotoPool_Row = sync.Pool{
+	New: func() interface{} {
+		return &Row{}
+	},
+}
+
+func (m *Row) ResetVT() {
+	f0 := m.Value[:0]
+	m.Reset()
+	m.Value = f0
+}
+func (m *Row) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_Row.Put(m)
+	}
+}
+func RowFromVTPool() *Row {
+	return vtprotoPool_Row.Get().(*Row)
 }
 func (m *Row) SizeVT() (n int) {
 	if m == nil {
