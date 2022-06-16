@@ -8,10 +8,10 @@ package lrmrpb
 
 import (
 	context "context"
+	pbtypes "github.com/ab180/lrmr/internal/pbtypes"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -23,8 +23,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
-	CreateJob(ctx context.Context, in *CreateJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateJob(ctx context.Context, in *CreateJobRequest, opts ...grpc.CallOption) (*pbtypes.Empty, error)
+	StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*pbtypes.Empty, error)
 	StartJobInForeground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (Node_StartJobInForegroundClient, error)
 	PushData(ctx context.Context, opts ...grpc.CallOption) (Node_PushDataClient, error)
 	PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error)
@@ -38,8 +38,8 @@ func NewNodeClient(cc grpc.ClientConnInterface) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) CreateJob(ctx context.Context, in *CreateJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nodeClient) CreateJob(ctx context.Context, in *CreateJobRequest, opts ...grpc.CallOption) (*pbtypes.Empty, error) {
+	out := new(pbtypes.Empty)
 	err := c.cc.Invoke(ctx, "/lrmrpb.Node/CreateJob", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -47,8 +47,8 @@ func (c *nodeClient) CreateJob(ctx context.Context, in *CreateJobRequest, opts .
 	return out, nil
 }
 
-func (c *nodeClient) StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nodeClient) StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*pbtypes.Empty, error) {
+	out := new(pbtypes.Empty)
 	err := c.cc.Invoke(ctx, "/lrmrpb.Node/StartJobInBackground", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (c *nodeClient) PushData(ctx context.Context, opts ...grpc.CallOption) (Nod
 
 type Node_PushDataClient interface {
 	Send(*PushDataRequest) error
-	CloseAndRecv() (*emptypb.Empty, error)
+	CloseAndRecv() (*pbtypes.Empty, error)
 	grpc.ClientStream
 }
 
@@ -111,11 +111,11 @@ func (x *nodePushDataClient) Send(m *PushDataRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *nodePushDataClient) CloseAndRecv() (*emptypb.Empty, error) {
+func (x *nodePushDataClient) CloseAndRecv() (*pbtypes.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(emptypb.Empty)
+	m := new(pbtypes.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -157,8 +157,8 @@ func (x *nodePollDataClient) Recv() (*PollDataResponse, error) {
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
 type NodeServer interface {
-	CreateJob(context.Context, *CreateJobRequest) (*emptypb.Empty, error)
-	StartJobInBackground(context.Context, *StartJobRequest) (*emptypb.Empty, error)
+	CreateJob(context.Context, *CreateJobRequest) (*pbtypes.Empty, error)
+	StartJobInBackground(context.Context, *StartJobRequest) (*pbtypes.Empty, error)
 	StartJobInForeground(*StartJobRequest, Node_StartJobInForegroundServer) error
 	PushData(Node_PushDataServer) error
 	PollData(Node_PollDataServer) error
@@ -169,10 +169,10 @@ type NodeServer interface {
 type UnimplementedNodeServer struct {
 }
 
-func (UnimplementedNodeServer) CreateJob(context.Context, *CreateJobRequest) (*emptypb.Empty, error) {
+func (UnimplementedNodeServer) CreateJob(context.Context, *CreateJobRequest) (*pbtypes.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateJob not implemented")
 }
-func (UnimplementedNodeServer) StartJobInBackground(context.Context, *StartJobRequest) (*emptypb.Empty, error) {
+func (UnimplementedNodeServer) StartJobInBackground(context.Context, *StartJobRequest) (*pbtypes.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartJobInBackground not implemented")
 }
 func (UnimplementedNodeServer) StartJobInForeground(*StartJobRequest, Node_StartJobInForegroundServer) error {
@@ -259,7 +259,7 @@ func _Node_PushData_Handler(srv interface{}, stream grpc.ServerStream) error {
 }
 
 type Node_PushDataServer interface {
-	SendAndClose(*emptypb.Empty) error
+	SendAndClose(*pbtypes.Empty) error
 	Recv() (*PushDataRequest, error)
 	grpc.ServerStream
 }
@@ -268,7 +268,7 @@ type nodePushDataServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodePushDataServer) SendAndClose(m *emptypb.Empty) error {
+func (x *nodePushDataServer) SendAndClose(m *pbtypes.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 

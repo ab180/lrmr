@@ -3,6 +3,10 @@ package pbtypes;
 
 option go_package = "github.com/ab180/lrmr/internal/pbtypes";
 
+// Empty represents an empty protocol buffer message.
+message Empty {
+}
+
 message JSON {
     bytes json = 1;
 }

@@ -20,6 +20,45 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Empty represents an empty protocol buffer message.
+type Empty struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *Empty) Reset() {
+	*x = Empty{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_pbtypes_types_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Empty) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Empty) ProtoMessage() {}
+
+func (x *Empty) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_pbtypes_types_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Empty.ProtoReflect.Descriptor instead.
+func (*Empty) Descriptor() ([]byte, []int) {
+	return file_internal_pbtypes_types_proto_rawDescGZIP(), []int{0}
+}
+
 type JSON struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -31,7 +70,7 @@ type JSON struct {
 func (x *JSON) Reset() {
 	*x = JSON{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_pbtypes_types_proto_msgTypes[0]
+		mi := &file_internal_pbtypes_types_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -44,7 +83,7 @@ func (x *JSON) String() string {
 func (*JSON) ProtoMessage() {}
 
 func (x *JSON) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_pbtypes_types_proto_msgTypes[0]
+	mi := &file_internal_pbtypes_types_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +96,7 @@ func (x *JSON) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JSON.ProtoReflect.Descriptor instead.
 func (*JSON) Descriptor() ([]byte, []int) {
-	return file_internal_pbtypes_types_proto_rawDescGZIP(), []int{0}
+	return file_internal_pbtypes_types_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *JSON) GetJson() []byte {
@@ -72,12 +111,12 @@ var File_internal_pbtypes_types_proto protoreflect.FileDescriptor
 var file_internal_pbtypes_types_proto_rawDesc = []byte{
 	0x0a, 0x1c, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x62, 0x74, 0x79, 0x70,
 	0x65, 0x73, 0x2f, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x07,
-	0x70, 0x62, 0x74, 0x79, 0x70, 0x65, 0x73, 0x22, 0x1a, 0x0a, 0x04, 0x4a, 0x53, 0x4f, 0x4e, 0x12,
-	0x12, 0x0a, 0x04, 0x6a, 0x73, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x6a,
-	0x73, 0x6f, 0x6e, 0x42, 0x28, 0x5a, 0x26, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
-	0x6d, 0x2f, 0x61, 0x62, 0x31, 0x38, 0x30, 0x2f, 0x6c, 0x72, 0x6d, 0x72, 0x2f, 0x69, 0x6e, 0x74,
-	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x62, 0x74, 0x79, 0x70, 0x65, 0x73, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x70, 0x62, 0x74, 0x79, 0x70, 0x65, 0x73, 0x22, 0x07, 0x0a, 0x05, 0x45, 0x6d, 0x70, 0x74, 0x79,
+	0x22, 0x1a, 0x0a, 0x04, 0x4a, 0x53, 0x4f, 0x4e, 0x12, 0x12, 0x0a, 0x04, 0x6a, 0x73, 0x6f, 0x6e,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x6a, 0x73, 0x6f, 0x6e, 0x42, 0x28, 0x5a, 0x26,
+	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x62, 0x31, 0x38, 0x30,
+	0x2f, 0x6c, 0x72, 0x6d, 0x72, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70,
+	0x62, 0x74, 0x79, 0x70, 0x65, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -92,9 +131,10 @@ func file_internal_pbtypes_types_proto_rawDescGZIP() []byte {
 	return file_internal_pbtypes_types_proto_rawDescData
 }
 
-var file_internal_pbtypes_types_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_internal_pbtypes_types_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_internal_pbtypes_types_proto_goTypes = []interface{}{
-	(*JSON)(nil), // 0: pbtypes.JSON
+	(*Empty)(nil), // 0: pbtypes.Empty
+	(*JSON)(nil),  // 1: pbtypes.JSON
 }
 var file_internal_pbtypes_types_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -111,6 +151,18 @@ func file_internal_pbtypes_types_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_internal_pbtypes_types_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Empty); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_pbtypes_types_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*JSON); i {
 			case 0:
 				return &v.state
@@ -129,7 +181,7 @@ func file_internal_pbtypes_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_pbtypes_types_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
