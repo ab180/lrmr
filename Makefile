@@ -37,10 +37,5 @@ proto:
 mocks: deps
 	@mockery -all -dir pkg/ -output test/mocks -keeptree
 
-test: test-all
-
-test-all:
-	@$(GOTEST) -v -count 1 `go list ./... | grep -v test/e2e`
-
-test-e2e:
-	@$(GOTEST) -v -count 1 `go list ./test/e2e` $(FLAGS)
+test:
+	go test ./...
