@@ -13,67 +13,70 @@ import (
 )
 
 func BenchmarkStreamRecv(b *testing.B) {
-	clientConn, s, err := newMockNodeClientAndServer()
-	if err != nil {
-		b.Fatalf("failed to create client and server: %v", err)
+	benchs := []struct {
+		Name string
+		Func func(stream Node_PollDataClient) error
+	}{
+		{
+			Name: "recv",
+			Func: func(stream Node_PollDataClient) error {
+				_, err := stream.Recv()
+				if err != nil {
+					return err
+				}
+
+				return nil
+			},
+		},
+		{
+			Name: "recv-pool",
+			Func: func(stream Node_PollDataClient) error {
+				pollDataResponse := PollDataResponseFromVTPool()
+				err := stream.RecvMsg(pollDataResponse)
+				if err != nil {
+					pollDataResponse.ReturnToVTPool()
+
+					return err
+				}
+
+				pollDataResponse.ReturnToVTPool()
+
+				return nil
+			},
+		},
 	}
-	defer clientConn.Close()
 
-	c := NewNodeClient(clientConn)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		stream, err := c.PollData(context.Background())
-		if err != nil {
-			b.Fatalf("failed to call: %v", err)
-		}
-
-		for {
-			_, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
+	for _, bench := range benchs {
+		b.Run(bench.Name, func(b *testing.B) {
+			clientConn, s, err := newMockNodeClientAndServer()
 			if err != nil {
-				b.Fatalf("failed to recv: %v", err)
+				b.Fatalf("failed to create client and server: %v", err)
 			}
-		}
-	}
-	b.StopTimer()
+			defer clientConn.Close()
 
-	s.Stop()
-}
+			c := NewNodeClient(clientConn)
 
-func BenchmarkStreamRecvPool(b *testing.B) {
-	clientConn, s, err := newMockNodeClientAndServer()
-	if err != nil {
-		b.Fatalf("failed to create client and server: %v", err)
-	}
-	defer clientConn.Close()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				stream, err := c.PollData(context.Background())
+				if err != nil {
+					b.Fatalf("failed to call: %v", err)
+				}
 
-	c := NewNodeClient(clientConn)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		stream, err := c.PollData(context.Background())
-		if err != nil {
-			b.Fatalf("failed to call: %v", err)
-		}
-
-		for {
-			pollDataResponse := PollDataResponseFromVTPool()
-			err := stream.RecvMsg(pollDataResponse)
-			if err == io.EOF {
-				break
+				for {
+					err := bench.Func(stream)
+					if err == io.EOF {
+						break
+					} else if err != nil {
+						b.Fatalf("failed to recv: %v", err)
+					}
+				}
 			}
-			if err != nil {
-				b.Fatalf("failed to recv: %v", err)
-			}
-			pollDataResponse.ReturnToVTPool()
-		}
-	}
-	b.StopTimer()
+			b.StopTimer()
 
-	s.Stop()
+			s.Stop()
+		})
+	}
 }
 
 func newMockNodeClientAndServer() (clientConn *grpc.ClientConn, server *grpc.Server, err error) {
