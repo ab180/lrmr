@@ -2,11 +2,14 @@ package lrmrpb
 
 import (
 	"context"
+	"fmt"
 	"github.com/ab180/lrmr/lrdd"
 	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -32,54 +35,70 @@ func BenchmarkStreamRecv(b *testing.B) {
 			Name: "recv-pool",
 			Func: func(stream Node_PollDataClient) error {
 				pollDataResponse := PollDataResponseFromVTPool()
+				defer pollDataResponse.ReturnToVTPool()
 				err := stream.RecvMsg(pollDataResponse)
 				if err != nil {
-					pollDataResponse.ReturnToVTPool()
-
 					return err
 				}
 
-				pollDataResponse.ReturnToVTPool()
+				return nil
+			},
+		},
+		{
+			Name: "recv-pool-finalizer",
+			Func: func(stream Node_PollDataClient) error {
+				pollDataResponse := PollDataResponseFromVTPool()
+				runtime.SetFinalizer(pollDataResponse, func(p *PollDataResponse) {
+					p.ReturnToVTPool()
+				})
+				err := stream.RecvMsg(pollDataResponse)
+				if err != nil {
+					return err
+				}
 
 				return nil
 			},
 		},
 	}
 
+	valueLens := []int{2048}
+
 	for _, bench := range benchs {
-		b.Run(bench.Name, func(b *testing.B) {
-			clientConn, s, err := newMockNodeClientAndServer()
-			if err != nil {
-				b.Fatalf("failed to create client and server: %v", err)
-			}
-			defer clientConn.Close()
-
-			c := NewNodeClient(clientConn)
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				stream, err := c.PollData(context.Background())
+		for _, valueLen := range valueLens {
+			b.Run(fmt.Sprintf("%v-%v", bench.Name, valueLen), func(b *testing.B) {
+				clientConn, s, err := newMockNodeClientAndServer(valueLen)
 				if err != nil {
-					b.Fatalf("failed to call: %v", err)
+					b.Fatalf("failed to create client and server: %v", err)
 				}
+				defer clientConn.Close()
 
-				for {
-					err := bench.Func(stream)
-					if err == io.EOF {
-						break
-					} else if err != nil {
-						b.Fatalf("failed to recv: %v", err)
+				c := NewNodeClient(clientConn)
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					stream, err := c.PollData(context.Background())
+					if err != nil {
+						b.Fatalf("failed to call: %v", err)
+					}
+
+					for {
+						err := bench.Func(stream)
+						if err == io.EOF {
+							break
+						} else if err != nil {
+							b.Fatalf("failed to recv: %v", err)
+						}
 					}
 				}
-			}
-			b.StopTimer()
+				b.StopTimer()
 
-			s.Stop()
-		})
+				s.Stop()
+			})
+		}
 	}
 }
 
-func newMockNodeClientAndServer() (clientConn *grpc.ClientConn, server *grpc.Server, err error) {
+func newMockNodeClientAndServer(valueLen int) (clientConn *grpc.ClientConn, server *grpc.Server, err error) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, nil, err
@@ -88,7 +107,12 @@ func newMockNodeClientAndServer() (clientConn *grpc.ClientConn, server *grpc.Ser
 
 	pollDataResponseMock := &PollDataResponse{}
 	for i := 0; i < 1000; i++ {
-		pollDataResponseMock.Data = append(pollDataResponseMock.Data, &lrdd.Row{Key: strconv.Itoa(i)})
+		pollDataResponseMock.Data = append(
+			pollDataResponseMock.Data,
+			&lrdd.Row{
+				Key:   strconv.Itoa(i),
+				Value: []byte(strings.Repeat("*", valueLen)),
+			})
 	}
 
 	RegisterNodeServer(s, &mockNodeServer{
