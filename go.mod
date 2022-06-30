@@ -5,12 +5,12 @@ go 1.18
 require (
 	github.com/airbloc/logger v1.4.7
 	github.com/creasty/defaults v1.3.0
-	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/json-iterator/go v1.1.12
 	github.com/modern-go/reflect2 v1.0.2
 	github.com/pkg/errors v0.9.1
+	github.com/planetscale/vtprotobuf v0.3.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/segmentio/fasthash v1.0.1
@@ -37,12 +37,12 @@ require (
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/maruel/panicparse v1.5.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/planetscale/vtprotobuf v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
