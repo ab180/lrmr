@@ -6,7 +6,7 @@ import (
 	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/partitions"
-	"github.com/thoas/go-funk"
+	"golang.org/x/exp/slices"
 )
 
 type Job struct {
@@ -47,7 +47,7 @@ func (j *Job) Hostnames() []string {
 	var hostnames []string
 	for _, pp := range j.Partitions {
 		for _, hostname := range pp.Hostnames() {
-			if !funk.Contains(hostnames, hostname) {
+			if !slices.Contains(hostnames, hostname) {
 				hostnames = append(hostnames, hostname)
 			}
 		}

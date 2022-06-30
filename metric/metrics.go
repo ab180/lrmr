@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/thoas/go-funk"
+	"golang.org/x/exp/maps"
 )
 
 type Metrics map[string]uint64
@@ -39,7 +39,7 @@ func (m Metrics) AddPrefix(p string) (prefixed Metrics) {
 }
 
 func (m Metrics) String() string {
-	keys := funk.Keys(m).([]string)
+	keys := maps.Keys(m)
 	sort.Strings(keys)
 
 	metricLogs := ""
