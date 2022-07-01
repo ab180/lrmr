@@ -13,18 +13,18 @@ require (
 	github.com/planetscale/vtprotobuf v0.3.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
+	github.com/samber/lo v1.21.0
 	github.com/segmentio/fasthash v1.0.1
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.7.2
 	github.com/therne/errorist v0.1.1
-	github.com/thoas/go-funk v0.5.0
+	github.com/thoas/go-funk v0.9.1
 	github.com/vmihailenco/msgpack/v5 v5.2.0
 	go.etcd.io/etcd/api/v3 v3.5.0
 	go.etcd.io/etcd/client/v3 v3.5.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.17.0
-	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
@@ -51,6 +51,7 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
 	golang.org/x/text v0.3.7 // indirect

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/maps"
+	"github.com/samber/lo"
 )
 
 const (
@@ -78,7 +78,7 @@ func (as Assignments) Pretty() (s string) {
 	for _, a := range as {
 		groupsByHost[a.Host] = append(groupsByHost[a.Host], a)
 	}
-	hosts := maps.Keys(groupsByHost)
+	hosts := lo.Keys(groupsByHost)
 	sort.Strings(hosts)
 	for _, host := range hosts {
 		var keys []string

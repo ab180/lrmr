@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"golang.org/x/exp/maps"
+	"github.com/samber/lo"
 )
 
 type Metrics map[string]uint64
@@ -39,7 +39,7 @@ func (m Metrics) AddPrefix(p string) (prefixed Metrics) {
 }
 
 func (m Metrics) String() string {
-	keys := maps.Keys(m)
+	keys := lo.Keys(m)
 	sort.Strings(keys)
 
 	metricLogs := ""
