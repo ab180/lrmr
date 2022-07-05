@@ -67,17 +67,17 @@ func TestLocalMemoryCoordinator_CAS(t *testing.T) {
 		Convey("It should update old value", func() {
 			var val string
 			err := crd.Get(ctx, "testKey1", &val)
-            So(err, ShouldBeNil)
-            So(val, ShouldEqual, "testValue1")
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue1")
 
-            swapped, err := crd.CAS(ctx, "testKey1", "testValue1", "testValue2")
+			swapped, err := crd.CAS(ctx, "testKey1", "testValue1", "testValue2")
 			So(swapped, ShouldBeTrue)
-            So(err, ShouldBeNil)
+			So(err, ShouldBeNil)
 
-            err = crd.Get(ctx, "testKey1", &val)
-            So(err, ShouldBeNil)
-            So(val, ShouldEqual, "testValue2")
-        })
+			err = crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue2")
+		})
 
 		Convey("It should not update old value", func() {
 			var val string
