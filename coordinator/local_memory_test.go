@@ -67,17 +67,17 @@ func TestLocalMemoryCoordinator_CAS(t *testing.T) {
 		Convey("It should update old value", func() {
 			var val string
 			err := crd.Get(ctx, "testKey1", &val)
-            So(err, ShouldBeNil)
-            So(val, ShouldEqual, "testValue1")
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue1")
 
-            swapped, err := crd.CAS(ctx, "testKey1", "testValue1", "testValue2")
+			swapped, err := crd.CAS(ctx, "testKey1", "testValue1", "testValue2")
 			So(swapped, ShouldBeTrue)
-            So(err, ShouldBeNil)
+			So(err, ShouldBeNil)
 
-            err = crd.Get(ctx, "testKey1", &val)
-            So(err, ShouldBeNil)
-            So(val, ShouldEqual, "testValue2")
-        })
+			err = crd.Get(ctx, "testKey1", &val)
+			So(err, ShouldBeNil)
+			So(val, ShouldEqual, "testValue2")
+		})
 
 		Convey("It should not update old value", func() {
 			var val string
@@ -111,11 +111,14 @@ func TestLocalMemoryCoordinator_CAS(t *testing.T) {
 }
 
 func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
+	// This test relies on TTL timeout. If the test machine is not fast enough(like GitHub actions, ...), it will fail.
+	// Maybe we should consider deleting this test.
+
 	Convey("Given LocalMemoryCoordinator", t, func() {
 		crd := NewLocalMemory()
 		ctx := gocontext.Background()
 
-		l, err := crd.GrantLease(ctx, 200*time.Millisecond)
+		l, err := crd.GrantLease(ctx, 2*time.Second)
 		So(err, ShouldBeNil)
 
 		So(crd.Put(ctx, "testKey1", "testValue1", WithLease(l)), ShouldBeNil)
@@ -131,7 +134,7 @@ func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
 		})
 
 		Convey("It should be deleted after TTL", func() {
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(3 * time.Second)
 			items, err := crd.Scan(ctx, "testKey")
 			So(err, ShouldBeNil)
 			So(items, ShouldHaveLength, 0)
