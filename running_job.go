@@ -15,7 +15,7 @@ import (
 	"github.com/ab180/lrmr/internal/errchannel"
 	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/job"
-	"github.com/ab180/lrmr/metric"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 )
