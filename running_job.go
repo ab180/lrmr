@@ -163,10 +163,25 @@ func AbortDetachedJob(ctx context.Context, cluster cluster.Cluster, jobID string
 	}
 
 	// wait until the job to be cancelled
-	select {
-	case <-jobErrChan.Recv():
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	for {
+		select {
+		case <-jobErrChan.Recv():
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			js, err := jobManager.FetchStatus(ctx)
+			if err != nil {
+				return err
+			}
+
+			if js.Status == job.Failed {
+				return nil
+			}
+
+			log.Verbose("Waiting for job to be canceled...")
+
+			time.Sleep(time.Second)
+		}
 	}
 }
