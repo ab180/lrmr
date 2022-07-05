@@ -14,6 +14,7 @@ import (
 	"github.com/ab180/lrmr/input"
 	"github.com/ab180/lrmr/internal/cpuaffinity"
 	"github.com/ab180/lrmr/internal/errgroup"
+	"github.com/ab180/lrmr/internal/pbtypes"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
@@ -22,7 +23,6 @@ import (
 	"github.com/ab180/lrmr/partitions"
 	"github.com/airbloc/logger"
 	"github.com/airbloc/logger/module/loggergrpc"
-	"github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -33,6 +33,8 @@ import (
 var log = logger.New("lrmr")
 
 type Executor struct {
+	lrmrpb.UnimplementedNodeServer
+
 	Cluster   cluster.Cluster
 	Node      node.Registration
 	RPCServer *grpc.Server
@@ -120,7 +122,7 @@ func (w *Executor) State() node.State {
 	return w.Node.States()
 }
 
-func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*empty.Empty, error) {
+func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*pbtypes.Empty, error) {
 	j := new(job.Job)
 	if err := req.Job.UnmarshalJSON(j); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
@@ -143,7 +145,7 @@ func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*
 		}
 	}
 	w.runningJobs.Store(j.ID, runningJob)
-	return &empty.Empty{}, nil
+	return &pbtypes.Empty{}, nil
 }
 
 func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmrpb.Node_StartJobInForegroundServer) error {
@@ -161,7 +163,7 @@ func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmr
 	return nil
 }
 
-func (w *Executor) StartJobInBackground(ctx context.Context, req *lrmrpb.StartJobRequest) (*empty.Empty, error) {
+func (w *Executor) StartJobInBackground(ctx context.Context, req *lrmrpb.StartJobRequest) (*pbtypes.Empty, error) {
 	v, ok := w.runningJobs.Load(req.JobID)
 	if !ok {
 		return nil, status.Error(codes.NotFound, "job not found")
@@ -174,7 +176,7 @@ func (w *Executor) StartJobInBackground(ctx context.Context, req *lrmrpb.StartJo
 		<-runningJob.Context().Done()
 		w.runningJobs.Delete(req.JobID)
 	}()
-	return &empty.Empty{}, nil
+	return &pbtypes.Empty{}, nil
 }
 
 func (w *Executor) startJob(runningJob *runningJobHolder, reporter StatusReporter) error {
@@ -299,7 +301,7 @@ func (w *Executor) PushData(stream lrmrpb.Node_PushDataServer) error {
 	}
 
 	// upstream may have been closed, but that should not affect the task result
-	_ = stream.SendAndClose(&empty.Empty{})
+	_ = stream.SendAndClose(&pbtypes.Empty{})
 	return nil
 }
 

@@ -1,16 +1,17 @@
 syntax = "proto3";
 package lrmrpb;
 
-import "google/protobuf/empty.proto";
+option go_package = "github.com/ab180/lrmr/lrmrpb";
+
 import "lrdd/row.proto";
 import "internal/pbtypes/types.proto";
 
 service Node {
-    rpc CreateJob (CreateJobRequest) returns (google.protobuf.Empty);
-    rpc StartJobInBackground (StartJobRequest) returns (google.protobuf.Empty);
+    rpc CreateJob (CreateJobRequest) returns (pbtypes.Empty);
+    rpc StartJobInBackground (StartJobRequest) returns (pbtypes.Empty);
     rpc StartJobInForeground (StartJobRequest) returns (stream JobOutput);
 
-    rpc PushData (stream PushDataRequest) returns (google.protobuf.Empty);
+    rpc PushData (stream PushDataRequest) returns (pbtypes.Empty);
     rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
 }
 

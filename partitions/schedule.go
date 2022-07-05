@@ -1,14 +1,37 @@
 package partitions
 
 import (
+	"math/rand"
 	"sort"
 
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/airbloc/logger"
-	"github.com/thoas/go-funk"
 )
 
 var log = logger.New("partition")
+
+type nodeWithStatsSlice []nodeWithStats
+
+func newNodeWithStatsSlice(nodes []*node.Node) nodeWithStatsSlice {
+	ns := make(nodeWithStatsSlice, len(nodes))
+	for i, n := range nodes {
+		ns[i] = newNodeWithStats(n)
+	}
+
+	return ns
+}
+
+func (ns *nodeWithStatsSlice) Shuffle() {
+	length := len(*ns)
+
+	result := make(nodeWithStatsSlice, length)
+
+	for i, v := range rand.Perm(length) {
+		result[i] = (*ns)[v]
+	}
+
+	*ns = result
+}
 
 type nodeWithStats struct {
 	*node.Node
@@ -23,11 +46,10 @@ func newNodeWithStats(n *node.Node) nodeWithStats {
 func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []Partitions, aa []Assignments) {
 	opts := buildScheduleOptions(opt)
 
-	nn := funk.Map(workers, newNodeWithStats)
+	nodes := newNodeWithStatsSlice(workers)
 	if !opts.DisableShufflingNodes {
-		nn = funk.Shuffle(nn)
+		nodes.Shuffle()
 	}
-	nodes := nn.([]nodeWithStats)
 
 	for i := range plans {
 		plan := &plans[i]

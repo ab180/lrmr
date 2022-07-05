@@ -6,7 +6,29 @@ import (
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/lrdd"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
+
+func TestNodeWithStatsSlice_New(t *testing.T) {
+	nA := node.New("a")
+	nB := node.New("b")
+	nC := node.New("c")
+
+	nodes := []*node.Node{
+		nA,
+		nB,
+		nC,
+	}
+
+	expected := nodeWithStatsSlice{
+		newNodeWithStats(nA),
+		newNodeWithStats(nB),
+		newNodeWithStats(nC),
+	}
+	actual := newNodeWithStatsSlice(nodes)
+
+	require.Equal(t, expected, actual)
+}
 
 func TestScheduler_AffinityRule(t *testing.T) {
 	Convey("Given a partition.Scheduler", t, func() {

@@ -1,18 +1,14 @@
 syntax = "proto3";
 package lrdd;
 
-import "gogoproto/gogo.proto";
-option (gogoproto.goproto_unrecognized_all) = false;
-option (gogoproto.goproto_unkeyed_all) = false;
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.stable_marshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
-
 option go_package = "github.com/ab180/lrmr/lrdd";
 
 message Row {
     string key = 1;
     bytes value = 2;
+}
+
+// Rows is a list of Row objects.
+message Rows {
+    repeated Row rows = 1;
 }

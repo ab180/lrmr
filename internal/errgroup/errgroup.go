@@ -63,8 +63,9 @@ func (g *Group) Go(f func() error) {
 					}
 				})
 			}
+
+			g.wg.Done()
 		}()
-		defer g.wg.Done()
 
 		if err := f(); err != nil {
 			g.errOnce.Do(func() {

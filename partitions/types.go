@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/thoas/go-funk"
+	"github.com/samber/lo"
 )
 
 const (
@@ -78,7 +78,7 @@ func (as Assignments) Pretty() (s string) {
 	for _, a := range as {
 		groupsByHost[a.Host] = append(groupsByHost[a.Host], a)
 	}
-	hosts := funk.Keys(groupsByHost).([]string)
+	hosts := lo.Keys(groupsByHost)
 	sort.Strings(hosts)
 	for _, host := range hosts {
 		var keys []string
