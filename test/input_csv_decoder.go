@@ -21,7 +21,7 @@ func (l *csvDecoder) FlatMap(ctx lrmr.Context, in *lrdd.Row) (result []*lrdd.Row
 	var path string
 	in.UnmarshalValue(&path)
 
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304, We should check safe path with filepath.Clean
 	if err != nil {
 		return nil, errors.Wrap(err, "open file")
 	}
