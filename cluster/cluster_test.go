@@ -184,7 +184,9 @@ func WithTestNodes(cluster cluster.Cluster, fn func(nodes []node.Registration)) 
 			servers[i] = grpc.NewServer()
 			go func(i int) {
 				err := servers[i].Serve(lis)
-				c.So(err, ShouldBeNil)
+				if err != nil {
+					panic(err)
+				}
 			}(i)
 
 			n := &node.Node{
