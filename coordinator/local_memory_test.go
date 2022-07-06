@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/require"
 )
@@ -118,22 +119,24 @@ func TestLocalMemoryCoordinator_GrantLease_RetrievedWithinTTL(t *testing.T) {
 	l, err := crd.GrantLease(ctx, 10*time.Second)
 	require.Nil(t, err)
 
-	testKey1 := "testKey1"
-	testKey2 := "testKey2"
+	testKeys := []string{"testKey1", "testKey2"}
 
-	err = crd.Put(ctx, testKey1, "testValue1", WithLease(l))
-	require.Nil(t, err)
-
-	err = crd.Put(ctx, testKey2, "testValue1", WithLease(l))
-	require.Nil(t, err)
+	for _, testKey := range testKeys {
+		err = crd.Put(ctx, testKey, "testValue", WithLease(l))
+		require.Nil(t, err)
+	}
 
 	items, err := crd.Scan(ctx, "testKey")
 	require.Nil(t, err)
 
-	require.Equal(t, 2, len(items))
+	require.Equal(t, len(testKeys), len(items))
 
-	require.Equal(t, testKey1, items[0].Key)
-	require.Equal(t, testKey2, items[1].Key)
+	actualKeys := lo.Map(items, func(t RawItem, _ int) string {
+		return t.Key
+	})
+	sort.Strings(actualKeys)
+
+	require.Equal(t, testKeys, actualKeys)
 }
 
 func TestLocalMemoryCoordinator_GrantLease_RetrievedAfterTTL(t *testing.T) {
