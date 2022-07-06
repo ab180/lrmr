@@ -190,6 +190,11 @@ func WithTestNodes(t *testing.T, cluster cluster.Cluster, fn func(nodes []node.R
 				}
 			}(i)
 
+			// Wait until the grpc server starts
+			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure(), grpc.WithBlock())
+			require.Nil(t, err)
+			conn.Close()
+
 			n := &node.Node{
 				Host: lis.Addr().String(),
 				Tag: map[string]string{
