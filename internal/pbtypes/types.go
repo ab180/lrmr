@@ -12,8 +12,8 @@ func MustMarshalJSON(v interface{}) *JSON {
 	return &JSON{Json: raw}
 }
 
-// UnmarshalJSON deserializes the raw JSON to the given pointer.
+// Unmarshal deserializes the raw JSON to the given pointer.
 // noinspection GoStandardMethods
-func (m *JSON) UnmarshalJSON(ptrToVal interface{}) error {
+func (m *JSON) Unmarshal(ptrToVal interface{}) error {
 	return jsoniter.Unmarshal(m.Json, ptrToVal)
 }
