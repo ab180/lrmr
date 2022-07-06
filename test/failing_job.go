@@ -16,7 +16,6 @@ func (f FailingStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*
 	}
 	time.Sleep(1 * time.Second)
 	panic("station")
-	return nil
 }
 
 func FailingJob() *lrmr.Pipeline {

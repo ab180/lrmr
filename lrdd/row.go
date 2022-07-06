@@ -4,7 +4,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func (m Row) UnmarshalValue(ptr interface{}) {
+func (m *Row) UnmarshalValue(ptr interface{}) {
 	err := msgpack.Unmarshal(m.Value, ptr)
 	if err != nil {
 		panic(err)
