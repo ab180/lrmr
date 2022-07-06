@@ -14,6 +14,7 @@ import (
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -27,7 +28,7 @@ const (
 
 func TestCluster_List(t *testing.T) {
 	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
-		Convey("Calling List()", WithTestNodes(c, func(nodes []node.Registration) {
+		Convey("Calling List()", WithTestNodes(t, c, func(nodes []node.Registration) {
 			Convey("should return a list of discovered nodes", func() {
 				listedNodes, err := c.List(ctx)
 				So(err, ShouldBeNil)
@@ -70,7 +71,7 @@ func TestCluster_Register(t *testing.T) {
 
 func TestCluster_Connect(t *testing.T) {
 	Convey("Given a cluster", t, WithCluster(func(ctx context.Context, c cluster.Cluster) {
-		Convey("With connectable nodes", WithTestNodes(c, func(nodes []node.Registration) {
+		Convey("With connectable nodes", WithTestNodes(t, c, func(nodes []node.Registration) {
 			Convey("It should be connected without error", func() {
 				for i := 0; i < numNodes; i++ {
 					cli, err := c.Connect(ctx, nodes[i].Info().Host)
@@ -172,14 +173,14 @@ func WithCluster(fn func(context.Context, cluster.Cluster)) func() {
 	}
 }
 
-func WithTestNodes(cluster cluster.Cluster, fn func(nodes []node.Registration)) func(c C) {
+func WithTestNodes(t *testing.T, cluster cluster.Cluster, fn func(nodes []node.Registration)) func(c C) {
 	return func(c C) {
 		servers := make([]*grpc.Server, numNodes)
 		nodes := make([]node.Registration, numNodes)
 
 		for i := 0; i < numNodes; i++ {
 			lis, err := net.Listen("tcp", "127.0.0.1:")
-			So(err, ShouldBeNil)
+			require.Nil(t, err)
 
 			servers[i] = grpc.NewServer()
 			go func(i int) {
@@ -196,7 +197,7 @@ func WithTestNodes(cluster cluster.Cluster, fn func(nodes []node.Registration)) 
 				},
 			}
 			nodes[i], err = cluster.Register(context.TODO(), n)
-			So(err, ShouldBeNil)
+			require.Nil(t, err)
 		}
 		fn(nodes)
 
