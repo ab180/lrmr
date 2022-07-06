@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLocalMemoryCoordinator_Get(t *testing.T) {
@@ -110,34 +112,52 @@ func TestLocalMemoryCoordinator_CAS(t *testing.T) {
 	})
 }
 
-func TestLocalMemoryCoordinator_GrantLease(t *testing.T) {
-	// This test relies on TTL timeout. If the test machine is not fast enough(like GitHub actions, ...), it will fail.
-	// Maybe we should consider deleting this test.
+func TestLocalMemoryCoordinator_GrantLease_RetrievedWithinTTL(t *testing.T) {
+	crd := NewLocalMemory()
+	ctx := gocontext.Background()
 
-	Convey("Given LocalMemoryCoordinator", t, func() {
-		crd := NewLocalMemory()
-		ctx := gocontext.Background()
+	l, err := crd.GrantLease(ctx, 10*time.Second)
+	require.Nil(t, err)
 
-		l, err := crd.GrantLease(ctx, 2*time.Second)
-		So(err, ShouldBeNil)
+	testKeys := []string{"testKey1", "testKey2"}
 
-		So(crd.Put(ctx, "testKey1", "testValue1", WithLease(l)), ShouldBeNil)
-		So(crd.Put(ctx, "testKey2", "testValue1", WithLease(l)), ShouldBeNil)
+	for _, testKey := range testKeys {
+		err = crd.Put(ctx, testKey, "testValue", WithLease(l))
+		require.Nil(t, err)
+	}
 
-		Convey("It should be retrieved within TTL", func() {
-			items, err := crd.Scan(ctx, "testKey")
-			So(err, ShouldBeNil)
+	items, err := crd.Scan(ctx, "testKey")
+	require.Nil(t, err)
 
-			So(items, ShouldHaveLength, 2)
-			So(items[0].Key, ShouldEqual, "testKey1")
-			So(items[1].Key, ShouldEqual, "testKey2")
-		})
+	require.Equal(t, len(testKeys), len(items))
 
-		Convey("It should be deleted after TTL", func() {
-			time.Sleep(3 * time.Second)
-			items, err := crd.Scan(ctx, "testKey")
-			So(err, ShouldBeNil)
-			So(items, ShouldHaveLength, 0)
-		})
+	actualKeys := lo.Map(items, func(t RawItem, _ int) string {
+		return t.Key
 	})
+	sort.Strings(actualKeys)
+
+	require.Equal(t, testKeys, actualKeys)
+}
+
+func TestLocalMemoryCoordinator_GrantLease_RetrievedAfterTTL(t *testing.T) {
+	crd := NewLocalMemory()
+	ctx := gocontext.Background()
+
+	l, err := crd.GrantLease(ctx, 1*time.Millisecond)
+	require.Nil(t, err)
+
+	testKey1 := "testKey1"
+	testKey2 := "testKey2"
+
+	err = crd.Put(ctx, testKey1, "testValue1", WithLease(l))
+	require.Nil(t, err)
+
+	err = crd.Put(ctx, testKey2, "testValue1", WithLease(l))
+	require.Nil(t, err)
+
+	time.Sleep(500 * time.Millisecond)
+	items, err := crd.Scan(ctx, "testKey")
+	require.Nil(t, err)
+
+	require.Equal(t, 0, len(items))
 }
