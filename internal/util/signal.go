@@ -11,7 +11,7 @@ import (
 func ContextWithSignal(parent context.Context, sig ...os.Signal) (context.Context, context.CancelFunc) {
 	log := logger.New("lrmr.util")
 
-	sigChan := make(chan os.Signal)
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, sig...)
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -18,7 +18,7 @@ import (
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrmrpb"
-	"github.com/ab180/lrmr/metric"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/partitions"
 	"github.com/airbloc/logger"
@@ -124,7 +124,7 @@ func (w *Executor) State() node.State {
 
 func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*pbtypes.Empty, error) {
 	j := new(job.Job)
-	if err := req.Job.UnmarshalJSON(j); err != nil {
+	if err := req.Job.Unmarshal(j); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid JSON in Job: %v", err)
 	}
 	broadcasts, err := serialization.DeserializeBroadcast(req.Broadcasts)

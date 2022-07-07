@@ -29,3 +29,11 @@ jobs:
 
       - name: Run Unit Test
         run: go test ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...

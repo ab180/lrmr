@@ -247,7 +247,7 @@ func (lmc *localMemoryCoordinator) delete(key string) bool {
 }
 
 func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error) {
-	lease := clientv3.LeaseID(rand.Uint64())
+	lease := clientv3.LeaseID(rand.Uint64()) // #nosec G404
 	deadline := time.Now().Add(ttl)
 	lmc.leases.Store(lease, deadline)
 	return lease, nil
