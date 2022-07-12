@@ -1,12 +1,12 @@
 package lrmr
 
 import (
+	"fmt"
+
 	"github.com/ab180/lrmr/cluster"
-	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/executor"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/airbloc/logger"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -25,38 +25,31 @@ func FromLocalFile(path string, options ...PipelineOption) *Pipeline {
 
 // ConnectToCluster connects to remote cluster.
 // A job sharing a same cluster object also shares gRPC connections to the executor nodes.
-func ConnectToCluster(optionalOpt ...ConnectClusterOptions) (cluster.Cluster, error) {
-	opt := DefaultConnectClusterOptions()
-	if len(optionalOpt) > 0 {
-		opt = optionalOpt[0]
+func ConnectToCluster(options ...func(*Cluster)) (*Cluster, error) {
+	lrmrCluster := &Cluster{
+		ClusterOptions: defaultClusterOptions(),
+	}
+	for _, o := range options {
+		o(lrmrCluster)
 	}
 
-	etcd, err := coordinator.NewEtcd(opt.EtcdEndpoints, opt.EtcdNamespace, opt.EtcdOptions)
-	if err != nil {
-		return nil, errors.Wrap(err, "connect etcd")
+	if lrmrCluster.coordinator == nil {
+		crd, err := newDefaultCoordinator()
+		if err != nil {
+			return nil, fmt.Errorf("create new coordinator failed: %w", err)
+		}
+
+		lrmrCluster.coordinator = crd
 	}
-	clu, err := cluster.OpenRemote(etcd, opt.ClusterOptions)
+
+	clu, err := cluster.OpenRemote(lrmrCluster.coordinator, lrmrCluster.ClusterOptions)
 	if err != nil {
 		return nil, err
 	}
-	return &clusterWithEtcd{
-		etcd:    etcd,
-		Cluster: clu,
-	}, nil
-}
 
-// clusterWithEtcd is for closing cluster with etcd.
-type clusterWithEtcd struct {
-	etcd coordinator.Coordinator
-	cluster.Cluster
-}
+	lrmrCluster.Cluster = clu
 
-// Close closes etcd after closing cluster.
-func (c *clusterWithEtcd) Close() error {
-	if err := c.Cluster.Close(); err != nil {
-		return err
-	}
-	return c.etcd.Close()
+	return lrmrCluster, nil
 }
 
 // NewExecutor creates a new Executor. Executor can run LRMR jobs on a distributed remote cluster.
