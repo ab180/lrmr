@@ -46,7 +46,7 @@ func main() {
 
 Executor is a worker in a distributed cluster which runs jobs submitted from the driver.
 
-```
+```go
 package main
 
 import (
