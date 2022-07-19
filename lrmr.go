@@ -53,10 +53,6 @@ func ConnectToCluster(options ...func(*Cluster)) (*Cluster, error) {
 }
 
 // NewExecutor creates a new Executor. Executor can run LRMR jobs on a distributed remote cluster.
-func NewExecutor(c cluster.Cluster, optionalOpt ...executor.Options) (*executor.Executor, error) {
-	opt := executor.DefaultOptions()
-	if len(optionalOpt) > 0 {
-		opt = optionalOpt[0]
-	}
-	return executor.New(c, opt)
+func NewExecutor(c cluster.Cluster, options ...func(*executor.Executor)) (*executor.Executor, error) {
+	return executor.New(c, options...)
 }

@@ -47,23 +47,27 @@ type Executor struct {
 	opt             Options
 }
 
-func New(c cluster.Cluster, opt Options) (*Executor, error) {
-	srv := grpc.NewServer(
-		grpc.MaxRecvMsgSize(opt.MaxMessageSize),
-		grpc.MaxSendMsgSize(opt.MaxMessageSize),
+func New(c cluster.Cluster, options ...func(*Executor)) (*Executor, error) {
+	w := &Executor{
+		Cluster:         c,
+		workerLocalOpts: make(map[string]interface{}),
+		cpuScheduler:    cpuaffinity.NewScheduler(),
+		opt:             DefaultOptions(),
+	}
+	for _, o := range options {
+		o(w)
+	}
+
+	w.RPCServer = grpc.NewServer(
+		grpc.MaxRecvMsgSize(w.opt.MaxMessageSize),
+		grpc.MaxSendMsgSize(w.opt.MaxMessageSize),
 		grpc.UnaryInterceptor(loggergrpc.UnaryServerRecover()),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 			errorLogMiddleware,
 			loggergrpc.StreamServerRecover(),
 		)),
 	)
-	w := &Executor{
-		Cluster:         c,
-		RPCServer:       srv,
-		workerLocalOpts: make(map[string]interface{}),
-		cpuScheduler:    cpuaffinity.NewScheduler(),
-		opt:             opt,
-	}
+
 	if err := w.register(); err != nil {
 		return nil, errors.WithMessage(err, "register executor")
 	}
@@ -76,18 +80,20 @@ func (w *Executor) register() error {
 
 	lrmrpb.RegisterNodeServer(w.RPCServer, w)
 
-	// if port is not specified on ListenHost, it must be automatically
-	// assigned with any available port in system by net.Listen.
-	lis, err := net.Listen("tcp", w.opt.ListenHost)
-	if err != nil {
-		return errors.Wrapf(err, "listen %s", w.opt.ListenHost)
+	if w.serverLis == nil {
+		// if port is not specified on ListenHost, it must be automatically
+		// assigned with any available port in system by net.Listen.
+		lis, err := net.Listen("tcp", w.opt.ListenHost)
+		if err != nil {
+			return errors.Wrapf(err, "listen %s", w.opt.ListenHost)
+		}
+		w.serverLis = lis
 	}
-	w.serverLis = lis
 
 	advHost := w.opt.AdvertisedHost
 	if strings.HasSuffix(advHost, ":") {
 		// port is assigned automatically
-		_, actualPort, _ := net.SplitHostPort(lis.Addr().String())
+		_, actualPort, _ := net.SplitHostPort(w.serverLis.Addr().String())
 		advHost += actualPort
 	}
 	n := node.New(advHost)

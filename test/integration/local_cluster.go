@@ -35,7 +35,7 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 		opt.Concurrency = 2
 		opt.NodeTags["No"] = strconv.Itoa(i + 1)
 
-		w, err := executor.New(c, opt)
+		w, err := executor.New(c, executor.WithOptions(opt))
 		if err != nil {
 			return nil, errors.Wrapf(err, "init executor #%d", i)
 		}
