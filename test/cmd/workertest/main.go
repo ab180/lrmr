@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to join cluster: %v", err)
 	}
-	exec, err := lrmr.NewExecutor(c, opt)
+	exec, err := lrmr.NewExecutor(c, executor.WithOptions(opt))
 	if err != nil {
 		log.Println(err.Error())
 		os.Exit(1)

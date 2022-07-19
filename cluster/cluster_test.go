@@ -7,15 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/executor"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/net/nettest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 )
@@ -213,4 +216,25 @@ func WithTestNodes(t *testing.T, cluster cluster.Cluster, fn func(nodes []node.R
 			}
 		})
 	}
+}
+
+func TestClusterWithListnerOptions(t *testing.T) {
+	crd := coordinator.NewLocalMemory()
+	lrmrCluster, err := lrmr.ConnectToCluster(
+		lrmr.WithCoordinator(crd),
+	)
+	require.Nil(t, err)
+
+	lis, err := nettest.NewLocalListener("tcp")
+	require.Nil(t, err)
+
+	e, err := lrmr.NewExecutor(lrmrCluster, executor.WithListener(lis))
+	require.Nil(t, err)
+
+	require.NotNil(t, e)
+
+	nodes, err := lrmrCluster.List(context.Background())
+	require.Nil(t, err)
+
+	require.Equal(t, 1, len(nodes))
 }

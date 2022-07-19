@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"net"
 	"runtime"
 
 	"github.com/ab180/lrmr/output"
@@ -41,5 +42,19 @@ func DefaultOptions() (o Options) {
 func (o *Options) SetDefaults() {
 	if defaults.CanUpdate(o.Concurrency) {
 		o.Concurrency = runtime.NumCPU()
+	}
+}
+
+// WithOptions returns an executor with the given Options.
+func WithOptions(o Options) func(e *Executor) {
+	return func(e *Executor) {
+		e.opt = o
+	}
+}
+
+// WithListener returns an executor with the given net.Listener.
+func WithListener(lis net.Listener) func(e *Executor) {
+	return func(e *Executor) {
+		e.serverLis = lis
 	}
 }
