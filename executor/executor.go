@@ -112,6 +112,11 @@ func (w *Executor) Start() error {
 	return w.RPCServer.Serve(w.serverLis)
 }
 
+// Concurrency returns desired number of the executor threads in an executor.
+func (w *Executor) Concurrency() int {
+	return w.opt.Concurrency
+}
+
 func (w *Executor) NumRunningTasks() (count int) {
 	w.runningTasks.Range(func(_, _ interface{}) bool {
 		count++
