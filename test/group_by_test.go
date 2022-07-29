@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/ab180/lrmr/metric"
+	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testdata"
 	"github.com/ab180/lrmr/test/testutils"
@@ -79,7 +79,9 @@ func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
 			Convey("It should run without error", func() {
 				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				res := testutils.GroupRowsByKey(rows.Outputs)
+				res := testutils.GroupRowsByKey(rows.Outputs())
+				err = rows.Err()
+				So(err, ShouldBeNil)
 
 				Convey("Its result should be collected", func() {
 					So(res, ShouldHaveLength, 4)
@@ -120,7 +122,10 @@ func TestSimpleCount_WithCollect(t *testing.T) {
 				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
 
-				res := testutils.GroupRowsByKey(rows.Outputs)
+				res := testutils.GroupRowsByKey(rows.Outputs())
+				err = rows.Err()
+				So(err, ShouldBeNil)
+
 				So(res, ShouldHaveLength, 2)
 				So(res["foo"], ShouldHaveLength, 1)
 				So(res["bar"], ShouldHaveLength, 1)
@@ -138,13 +143,16 @@ func TestGroupByWithPartitionsWithNoInput(t *testing.T) {
 			ds := GroupByWithPartitionsWithNoInput()
 
 			Convey("Calling Collect() should return results with no error", func() {
-				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+				res, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
 
-				res := testutils.GroupRowsByKey(rows.Outputs)
-				So(res, ShouldHaveLength, 1)
-				So(res["foo"], ShouldHaveLength, 1)
-				So(testutils.IntValue(res["foo"][0]), ShouldEqual, 1)
+				rowsByKey := testutils.GroupRowsByKey(res.Outputs())
+				err = res.Err()
+				So(err, ShouldBeNil)
+
+				So(rowsByKey, ShouldHaveLength, 1)
+				So(rowsByKey["foo"], ShouldHaveLength, 1)
+				So(testutils.IntValue(rowsByKey["foo"][0]), ShouldEqual, 1)
 			})
 		})
 	}))

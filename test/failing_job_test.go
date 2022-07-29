@@ -22,8 +22,12 @@ func TestFailingJob(t *testing.T) {
 			So(err, ShouldNotBeNil)
 		})
 		Convey("It should handle errors gracefully on Collect", func() {
-			_, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-			So(err, ShouldNotBeNil)
+			result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+
+			if err == nil {
+				err = result.Err()
+				So(err, ShouldNotBeNil)
+			}
 		})
 	}))
 }
@@ -44,8 +48,12 @@ func TestFailingJob_WithFatalErrors(t *testing.T) {
 		Convey("It should handle errors gracefully on Collect", func() {
 			go forceKillWorker(cluster.Executors[0])
 
-			_, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-			So(err, ShouldNotBeNil)
+			result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+
+			if err == nil {
+				err = result.Err()
+				So(err, ShouldNotBeNil)
+			}
 		})
 	}))
 }

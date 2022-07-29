@@ -14,17 +14,19 @@ func TestFlatMap(t *testing.T) {
 			ds := FlatMap()
 
 			Convey("It should run without error", func() {
-				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+				res, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				So(rows.Outputs, ShouldHaveLength, 8000)
 
 				max := 0
-				for _, row := range rows.Outputs {
+				for row := range res.Outputs() {
 					n := testutils.IntValue(row)
 					if n > max {
 						max = n
 					}
 				}
+				err = res.Err()
+				So(err, ShouldBeNil)
+
 				So(max, ShouldEqual, 8000)
 			})
 		})

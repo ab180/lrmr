@@ -24,25 +24,29 @@ func TestConcurrentRun(t *testing.T) {
 	Convey("Running jobs concurrently", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 		Convey("With RunAndCollect()", func() {
 			Convey("It should return correct results with no error", func() {
-				resultsChan := make(chan []*lrdd.Row, N)
+				resultsChan := make(chan map[string][]*lrdd.Row, N)
 				errChan := make(chan error, 1)
 				for i := 0; i < N; i++ {
 					i := i
 					go func() {
-						rows, err := BasicGroupByKey(lrmr.WithName(fmt.Sprintf("collect-%d", i))).
+						res, err := BasicGroupByKey(lrmr.WithName(fmt.Sprintf("collect-%d", i))).
 							RunAndCollect(context.TODO(), cluster)
 
 						if err != nil {
 							errChan <- errors.Wrapf(err, "error on %dth run", i)
 						}
-						resultsChan <- rows.Outputs
+
+						resultsChan <- testutils.GroupRowsByKey(res.Outputs())
+						err = res.Err()
+						if err != nil {
+							errChan <- errors.Wrapf(err, "error on %dth run", i)
+						}
 					}()
 				}
 				for success := 0; success < N; success++ {
 					select {
-					case rows := <-resultsChan:
+					case res := <-resultsChan:
 						// validate results
-						res := testutils.GroupRowsByKey(rows)
 						So(testutils.IntValue(res["8263"][0]), ShouldEqual, 197206)
 
 					case err := <-errChan:

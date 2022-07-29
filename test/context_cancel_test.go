@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -20,8 +21,13 @@ func TestContextCancel(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
-			_, err := ds.RunAndCollect(ctx, cluster)
-			So(err, ShouldBeError, context.DeadlineExceeded)
+			result, err := ds.RunAndCollect(ctx, cluster)
+			So(err, ShouldBeNil)
+
+			err = result.Err()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("Expected DeadlineExceeded, got %v", err)
+			}
 
 			time.Sleep(500 * time.Millisecond)
 			So(canceled.Load(), ShouldBeTrue)
@@ -39,8 +45,13 @@ func TestContextCancel_WithinForLoop(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
-			_, err := ds.RunAndCollect(ctx, cluster)
-			So(err, ShouldBeError, context.DeadlineExceeded)
+			result, err := ds.RunAndCollect(ctx, cluster)
+			So(err, ShouldBeNil)
+
+			err = result.Err()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("Expected DeadlineExceeded, got %v", err)
+			}
 		})
 	}))
 }
@@ -55,8 +66,13 @@ func TestContextCancel_WithLocalPipes(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
-			_, err := ds.RunAndCollect(ctx, cluster)
-			So(err, ShouldBeError, context.DeadlineExceeded)
+			result, err := ds.RunAndCollect(ctx, cluster)
+			So(err, ShouldBeNil)
+
+			err = result.Err()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("Expected DeadlineExceeded, got %v", err)
+			}
 		})
 	}))
 }

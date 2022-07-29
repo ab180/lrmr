@@ -39,3 +39,12 @@ mocks: deps
 
 test:
 	go test ./...
+
+vet:
+	go vet ./...
+
+sec:
+	gosec ./...
+
+pre-push: test vet sec
+
