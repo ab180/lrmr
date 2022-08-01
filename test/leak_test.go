@@ -17,8 +17,12 @@ func TestLeakOnShortRunning(t *testing.T) {
 			ds := SimpleCount()
 
 			Convey("It should not leak any goroutines", func() {
-				_, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
+
+				// Flush returned rows.
+				for _ = range result.Outputs() {
+				}
 			})
 		})
 	}))

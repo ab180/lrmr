@@ -17,7 +17,10 @@ func TestCustomPartitioner(t *testing.T) {
 				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
 
-				res := testutils.GroupRowsByKey(result.Outputs)
+				res := testutils.GroupRowsByKey(result.Outputs())
+				err = result.Err()
+				So(err, ShouldBeNil)
+
 				So(res, ShouldHaveLength, 2)
 				So(res["1"], ShouldHaveLength, 2)
 				So(res["2"], ShouldHaveLength, 2)

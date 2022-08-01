@@ -16,15 +16,22 @@ func TestMap(t *testing.T) {
 			Convey("It should run without error", func() {
 				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
-				So(result.Outputs, ShouldHaveLength, 1000)
 
+				rowLen := 0
 				max := 0
-				for _, row := range result.Outputs {
+				for row := range result.Outputs() {
 					n := testutils.IntValue(row)
 					if n > max {
 						max = n
 					}
+
+					rowLen++
 				}
+				So(rowLen, ShouldEqual, 1000)
+
+				err = result.Err()
+				So(err, ShouldBeNil)
+
 				So(max, ShouldEqual, 8000)
 			})
 		})

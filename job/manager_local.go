@@ -86,6 +86,9 @@ func (l *LocalManager) markJobAsSucceed() {
 }
 
 func (l *LocalManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	l.mergeTaskMetricsIntoJobMetrics(metrics)
 	log.Verbose("Job {} failed", l.job.ID)
 

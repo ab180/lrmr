@@ -161,7 +161,14 @@ func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "create job")
 	}
-	drv, err := driver.NewRemote(ctx, j, c, p.input, p.broadcasts)
+	drv, err := driver.NewRemote(
+		ctx,
+		j,
+		c,
+		p.input,
+		p.broadcasts,
+		driver.WithRowChanLen(0), // TODO: control with clust options
+	)
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}
@@ -172,7 +179,7 @@ func (p *Pipeline) RunInBackground(c cluster.Cluster) (*RunningJob, error) {
 	return runningJob, nil
 }
 
-func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*driver.CollectResult, error) {
+func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (driver.Result, error) {
 	j, err := p.createJob(ctx, c)
 	if err != nil {
 		return nil, errors.Wrap(err, "create job")
@@ -181,7 +188,14 @@ func (p *Pipeline) RunAndCollect(ctx context.Context, c cluster.Cluster) (*drive
 		Stage:       executor.CollectStageName,
 		Partitioner: partitions.WrapPartitioner(partitions.NewPreservePartitioner()),
 	}
-	drv, err := driver.NewRemote(context.Background(), j, c, p.input, p.broadcasts)
+	drv, err := driver.NewRemote(
+		context.Background(),
+		j,
+		c,
+		p.input,
+		p.broadcasts,
+		driver.WithRowChanLen(0), // TODO: control with clust options
+	)
 	if err != nil {
 		return nil, errors.Wrap(err, "initiate job driver")
 	}

@@ -8,30 +8,25 @@ import (
 
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/input"
-	"github.com/ab180/lrmr/internal/errchannel"
 	"github.com/ab180/lrmr/internal/errgroup"
 	"github.com/ab180/lrmr/internal/pbtypes"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
-	"github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
+	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
 	"github.com/therne/errorist"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type Driver interface {
-	RunAttached(context.Context) (*CollectResult, error)
-	RunDetached(context.Context) error
-}
+var log = logger.New("lrmr.driver")
 
-type CollectResult struct {
-	Outputs []*lrdd.Row
-	Metrics lrmrmetric.Metrics
+type Driver interface {
+	RunAttached(context.Context) (Result, error)
+	RunDetached(context.Context) error
 }
 
 type Remote struct {
@@ -40,9 +35,27 @@ type Remote struct {
 	Connections map[string]lrmrpb.NodeClient
 	Input       input.Feeder
 	Broadcast   serialization.Broadcast
+	rowChanLen  int
 }
 
-func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feeder, broadcasts serialization.Broadcast) (Driver, error) {
+func NewRemote(
+	ctx context.Context,
+	j *job.Job,
+	c cluster.Cluster,
+	in input.Feeder,
+	broadcasts serialization.Broadcast,
+	options ...func(*Remote),
+) (Driver, error) {
+	drv := &Remote{
+		Job:       j,
+		Cluster:   c,
+		Input:     in,
+		Broadcast: broadcasts,
+	}
+	for _, o := range options {
+		o(drv)
+	}
+
 	var (
 		conns = make(map[string]lrmrpb.NodeClient)
 		mu    sync.Mutex
@@ -64,162 +77,119 @@ func NewRemote(ctx context.Context, j *job.Job, c cluster.Cluster, in input.Feed
 	if err := wg.Wait(); err != nil {
 		return nil, err
 	}
-	return &Remote{
-		Job:         j,
-		Cluster:     c,
-		Connections: conns,
-		Input:       in,
-		Broadcast:   broadcasts,
-	}, nil
+
+	drv.Connections = conns
+	return drv, nil
 }
 
-func (m *Remote) RunAttached(ctx context.Context) (*CollectResult, error) {
-	ctx, cancel := context.WithCancel(ctx)
+func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
+	syncCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// 1. create the job in executors
-	if err := m.createJob(ctx); err != nil {
+	if err := m.createJob(syncCtx); err != nil {
 		return nil, errors.Wrap(err, "create job")
 	}
 
-	// 2. start job and connect streams
-	var (
-		streams = make(map[string]lrmrpb.Node_StartJobInForegroundClient)
-		mu      sync.Mutex
-		wg      errgroup.Group
-	)
-	for host, rpc := range m.Connections {
-		host, rpc := host, rpc
+	asyncCtx, asyncCtxCancel := context.WithCancel(ctx)
 
-		wg.Go(func() error {
+	res := &result{
+		rowChan:    make(chan *lrdd.Row, m.rowChanLen),
+		jobManager: job.NewLocalManager(m.Job),
+		cancel:     asyncCtxCancel,
+	}
+
+	res.jobManager.OnJobCompletion(func(s *job.Status) {
+		for _, err := range s.Errors {
+			res.addErr(err)
+		}
+
+		asyncCtxCancel()
+	})
+
+	// 2. async start jobs and connect streams
+	var wg sync.WaitGroup
+	for host, rpc := range m.Connections {
+		wg.Add(1)
+
+		go func(host string, rpc lrmrpb.NodeClient) {
+			defer func() {
+				if err := errorist.WrapPanic(recover()); err != nil {
+					res.addErr(err)
+				}
+
+				wg.Done()
+			}()
+
 			req := &lrmrpb.StartJobRequest{
 				JobID: m.Job.ID,
 			}
-			stream, err := rpc.StartJobInForeground(ctx, req)
+			stream, err := rpc.StartJobInForeground(asyncCtx, req)
 			if err != nil {
-				return errors.Wrapf(err, "call StartJobInForeground to %s", host)
+				res.addErr(errors.Wrapf(err, "call StartJobInForeground to %s", host))
+				return
 			}
-			mu.Lock()
-			streams[host] = stream
-			mu.Unlock()
-			return nil
-		})
-	}
-	// 2.1. feed inputs simultaneously
-	wg.Go(func() error {
-		return m.feedInput(ctx, m.Job, m.Input)
-	})
-	if err := wg.Wait(); err != nil {
-		return nil, err
-	}
-	defer func() {
-		for _, stream := range streams {
-			_ = stream.CloseSend()
-		}
-	}()
 
-	// 3.1. monitor status
-	// we use error channel for centralized lifecycle management
-	var (
-		activeStreamCnt = atomic.NewInt32(0)
-		errChan         = errchannel.New()
-		statusChan      = make(chan *lrmrpb.JobOutput)
-	)
-	defer errChan.Close()
-
-	for host, stream := range streams {
-		host, stream := host, stream
-		activeStreamCnt.Add(1)
-		go func() {
-			defer func() {
-				if err := errorist.WrapPanic(recover()); err != nil {
-					errChan.Send(err)
-				}
-				cnt := activeStreamCnt.Dec()
-				if cnt == 0 {
-					close(statusChan)
-				}
-			}()
-
-			for ctx.Err() == nil {
+			for asyncCtx.Err() == nil {
 				msg, err := stream.Recv()
 				if err != nil {
 					if err == io.EOF || status.Code(err) == codes.Canceled || errors.Is(err, context.Canceled) {
-						return
+						// normal end of stream
+					} else if status.Code(err) == codes.DeadlineExceeded {
+						res.addErr(context.DeadlineExceeded)
+					} else {
+						res.addErr(errors.Wrapf(err, "receive status from %s", host))
 					}
-					if status.Code(err) == codes.DeadlineExceeded {
-						errChan.Send(context.DeadlineExceeded)
-						return
+					break
+				}
+
+				// received status report message from executor node
+				if msg.Type == lrmrpb.JobOutput_COLLECT_DATA {
+				pushLoop:
+					for _, row := range msg.Data {
+						select {
+						case <-asyncCtx.Done():
+							break pushLoop
+						case res.rowChan <- row:
+						}
 					}
-					errChan.Send(errors.Wrapf(err, "receive status from %s", host))
-					return
-				}
-				if activeStreamCnt.Load() > 0 {
-					statusChan <- msg
+				} else if msg.Type == lrmrpb.JobOutput_REPORT_TASK_COMPLETION {
+					taskID := job.TaskID{
+						JobID:       m.Job.ID,
+						StageName:   msg.Stage,
+						PartitionID: msg.PartitionID,
+					}
+					switch msg.TaskStatus {
+					case lrmrpb.JobOutput_SUCCEED:
+						_ = res.jobManager.MarkTaskAsSucceed(asyncCtx, taskID, msg.Metrics)
+					case lrmrpb.JobOutput_FAILED:
+						_ = res.jobManager.MarkTaskAsFailed(asyncCtx, taskID, errors.New(msg.Error), msg.Metrics)
+					default:
+						log.Warn("unexpected task status. [task_id: {}, status: {}]", taskID, msg.TaskStatus)
+					}
 				}
 			}
-		}()
-	}
 
-	// 3.2. handle status
-	jobMgr := job.NewLocalManager(m.Job)
-	jobMgr.OnJobCompletion(func(s *job.Status) {
-		if len(s.Errors) > 0 {
-			errChan.Send(s.Errors[0])
-			return
-		}
-		errChan.Send(nil)
-	})
-
-	var result []*lrdd.Row
-JobRun:
-	// 4. consume status stream
-	for {
-		select {
-		// 4.1. received status report message from executor node
-		case msg := <-statusChan:
-			if msg == nil {
-				// channel is closed before job completion
-				continue
-			}
-			switch msg.Type {
-			case lrmrpb.JobOutput_COLLECT_DATA:
-				result = append(result, msg.Data...)
-
-			case lrmrpb.JobOutput_REPORT_TASK_COMPLETION:
-				taskID := job.TaskID{
-					JobID:       m.Job.ID,
-					StageName:   msg.Stage,
-					PartitionID: msg.PartitionID,
-				}
-				if msg.TaskStatus == lrmrpb.JobOutput_FAILED {
-					_ = jobMgr.MarkTaskAsFailed(ctx, taskID, errors.New(msg.Error), msg.Metrics)
-					continue
-				}
-				_ = jobMgr.MarkTaskAsSucceed(ctx, taskID, msg.Metrics)
-			}
-
-		// 4.2. job is completed (success when err == nil)
-		case err := <-errChan.Recv():
+			err = stream.CloseSend()
 			if err != nil {
-				return nil, err
+				res.addErr(errors.Wrapf(err, "close stream to %s", host))
 			}
-			break JobRun
+		}(host, rpc)
+	}
 
-		// 4.3. context cancelled
-		case <-ctx.Done():
-			// at the moment, the job is already cancelled since RunJob stream is bound to ctx
-			return nil, ctx.Err()
-		}
-	}
-	metrics, err := jobMgr.CollectMetrics(ctx)
+	go func() {
+		wg.Wait()
+
+		close(res.rowChan)
+	}()
+
+	// 3. feed inputs simultaneously
+	err := m.feedInput(syncCtx, m.Job, m.Input)
 	if err != nil {
-		return nil, errors.Wrap(err, "collect metrics")
+		return nil, err
 	}
-	return &CollectResult{
-		Outputs: result,
-		Metrics: metrics,
-	}, nil
+
+	return res, nil
 }
 
 func (m *Remote) RunDetached(ctx context.Context) error {
@@ -252,6 +222,13 @@ func (m *Remote) RunDetached(ctx context.Context) error {
 		return errors.Wrap(err, "feed input")
 	}
 	return nil
+}
+
+// WithRowChanLen sets the length of the channel for receiving rows.
+func WithRowChanLen(rowChanLen int) func(*Remote) {
+	return func(r *Remote) {
+		r.rowChanLen = rowChanLen
+	}
 }
 
 func (m *Remote) createJob(ctx context.Context) error {

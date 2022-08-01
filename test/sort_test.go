@@ -17,7 +17,10 @@ func TestSort(t *testing.T) {
 				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
 				So(err, ShouldBeNil)
 
-				res := testutils.GroupRowsByKey(rows.Outputs)
+				res := testutils.GroupRowsByKey(rows.Outputs())
+				err = rows.Err()
+				So(err, ShouldBeNil)
+
 				So(res, ShouldHaveLength, 3)
 
 				So(res["foo"], ShouldHaveLength, 1)
