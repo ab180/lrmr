@@ -145,8 +145,13 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 
 				// received status report message from executor node
 				if msg.Type == lrmrpb.JobOutput_COLLECT_DATA {
+				pushLoop:
 					for _, row := range msg.Data {
-						res.rowChan <- row
+						select {
+						case <-asyncCtx.Done():
+							break pushLoop
+						case res.rowChan <- row:
+						}
 					}
 				} else if msg.Type == lrmrpb.JobOutput_REPORT_TASK_COMPLETION {
 					taskID := job.TaskID{
