@@ -1,6 +1,6 @@
 module github.com/ab180/lrmr
 
-go 1.18
+go 1.19
 
 require (
 	github.com/airbloc/logger v1.4.7
