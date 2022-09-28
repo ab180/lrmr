@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-const durationSize = unsafe.Sizeof(time.Duration(0))
+const durationSize = unsafe.Sizeof(time.Duration(0)) // #nosec G103
 
 // FromStrings converts string values to a Row slice.
 func FromStrings(vals ...string) []*Row {
