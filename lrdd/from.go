@@ -1,34 +1,81 @@
 package lrdd
 
-import "reflect"
+import (
+	"encoding/binary"
+	"fmt"
+	"time"
+	"unsafe"
+)
 
-var rowType = reflect.TypeOf((*Row)(nil))
+const durationSize = unsafe.Sizeof(time.Duration(0))
 
-func From(values interface{}) (rows []*Row) {
-	inputVal := reflect.ValueOf(values)
-	switch inputVal.Kind() {
-	case reflect.Slice, reflect.Array:
-		if inputVal.Type().Elem() == rowType {
-			return values.([]*Row)
-		}
-		for i := 0; i < inputVal.Len(); i++ {
-			rows = append(rows, Value(inputVal.Index(i).Interface()))
-		}
-	case reflect.Map:
-		iter := inputVal.MapRange()
-		for iter.Next() {
-			k := iter.Key().String()
-			v := iter.Value()
-			if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
-				for i := 0; i < v.Len(); i++ {
-					rows = append(rows, KeyValue(k, v.Index(i).Interface()))
-				}
-			} else {
-				rows = append(rows, KeyValue(k, v.Interface()))
-			}
-		}
-	default:
-		rows = append(rows, Value(values))
+// FromStrings converts string values to a Row slice.
+func FromStrings(vals ...string) []*Row {
+	rows := make([]*Row, len(vals))
+	for i, val := range vals {
+		rows[i] = &Row{Value: []byte(val)}
 	}
-	return
+
+	return rows
+}
+
+// FromStringMap converts a map of string values to a Row slice.
+func FromStringMap(vals map[string]string) []*Row {
+	var rows []*Row
+	for key, val := range vals {
+		rows = append(rows, &Row{Key: key, Value: []byte(val)})
+	}
+
+	return rows
+}
+
+// FromStringSliceMap converts a map of string slices to a Row slice.
+func FromStringSliceMap(vals map[string][]string) []*Row {
+	var rows []*Row
+	for key, slice := range vals {
+		for _, val := range slice {
+			rows = append(rows, &Row{Key: key, Value: []byte(val)})
+		}
+	}
+
+	return rows
+}
+
+// FromInts converts int values to a Row slice.
+func FromInts(vals ...int) []*Row {
+	rows := make([]*Row, len(vals))
+	for i, val := range vals {
+		rows[i] = &Row{Value: []byte(fmt.Sprintf("%d", val))}
+	}
+
+	return rows
+}
+
+// FromIntSliceMap converts a map of int slices to a Row slice.
+func FromIntSliceMap(vals map[string][]int) []*Row {
+	var rows []*Row
+	for key, slice := range vals {
+		for _, val := range slice {
+			rows = append(rows, &Row{Key: key, Value: []byte(fmt.Sprintf("%d", val))})
+		}
+	}
+
+	return rows
+}
+
+// FromDurations converts duration values to a Row slice.
+func FromDurations(vals ...time.Duration) []*Row {
+	rows := make([]*Row, len(vals))
+	for i, val := range vals {
+		rows[i] = &Row{
+			Value: make([]byte, durationSize),
+		}
+		binary.LittleEndian.PutUint64(rows[i].Value, uint64(val))
+	}
+	return rows
+}
+
+// ToDuration converts a Row to a duration.
+func ToDuration(row *Row) time.Duration {
+	return time.Duration(binary.LittleEndian.Uint64(row.Value))
 }

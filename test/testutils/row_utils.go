@@ -1,15 +1,21 @@
 package testutils
 
-import "github.com/ab180/lrmr/lrdd"
+import (
+	"strconv"
 
-func StringValue(row *lrdd.Row) (s string) {
-	row.UnmarshalValue(&s)
-	return
+	"github.com/ab180/lrmr/lrdd"
+)
+
+func StringValue(row *lrdd.Row) string {
+	return string(row.Value)
 }
 
-func IntValue(row *lrdd.Row) (n int) {
-	row.UnmarshalValue(&n)
-	return
+func IntValue(row *lrdd.Row) int {
+	n, err := strconv.Atoi(string(row.Value))
+	if err != nil {
+		panic(err)
+	}
+	return n
 }
 
 func StringValues(rows []*lrdd.Row) (ss []string) {

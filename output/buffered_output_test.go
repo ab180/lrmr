@@ -1,10 +1,11 @@
 package output
 
 import (
-	"github.com/ab180/lrmr/lrdd"
-	. "github.com/smartystreets/goconvey/convey"
 	"strconv"
 	"testing"
+
+	"github.com/ab180/lrmr/lrdd"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 const bufSize = 10
@@ -109,7 +110,7 @@ func TestBufferedOutput_Flush(t *testing.T) {
 
 func items(length int) (rr []*lrdd.Row) {
 	for i := 0; i < length; i++ {
-		rr = append(rr, lrdd.Value(strconv.Itoa(i)))
+		rr = append(rr, &lrdd.Row{Value: []byte(strconv.Itoa(i))})
 	}
 	return
 }

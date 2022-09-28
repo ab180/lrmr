@@ -6,7 +6,7 @@ import (
 )
 
 func NodeSelection(selector map[string]string) *lrmr.Pipeline {
-	return lrmr.Parallelize([]int{}, lrmr.WithNodeSelector(selector)).
+	return lrmr.Parallelize(nil, lrmr.WithNodeSelector(selector)).
 		Do(countNumPartitions{})
 }
 

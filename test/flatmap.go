@@ -13,7 +13,7 @@ type MultiplyAndDouble struct{}
 
 func (m *MultiplyAndDouble) FlatMap(ctx lrmr.Context, row *lrdd.Row) ([]*lrdd.Row, error) {
 	n := testutils.IntValue(row)
-	return lrdd.From([]int{n * 2, n * 2}), nil
+	return lrdd.FromInts(n*2, n*2), nil
 }
 
 func FlatMap() *lrmr.Pipeline {
@@ -21,7 +21,7 @@ func FlatMap() *lrmr.Pipeline {
 	for i := 0; i < len(data); i++ {
 		data[i] = i + 1
 	}
-	return lrmr.Parallelize(data).
+	return lrmr.Parallelize(lrdd.FromInts(data...)).
 		FlatMap(&MultiplyAndDouble{}).
 		FlatMap(&MultiplyAndDouble{}).
 		FlatMap(&MultiplyAndDouble{})

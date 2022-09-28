@@ -31,7 +31,7 @@ func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, e
 }
 
 func ContextCancel(timeout time.Duration) *lrmr.Pipeline {
-	return lrmr.Parallelize([]int{1, 2, 3, 4, 5}).
+	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5)).
 		Broadcast("timeout", timeout).
 		Do(ContextCancelTestStage{})
 }
@@ -49,7 +49,7 @@ func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd
 }
 
 func ContextCancelWithInputLoop() *lrmr.Pipeline {
-	return lrmr.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
+	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5, 6, 7, 8)).
 		Do(ContextCancelWithForTestStage{})
 }
 
@@ -66,7 +66,7 @@ func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan *lr
 }
 
 func ContextCancelWithLocalPipe() *lrmr.Pipeline {
-	return lrmr.Parallelize([]int{1, 2, 3, 4, 5, 6, 7, 8}).
+	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5, 6, 7, 8)).
 		Do(ContextCancelWithLocalPipeStage{}).
 		Do(ContextCancelWithLocalPipeStage{}).
 		Do(ContextCancelWithLocalPipeStage{})

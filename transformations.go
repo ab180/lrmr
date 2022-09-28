@@ -2,6 +2,7 @@ package lrmr
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 
@@ -200,8 +201,8 @@ func (s *sortTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type Combiner interface {
-	MapValueToAccumulator(value *lrdd.Row) (acc interface{})
-	MergeValue(ctx Context, prevAcc interface{}, curValue *lrdd.Row) (nextAcc interface{}, err error)
+	MapValueToAccumulator(value *lrdd.Row) (acc MarshalerUnmarshaler)
+	MergeValue(ctx Context, prevAcc MarshalerUnmarshaler, curValue *lrdd.Row) (nextAcc MarshalerUnmarshaler, err error)
 	MergeAccumulator(ctx Context, prevAcc, curAcc interface{})
 }
 
@@ -211,7 +212,7 @@ type combinerTransformation struct {
 
 func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	combiners := make(map[string]Combiner)
-	state := make(map[string]interface{})
+	state := make(map[string]MarshalerUnmarshaler)
 
 	for row := range in {
 		ctx := replacePartitionKey(c, row.Key)
@@ -235,7 +236,11 @@ func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.R
 	i := 0
 	rows := make([]*lrdd.Row, len(state))
 	for key, finalVal := range state {
-		rows[i] = lrdd.KeyValue(key, finalVal)
+		bs, err := finalVal.MarshalMsg(nil)
+		if err != nil {
+			return fmt.Errorf("failed to marshal final value: %w", err)
+		}
+		rows[i] = &lrdd.Row{Key: key, Value: bs}
 		i++
 	}
 	return out.Write(rows...)
@@ -264,8 +269,13 @@ func (f *combinerTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type Reducer interface {
-	InitialValue() interface{}
-	Reduce(ctx Context, prev interface{}, cur *lrdd.Row) (next interface{}, err error)
+	InitialValue() MarshalerUnmarshaler
+	Reduce(ctx Context, prev MarshalerUnmarshaler, cur *lrdd.Row) (next MarshalerUnmarshaler, err error)
+}
+
+type MarshalerUnmarshaler interface {
+	MarshalMsg([]byte) ([]byte, error)
+	UnmarshalMsg([]byte) ([]byte, error)
 }
 
 type reduceTransformation struct {
@@ -274,7 +284,7 @@ type reduceTransformation struct {
 
 func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	reducers := make(map[string]Reducer)
-	state := make(map[string]interface{})
+	state := make(map[string]MarshalerUnmarshaler)
 
 	for row := range in {
 		ctx := replacePartitionKey(c, row.Key)
@@ -293,7 +303,11 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row
 	i := 0
 	rows := make([]*lrdd.Row, len(state))
 	for key, finalVal := range state {
-		rows[i] = lrdd.KeyValue(key, finalVal)
+		bs, err := finalVal.MarshalMsg(nil)
+		if err != nil {
+			return fmt.Errorf("failed to marshal final value: %w", err)
+		}
+		rows[i] = &lrdd.Row{Key: key, Value: bs}
 		i++
 	}
 	return out.Write(rows...)

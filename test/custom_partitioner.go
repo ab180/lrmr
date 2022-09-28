@@ -17,7 +17,7 @@ func PartitionerWithNodeAffinityTest() *lrmr.Pipeline {
 		"key2-1": "",
 		"key2-2": "",
 	}
-	return lrmr.Parallelize(in).
+	return lrmr.Parallelize(lrdd.FromStringMap(in)).
 		PartitionedBy(&nodeAffinityTester{}).
 		Map(&dummyMapper{})
 }
@@ -41,5 +41,5 @@ type dummyMapper struct{}
 
 func (d *dummyMapper) Map(ctx lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
 	workerNo := ctx.WorkerLocalOption("No").(int)
-	return lrdd.KeyValue(strconv.Itoa(workerNo), row.Key), nil
+	return &lrdd.Row{Key: strconv.Itoa(workerNo), Value: []byte(row.Key)}, nil
 }
