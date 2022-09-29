@@ -13,6 +13,7 @@ ifeq ($(shell which protoc-gen-gofast), )
 	@echo "Installing Dependency: protoc-gen-gofast"
 	@go install github.com/gogo/protobuf/{proto,protoc-gen-gofast,gogoproto}
 endif
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0
 
 fbs:
 	@for FBS in $(FLATBUFFER_SRCS); do \
@@ -40,11 +41,14 @@ mocks: deps
 test:
 	go test ./...
 
+lint:
+	golangci-lint run --enable=lll ./...
+
 vet:
 	go vet ./...
 
 sec:
 	gosec ./...
 
-pre-push: test vet sec
+pre-push: test lint vet sec
 

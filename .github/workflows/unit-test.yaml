@@ -36,6 +36,11 @@ jobs:
       - name: Run Unit Test
         run: go test ./...
 
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --enable=lll --out-${NO_FUTURE}format colored-line-number
+
       - name: Run go vet
         run: go vet ./...
 
