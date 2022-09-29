@@ -6,6 +6,7 @@ import (
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSort(t *testing.T) {
@@ -15,22 +16,22 @@ func TestSort(t *testing.T) {
 
 			Convey("It should sort given data", func() {
 				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-				So(err, ShouldBeNil)
+				require.Nil(t, err)
 
 				res := testutils.GroupRowsByKey(rows.Outputs())
 				err = rows.Err()
-				So(err, ShouldBeNil)
+				require.Nil(t, err)
 
-				So(res, ShouldHaveLength, 3)
+				require.Equal(t, 3, len(res))
 
-				So(res["foo"], ShouldHaveLength, 1)
-				So(testutils.StringValue(res["foo"][0]), ShouldEqual, "6789")
+				require.Equal(t, 1, len(res["foo"]))
+				require.Equal(t, "6789", string(res["foo"][0].Value))
 
-				So(res["bar"], ShouldHaveLength, 1)
-				So(testutils.StringValue(res["bar"][0]), ShouldEqual, "2345")
+				require.Equal(t, 1, len(res["bar"]))
+				require.Equal(t, "2345", string(res["bar"][0].Value))
 
-				So(res["baz"], ShouldHaveLength, 1)
-				So(testutils.StringValue(res["baz"][0]), ShouldEqual, "1359")
+				require.Equal(t, 1, len(res["baz"]))
+				require.Equal(t, "1359", string(res["baz"][0].Value))
 			})
 		})
 	}))

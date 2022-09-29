@@ -12,7 +12,7 @@ import (
 var _ = lrmr.RegisterTypes(&BroadcastStage{})
 
 func BroadcastTester() *lrmr.Pipeline {
-	return lrmr.Parallelize("dummy").
+	return lrmr.Parallelize(lrdd.FromStrings("dummy")).
 		Broadcast("ThroughContext", "bar").
 		Broadcast("AnyType", time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)).
 		Map(&BroadcastStage{ThroughStruct: "foo"})
@@ -28,5 +28,5 @@ func (b *BroadcastStage) Map(c lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
 
 	output := fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)
 	log.Println("output is ", output)
-	return lrdd.Value(output), nil
+	return &lrdd.Row{Value: []byte(output)}, nil
 }

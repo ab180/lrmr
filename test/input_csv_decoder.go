@@ -3,6 +3,8 @@ package test
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 
@@ -18,8 +20,7 @@ func DecodeCSV() lrmr.FlatMapper {
 }
 
 func (l *csvDecoder) FlatMap(ctx lrmr.Context, in *lrdd.Row) (result []*lrdd.Row, err error) {
-	var path string
-	in.UnmarshalValue(&path)
+	path := string(in.Value)
 
 	file, err := os.Open(path) // #nosec G304, We should check safe path with filepath.Clean
 	if err != nil {
@@ -53,7 +54,13 @@ func (l *csvDecoder) FlatMap(ctx lrmr.Context, in *lrdd.Row) (result []*lrdd.Row
 		for colIdx, colName := range columnIndices {
 			msg[colName] = row[colIdx]
 		}
-		result = append(result, lrdd.KeyValue(msg["appID"].(string), msg))
+
+		bs, err := json.Marshal(msg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal json: %w", err)
+		}
+
+		result = append(result, &lrdd.Row{Key: msg["appID"].(string), Value: bs})
 	}
 	return result, file.Close()
 }

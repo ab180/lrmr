@@ -14,8 +14,8 @@ var (
 )
 
 // Parallelize creates new Pipeline with given value as an input.
-func Parallelize(val interface{}, options ...PipelineOption) *Pipeline {
-	return NewPipeline(&parallelizedInput{data: lrdd.From(val)}, options...)
+func Parallelize(data []*lrdd.Row, options ...PipelineOption) *Pipeline {
+	return NewPipeline(&parallelizedInput{data: data}, options...)
 }
 
 // FromLocalFile creates new Pipeline, with reading files under given path an input.

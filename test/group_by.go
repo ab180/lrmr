@@ -2,6 +2,7 @@ package test
 
 import (
 	"github.com/ab180/lrmr"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/test/testdata"
 )
 
@@ -24,7 +25,7 @@ func SimpleCount() *lrmr.Pipeline {
 		"foo": {"goo", "hoo"},
 		"bar": {"baz"},
 	}
-	return lrmr.Parallelize(d).
+	return lrmr.Parallelize(lrdd.FromStringSliceMap(d)).
 		GroupByKey().
 		Reduce(Count())
 }
@@ -33,7 +34,7 @@ func GroupByWithPartitionsWithNoInput() *lrmr.Pipeline {
 	d := map[string][]string{
 		"foo": {"goo"},
 	}
-	return lrmr.Parallelize(d).
+	return lrmr.Parallelize(lrdd.FromStringSliceMap(d)).
 		Repartition(10).
 		GroupByKey().
 		Reduce(Count())
