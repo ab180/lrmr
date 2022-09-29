@@ -294,6 +294,7 @@ func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
 		for range resp {
 			// drain KeepAlive response channel
 		}
+		e.log.Debug("lease keep alive channel closed: {}", ctx.Err().Error())
 	}()
 	return err
 }
