@@ -19,12 +19,12 @@ func Count() lrmr.Reducer {
 	return &counter{}
 }
 
-func (cnt *counter) InitialValue() lrmr.MarshalerUnmarshaler {
+func (cnt *counter) InitialValue() lrmr.MarshalUnmarshaler {
 	initVal := counterMarshalerUnmarshaler(0)
 	return &initVal
 }
 
-func (cnt *counter) Reduce(c lrmr.Context, prev lrmr.MarshalerUnmarshaler, cur *lrdd.Row) (next lrmr.MarshalerUnmarshaler, err error) {
+func (cnt *counter) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row) (next lrmr.MarshalUnmarshaler, err error) {
 	c.AddMetric("Events", 1)
 	prevVal := prev.(*counterMarshalerUnmarshaler)
 	reduceVal := *prevVal + counterMarshalerUnmarshaler(1)

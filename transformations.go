@@ -201,8 +201,8 @@ func (s *sortTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type Combiner interface {
-	MapValueToAccumulator(value *lrdd.Row) (acc MarshalerUnmarshaler)
-	MergeValue(ctx Context, prevAcc MarshalerUnmarshaler, curValue *lrdd.Row) (nextAcc MarshalerUnmarshaler, err error)
+	MapValueToAccumulator(value *lrdd.Row) (acc MarshalUnmarshaler)
+	MergeValue(ctx Context, prevAcc MarshalUnmarshaler, curValue *lrdd.Row) (nextAcc MarshalUnmarshaler, err error)
 	MergeAccumulator(ctx Context, prevAcc, curAcc interface{})
 }
 
@@ -212,7 +212,7 @@ type combinerTransformation struct {
 
 func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	combiners := make(map[string]Combiner)
-	state := make(map[string]MarshalerUnmarshaler)
+	state := make(map[string]MarshalUnmarshaler)
 
 	for row := range in {
 		ctx := replacePartitionKey(c, row.Key)
@@ -269,11 +269,11 @@ func (f *combinerTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type Reducer interface {
-	InitialValue() MarshalerUnmarshaler
-	Reduce(ctx Context, prev MarshalerUnmarshaler, cur *lrdd.Row) (next MarshalerUnmarshaler, err error)
+	InitialValue() MarshalUnmarshaler
+	Reduce(ctx Context, prev MarshalUnmarshaler, cur *lrdd.Row) (next MarshalUnmarshaler, err error)
 }
 
-type MarshalerUnmarshaler interface {
+type MarshalUnmarshaler interface {
 	MarshalMsg([]byte) ([]byte, error)
 	UnmarshalMsg([]byte) ([]byte, error)
 }
@@ -284,7 +284,7 @@ type reduceTransformation struct {
 
 func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
 	reducers := make(map[string]Reducer)
-	state := make(map[string]MarshalerUnmarshaler)
+	state := make(map[string]MarshalUnmarshaler)
 
 	for row := range in {
 		ctx := replacePartitionKey(c, row.Key)

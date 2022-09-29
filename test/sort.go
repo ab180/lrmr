@@ -25,12 +25,12 @@ func (a2 Ascending) IsLessThan(a, b *lrdd.Row) bool {
 
 type Concat struct{}
 
-func (cc Concat) InitialValue() lrmr.MarshalerUnmarshaler {
+func (cc Concat) InitialValue() lrmr.MarshalUnmarshaler {
 	initVal := concatMarshalerUnmarshaler("")
 	return &initVal
 }
 
-func (cc Concat) Reduce(c lrmr.Context, prev lrmr.MarshalerUnmarshaler, cur *lrdd.Row) (next lrmr.MarshalerUnmarshaler, err error) {
+func (cc Concat) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row) (next lrmr.MarshalUnmarshaler, err error) {
 	n, err := strconv.Atoi(string(cur.Value))
 	if err != nil {
 		panic(err)
