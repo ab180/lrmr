@@ -30,7 +30,8 @@ func (cc Concat) InitialValue() lrmr.MarshalUnmarshaler {
 	return &initVal
 }
 
-func (cc Concat) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row) (next lrmr.MarshalUnmarshaler, err error) {
+func (cc Concat) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row,
+) (next lrmr.MarshalUnmarshaler, err error) {
 	n, err := strconv.Atoi(string(cur.Value))
 	if err != nil {
 		panic(err)

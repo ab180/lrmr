@@ -115,7 +115,7 @@ func benchmarkPoolNbyte(b *testing.B, n int) {
 				defer wg.Done()
 				data := p.Get().([]byte)
 				_ = data
-				p.Put(data)
+				p.Put(data) //nolint:staticcheck
 			}()
 		}
 		wg.Wait()

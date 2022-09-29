@@ -85,7 +85,7 @@ func (l *LocalManager) markJobAsSucceed() {
 	}
 }
 
-func (l *LocalManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error {
+func (l *LocalManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, err error, metrics lrmrmetric.Metrics) error { //nolint:lll
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

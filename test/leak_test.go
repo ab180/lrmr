@@ -21,7 +21,7 @@ func TestLeakOnShortRunning(t *testing.T) {
 				So(err, ShouldBeNil)
 
 				// Flush returned rows.
-				for _ = range result.Outputs() {
+				for _ = range result.Outputs() { //nolint:gosimple
 				}
 			})
 		})

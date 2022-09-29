@@ -125,8 +125,3 @@ func TestMarshalVT(t *testing.T) {
 
 	assert.Equal(t, originRow.String(), row.String())
 }
-
-type testStruct struct {
-	Foo float64
-	Bar string
-}

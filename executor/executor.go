@@ -159,7 +159,7 @@ func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*
 	return &pbtypes.Empty{}, nil
 }
 
-func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmrpb.Node_StartJobInForegroundServer) error {
+func (w *Executor) StartJobInForeground(req *lrmrpb.StartJobRequest, stream lrmrpb.Node_StartJobInForegroundServer) error { //nolint:lll
 	v, ok := w.runningJobs.Load(req.JobID)
 	if !ok {
 		return status.Error(codes.NotFound, "job not found")
@@ -351,7 +351,7 @@ func (w *Executor) Close() error {
 	return nil
 }
 
-func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error { //nolint:lll
 	// dump header on stream failure
 	if err := handler(srv, ss); err != nil {
 		if errors.Is(err, context.Canceled) {

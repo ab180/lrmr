@@ -76,7 +76,7 @@ func (w Writer) NumOutputs() int {
 func (w *Writer) Close() (err error) {
 	for k, out := range w.outputs {
 		if e := out.Close(); e == nil {
-			err = e
+			err = e //nolint:staticcheck
 		}
 		delete(w.outputs, k)
 	}

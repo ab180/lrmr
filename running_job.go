@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -29,7 +28,6 @@ type RunningJob struct {
 	driver        driver.Driver
 	statusManager job.Manager
 	finalStatus   atomic.Value
-	statusMu      sync.RWMutex
 	startedAt     time.Time
 	logger        logger.Logger
 }
@@ -136,7 +134,7 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 }
 
 func (r *RunningJob) logMetrics() {
-	jobDuration := time.Now().Sub(r.startedAt)
+	jobDuration := time.Now().Sub(r.startedAt) //nolint:gosimple
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()
 }

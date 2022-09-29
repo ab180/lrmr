@@ -77,7 +77,7 @@ func (f *attachedStatusReporter) Collect(rows []*lrdd.Row) error {
 	})
 }
 
-func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error {
+func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID job.TaskID, metrics lrmrmetric.Metrics) error { //nolint:lll
 	return f.send(ctx, &lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_SUCCEED,
@@ -87,7 +87,7 @@ func (f *attachedStatusReporter) ReportTaskSuccess(ctx context.Context, taskID j
 	})
 }
 
-func (f *attachedStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
+func (f *attachedStatusReporter) ReportTaskFailure(ctx context.Context, taskID job.TaskID, taskErr error, metrics lrmrmetric.Metrics) error { //nolint:lll
 	return f.send(ctx, &lrmrpb.JobOutput{
 		Type:        lrmrpb.JobOutput_REPORT_TASK_COMPLETION,
 		TaskStatus:  lrmrpb.JobOutput_FAILED,
@@ -124,10 +124,10 @@ func (b *detachedStatusReporter) Collect(rows []*lrdd.Row) error {
 	panic("collect not supported on detachedStatusReporter")
 }
 
-func (b *detachedStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID, metrics lrmrmetric.Metrics) error {
+func (b *detachedStatusReporter) ReportTaskSuccess(ctx context.Context, id job.TaskID, metrics lrmrmetric.Metrics) error { //nolint:lll
 	return b.jobManager.MarkTaskAsSucceed(ctx, id, metrics)
 }
 
-func (b *detachedStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error, metrics lrmrmetric.Metrics) error {
+func (b *detachedStatusReporter) ReportTaskFailure(ctx context.Context, id job.TaskID, err error, metrics lrmrmetric.Metrics) error { //nolint:lll
 	return b.jobManager.MarkTaskAsFailed(ctx, id, err, metrics)
 }

@@ -112,7 +112,7 @@ func (r *DistributedManager) MarkTaskAsSucceed(ctx context.Context, taskID TaskI
 
 // MarkTaskAsFailed marks the task as failed. If the error is non-nil, it's added to the error list of the job.
 // Passing nil in error will only cancel the task.
-func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, taskErr error, metrics lrmrmetric.Metrics) error {
+func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID, taskErr error, metrics lrmrmetric.Metrics) error { //nolint:lll
 	l, err := r.getLeaseForLogRetention(ctx)
 	if err != nil {
 		return errors.Wrap(err, "grant lease for job log retention")
@@ -137,7 +137,7 @@ func (r *DistributedManager) MarkTaskAsFailed(ctx context.Context, taskID TaskID
 	return r.reportJobCompletion(ctx, Failed)
 }
 
-func (r *DistributedManager) checkForStageCompletion(ctx context.Context, taskID TaskID, currentDoneTasks, currentFailedTasks int) error {
+func (r *DistributedManager) checkForStageCompletion(ctx context.Context, taskID TaskID, currentDoneTasks, currentFailedTasks int) error { //nolint:lll
 	if currentFailedTasks == 1 {
 		// to prevent race between workers, the failure is only reported by the first worker failed
 		if err := r.reportStageCompletion(ctx, taskID.StageName, Failed); err != nil {
@@ -164,7 +164,7 @@ func (r *DistributedManager) checkForStageCompletion(ctx context.Context, taskID
 func (r *DistributedManager) reportStageCompletion(ctx context.Context, stageName string, status RunningState) error {
 	s := newStageStatus()
 	s.Complete(status)
-	if err := r.clusterState.Put(ctx, stageStatusKey(r.job.ID, stageName), s, coordinator.WithLease(r.logRetentionLease)); err != nil {
+	if err := r.clusterState.Put(ctx, stageStatusKey(r.job.ID, stageName), s, coordinator.WithLease(r.logRetentionLease)); err != nil { //nolint:lll
 		return errors.Wrap(err, "update stage status")
 	}
 	if status == Failed {
@@ -254,7 +254,7 @@ func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, do
 }
 
 func (r *DistributedManager) watch(ctx context.Context) {
-	defer log.Recover()
+	defer log.Recover() //nolint:errcheck
 	defer r.Close()
 
 	prefix := jobStatusKey(r.job.ID)

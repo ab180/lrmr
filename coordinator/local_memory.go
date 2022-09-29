@@ -114,7 +114,7 @@ func (lmc *localMemoryCoordinator) put(k string, v interface{}, lease clientv3.L
 	return nil
 }
 
-func (lmc *localMemoryCoordinator) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (bool, error) {
+func (lmc *localMemoryCoordinator) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (bool, error) { //nolint:lll
 	if err := lmc.simulate(ctx); err != nil {
 		return false, err
 	}
@@ -134,8 +134,8 @@ func (lmc *localMemoryCoordinator) CAS(ctx context.Context, key string, old inte
 			return false, err
 		}
 		if !bytes.Equal(e.item.Value, oldB) {
-            return false, nil
-        }
+			return false, nil
+		}
 	} else {
 		if old != nil {
 			return false, nil
@@ -233,7 +233,7 @@ func (lmc *localMemoryCoordinator) delete(key string) bool {
 	}
 
 	lmc.counterLock.Lock()
-	if _, ok := lmc.counter[key]; ok {
+	if _, ok := lmc.counter[key]; ok { //nolint:gosimple
 		delete(lmc.counter, key)
 	}
 	lmc.counterLock.Unlock()
@@ -297,7 +297,7 @@ func (lmc *localMemoryCoordinator) Watch(ctx context.Context, prefix string) cha
 		events: eventsChan,
 	})
 	go func() {
-		select {
+		select { //nolint:gosimple
 		case <-ctx.Done():
 			lmc.subsLock.Lock()
 			for i, sub := range lmc.subscriptions {
@@ -365,7 +365,7 @@ type childLocalMemoryCoordinator struct {
 	overrideOptions []WriteOption
 }
 
-func (c *childLocalMemoryCoordinator) Put(ctx context.Context, key string, value interface{}, opts ...WriteOption) error {
+func (c *childLocalMemoryCoordinator) Put(ctx context.Context, key string, value interface{}, opts ...WriteOption) error { //nolint:lll
 	original := c.localMemoryCoordinator.optsApplied
 	c.localMemoryCoordinator.optsApplied = append(original, c.overrideOptions...)
 	defer func() {

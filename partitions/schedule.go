@@ -161,7 +161,8 @@ func selectNextNode(nn []nodeWithStats, plan *Plan, curSlot int) (selected *node
 	return &nn[curSlot%len(nn)], curSlot + 1
 }
 
-func selectNextNodeWithAffinity(nn []nodeWithStats, rules map[string]string, curSlot int) (selected *nodeWithStats, next int) {
+func selectNextNodeWithAffinity(nn []nodeWithStats, rules map[string]string, curSlot int,
+) (selected *nodeWithStats, next int) {
 	for slot := curSlot; slot < curSlot+len(nn); slot++ {
 		n := &nn[slot%len(nn)]
 		if satisfiesAffinity(n.Node, rules) {

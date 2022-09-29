@@ -29,7 +29,8 @@ type transformerTransformation struct {
 	transformer Transformer
 }
 
-func (t transformerTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) (emitErr error) {
+func (t transformerTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output,
+) (emitErr error) {
 	childCtx, cancel := contextWithCancel(ctx)
 	defer cancel()
 
@@ -64,11 +65,12 @@ type Filter interface {
 	Filter(*lrdd.Row) bool
 }
 
-type filterTransformation struct {
+type filterTransformation struct { //nolint:unused
 	filter Filter
 }
 
-func (f filterTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
+func (f filterTransformation) Apply(_ transformation.Context, in chan *lrdd.Row, out output.Output, //nolint:unused
+) error {
 	for row := range in {
 		if !f.filter.Filter(row) {
 			continue
@@ -206,11 +208,12 @@ type Combiner interface {
 	MergeAccumulator(ctx Context, prevAcc, curAcc interface{})
 }
 
-type combinerTransformation struct {
+type combinerTransformation struct { //nolint:unused
 	combinerPrototype Combiner
 }
 
-func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
+func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output, //nolint:unused
+) error {
 	combiners := make(map[string]Combiner)
 	state := make(map[string]MarshalUnmarshaler)
 
@@ -246,7 +249,7 @@ func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.R
 	return out.Write(rows...)
 }
 
-func (f *combinerTransformation) instantiateCombiner() Combiner {
+func (f *combinerTransformation) instantiateCombiner() Combiner { //nolint:unused
 	// clone combiner object from prototype
 	c := reflect.New(reflect.TypeOf(f.combinerPrototype).Elem()).Interface()
 	if err := copier.Copy(c, f.combinerPrototype); err != nil {
@@ -255,11 +258,11 @@ func (f *combinerTransformation) instantiateCombiner() Combiner {
 	return c.(Combiner)
 }
 
-func (f *combinerTransformation) MarshalJSON() ([]byte, error) {
+func (f *combinerTransformation) MarshalJSON() ([]byte, error) { //nolint:unused
 	return serialization.SerializeStruct(f.combinerPrototype)
 }
 
-func (f *combinerTransformation) UnmarshalJSON(data []byte) error {
+func (f *combinerTransformation) UnmarshalJSON(data []byte) error { //nolint:unused
 	v, err := serialization.DeserializeStruct(data)
 	if err != nil {
 		return err

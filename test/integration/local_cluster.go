@@ -17,7 +17,6 @@ type LocalCluster struct {
 	crd       coordinator.Coordinator
 	closeEtcd func()
 	Executors []*executor.Executor
-	testCtx   C
 }
 
 func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
@@ -42,7 +41,7 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 		w.SetWorkerLocalOption("No", i+1)
 		w.SetWorkerLocalOption("IsWorker", true)
 
-		go w.Start()
+		go w.Start() //nolint:errcheck
 		workers[i] = w
 	}
 
@@ -57,7 +56,7 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 	}, nil
 }
 
-func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), options ...lrmr.PipelineOption) func() {
+func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), _ ...lrmr.PipelineOption) func() {
 	return func() {
 		c, err := NewLocalCluster(numWorkers)
 		if err != nil {

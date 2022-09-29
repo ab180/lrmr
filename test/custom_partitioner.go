@@ -24,7 +24,8 @@ func PartitionerWithNodeAffinityTest() *lrmr.Pipeline {
 
 type nodeAffinityTester struct{}
 
-func (c nodeAffinityTester) DeterminePartition(ctx partitions.Context, r *lrdd.Row, numOutputs int) (id string, err error) {
+func (c nodeAffinityTester) DeterminePartition(ctx partitions.Context, r *lrdd.Row, numOutputs int,
+) (id string, err error) {
 	return r.Key, nil
 }
 

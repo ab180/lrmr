@@ -11,51 +11,55 @@ import (
 )
 
 func TestFailingJob(t *testing.T) {
-	Convey("Running a job that fails", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		ds := FailingJob()
+	Convey("Running a job that fails", t, integration.WithLocalCluster(
+		2,
+		func(cluster *integration.LocalCluster) {
+			ds := FailingJob()
 
-		Convey("It should handle errors gracefully on Wait", func() {
-			job, err := ds.RunInBackground(cluster)
-			So(err, ShouldBeNil)
+			Convey("It should handle errors gracefully on Wait", func() {
+				job, err := ds.RunInBackground(cluster)
+				So(err, ShouldBeNil)
 
-			err = job.WaitWithContext(testutils.ContextWithTimeout())
-			So(err, ShouldNotBeNil)
-		})
-		Convey("It should handle errors gracefully on Collect", func() {
-			result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-
-			if err == nil {
-				err = result.Err()
+				err = job.WaitWithContext(testutils.ContextWithTimeout())
 				So(err, ShouldNotBeNil)
-			}
-		})
-	}))
+			})
+			Convey("It should handle errors gracefully on Collect", func() {
+				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+
+				if err == nil {
+					err = result.Err()
+					So(err, ShouldNotBeNil)
+				}
+			})
+		}))
 }
 
 func TestFailingJob_WithFatalErrors(t *testing.T) {
-	Convey("Running a job that fails with fatal errors", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		ds := ComplicatedQuery()
+	Convey("Running a job that fails with fatal errors", t, integration.WithLocalCluster(
+		2,
+		func(cluster *integration.LocalCluster) {
+			ds := ComplicatedQuery()
 
-		Convey("It should handle errors gracefully on Wait", func() {
-			job, err := ds.RunInBackground(cluster)
-			So(err, ShouldBeNil)
+			Convey("It should handle errors gracefully on Wait", func() {
+				job, err := ds.RunInBackground(cluster)
+				So(err, ShouldBeNil)
 
-			go forceKillWorker(cluster.Executors[0])
+				go forceKillWorker(cluster.Executors[0])
 
-			err = job.WaitWithContext(testutils.ContextWithTimeout())
-			So(err, ShouldNotBeNil)
-		})
-		Convey("It should handle errors gracefully on Collect", func() {
-			go forceKillWorker(cluster.Executors[0])
-
-			result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-
-			if err == nil {
-				err = result.Err()
+				err = job.WaitWithContext(testutils.ContextWithTimeout())
 				So(err, ShouldNotBeNil)
-			}
-		})
-	}))
+			})
+			Convey("It should handle errors gracefully on Collect", func() {
+				go forceKillWorker(cluster.Executors[0])
+
+				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
+
+				if err == nil {
+					err = result.Err()
+					So(err, ShouldNotBeNil)
+				}
+			})
+		}))
 }
 
 func forceKillWorker(w *executor.Executor) {

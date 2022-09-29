@@ -184,7 +184,8 @@ func (e *Etcd) Put(ctx context.Context, key string, value interface{}, opts ...W
 	return err
 }
 
-func (e *Etcd) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption) (bool, error) {
+func (e *Etcd) CAS(ctx context.Context, key string, old interface{}, new interface{}, opts ...WriteOption,
+) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.option.OpTimeout)
 	defer cancel()
 
