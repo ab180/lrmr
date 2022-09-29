@@ -23,7 +23,8 @@ type Coordinator interface {
 	GrantLease(ctx context.Context, ttl time.Duration) (clientv3.LeaseID, error)
 
 	// KeepAlive tries to extend given lease's TTL until the context is cancelled or reaches deadline.
-	KeepAlive(ctx context.Context, lease clientv3.LeaseID) error
+	// The returned channel will be closed when the KeepAlive is stopped.
+	KeepAlive(ctx context.Context, lease clientv3.LeaseID) (<-chan struct{}, error)
 
 	// Close closes coordinator.
 	Close() error

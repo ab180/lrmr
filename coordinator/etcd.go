@@ -288,15 +288,20 @@ func (e *Etcd) GrantLease(ctx context.Context, ttl time.Duration) (clientv3.Leas
 	return lease.ID, nil
 }
 
-func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
+func (e *Etcd) KeepAlive(ctx context.Context, lease clientv3.LeaseID) (<-chan struct{}, error) {
 	resp, err := e.Lease.KeepAlive(ctx, lease)
+	if err != nil {
+		return nil, err
+	}
+
+	sig := make(chan struct{}, 1)
 	go func() {
+		defer close(sig)
 		for range resp {
 			// drain KeepAlive response channel
 		}
-		e.log.Debug("lease keep alive channel closed: {}", ctx.Err().Error())
 	}()
-	return err
+	return sig, nil
 }
 
 // IncrementCounter is an atomic operation increasing the counter in given key.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
@@ -95,27 +96,7 @@ func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, err
 // Register registers node to the coordinator and makes it discoverable.
 // registration will be automatically deleted if cluster's context is cancelled.
 func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration, error) {
-	nodeCtx, cancel := context.WithCancel(c.ctx)
-	nodeReg := &nodeRegistration{
-		ctx:     nodeCtx,
-		cancel:  cancel,
-		cluster: c,
-		node:    n,
-	}
-
-	lease, err := c.clusterState.GrantLease(ctx, c.options.LivenessProbeInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, "grant TTL")
-	}
-	if err := c.clusterState.KeepAlive(nodeCtx, lease); err != nil {
-		return nil, errors.Wrap(err, "start liveness prove")
-	}
-	nodeReg.livenessLease = lease
-	if err := nodeReg.States().Put(ctx, path.Join(nodeNs, n.Host), n); err != nil {
-		return nil, errors.Wrap(err, "register node info")
-	}
-	log.Info("executor node registered as {} (Tag: {})", n.Host, n.Tag)
-	return nodeReg, nil
+	return newNodeRegistration(ctx, n, c, c.options.LivenessProbeInterval)
 }
 
 // Connect tries to connect the host and returns gRPC connection.
@@ -215,24 +196,103 @@ func (c *cluster) Close() (err error) {
 
 // nodeRegistration implements node.Registration.
 type nodeRegistration struct {
-	ctx           context.Context
-	cancel        context.CancelFunc
-	cluster       Cluster
-	node          *node.Node
-	livenessLease clientv3.LeaseID
+	mu                    sync.RWMutex
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	node                  *node.Node
+	cluster               Cluster
+	livenessProbeInterval time.Duration
+	livenessLease         clientv3.LeaseID
+	sig                   <-chan struct{}
+}
+
+func newNodeRegistration(ctx context.Context, n *node.Node, c *cluster, ttl time.Duration) (*nodeRegistration, error) {
+	nodeCtx, cancel := context.WithCancel(c.ctx)
+	nodeReg := &nodeRegistration{
+		ctx:                   nodeCtx,
+		cancel:                cancel,
+		node:                  n,
+		cluster:               c,
+		livenessProbeInterval: c.options.LivenessProbeInterval,
+	}
+
+	lease, err := c.clusterState.GrantLease(ctx, c.options.LivenessProbeInterval)
+	if err != nil {
+		return nil, errors.Wrap(err, "grant TTL")
+	}
+	nodeReg.livenessLease = lease
+
+	sig, err := c.clusterState.KeepAlive(nodeCtx, lease)
+	if err != nil {
+		return nil, errors.Wrap(err, "start liveness prove")
+	}
+	nodeReg.sig = sig
+
+	if err := nodeReg.States().Put(ctx, path.Join(nodeNs, n.Host), n); err != nil {
+		return nil, errors.Wrap(err, "register node info")
+	}
+
+	log.Info("executor node registered as {} (Tag: {})", n.Host, n.Tag)
+
+	go nodeReg.keepRegistered()
+
+	return nodeReg, nil
+}
+
+func (n *nodeRegistration) keepRegistered() {
+	for n.ctx.Err() == nil {
+		func() {
+			n.mu.Lock()
+			defer n.mu.Unlock()
+
+			select {
+			case <-n.sig:
+			default:
+				return
+			}
+
+			log.Info("re-register node {} (Tag: {})", n.node.Host, n.node.Tag)
+
+			lease, err := n.cluster.States().GrantLease(n.ctx, n.livenessProbeInterval)
+			if err != nil {
+				log.Error("failed to get lease TTL", err)
+				return
+			}
+			n.livenessLease = lease
+
+			sig, err := n.cluster.States().KeepAlive(n.ctx, n.livenessLease)
+			if err != nil {
+				log.Error("failed to keep alive", err)
+				return
+			}
+			n.sig = sig
+
+			err = n.states().Put(n.ctx, path.Join(nodeNs, n.node.Host), n.node)
+			if err != nil {
+				log.Error("failed to put node", err)
+				return
+			}
+		}()
+	}
 }
 
 // Info returns a node's information.
-func (n nodeRegistration) Info() *node.Node {
+func (n *nodeRegistration) Info() *node.Node {
 	return n.node
 }
 
-// States returns an NodeState, which is ephemeral.
-func (n nodeRegistration) States() node.State {
+func (n *nodeRegistration) states() node.State {
 	return n.cluster.States().WithOptions(coordinator.WithLease(n.livenessLease))
 }
 
+// States returns an NodeState, which is ephemeral.
+func (n *nodeRegistration) States() node.State {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.states()
+}
+
 // Unregister removes node from the cluster's node list, and clears all NodeState.
-func (n nodeRegistration) Unregister() {
+func (n *nodeRegistration) Unregister() {
 	n.cancel()
 }

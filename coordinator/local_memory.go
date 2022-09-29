@@ -253,8 +253,10 @@ func (lmc *localMemoryCoordinator) GrantLease(ctx context.Context, ttl time.Dura
 	return lease, nil
 }
 
-func (lmc *localMemoryCoordinator) KeepAlive(ctx context.Context, lease clientv3.LeaseID) error {
+func (lmc *localMemoryCoordinator) KeepAlive(ctx context.Context, lease clientv3.LeaseID) (<-chan struct{}, error) {
+	sig := make(chan struct{})
 	go func() {
+		defer close(sig)
 		tick := time.NewTicker(1 * time.Second)
 		for {
 			select {
@@ -267,7 +269,7 @@ func (lmc *localMemoryCoordinator) KeepAlive(ctx context.Context, lease clientv3
 			}
 		}
 	}()
-	return nil
+	return sig, nil
 }
 
 func (lmc *localMemoryCoordinator) isAfterDeadline(lease clientv3.LeaseID) (expired bool) {
