@@ -241,19 +241,20 @@ func newNodeRegistration(ctx context.Context, n *node.Node, c *cluster, ttl time
 
 func (n *nodeRegistration) keepRegistered() {
 	for n.ctx.Err() == nil {
+		select {
+		case <-n.ctx.Done():
+			return
+		case <-n.sig:
+		}
+
+		timeoutCtx, cancel := context.WithTimeout(n.ctx, n.livenessProbeInterval)
 		func() {
 			n.mu.Lock()
 			defer n.mu.Unlock()
 
-			select {
-			case <-n.sig:
-			default:
-				return
-			}
-
 			log.Info("re-register node {} (Tag: {})", n.node.Host, n.node.Tag)
 
-			lease, err := n.cluster.States().GrantLease(n.ctx, n.livenessProbeInterval)
+			lease, err := n.cluster.States().GrantLease(timeoutCtx, n.livenessProbeInterval)
 			if err != nil {
 				log.Error("failed to get lease TTL", err)
 				return
@@ -267,12 +268,13 @@ func (n *nodeRegistration) keepRegistered() {
 			}
 			n.sig = sig
 
-			err = n.states().Put(n.ctx, path.Join(nodeNs, n.node.Host), n.node)
+			err = n.states().Put(timeoutCtx, path.Join(nodeNs, n.node.Host), n.node)
 			if err != nil {
 				log.Error("failed to put node", err)
 				return
 			}
 		}()
+		cancel()
 	}
 }
 
