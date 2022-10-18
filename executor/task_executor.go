@@ -65,7 +65,7 @@ func (e *TaskExecutor) Run() {
 
 	// pipe input.Reader.C to function input channel
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
-	go e.pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
+	go pipeAndFlattenInputs(ctx, e.opt.UseDelyedSendInput, e.Input.C, funcInputChan)
 
 	// hard copy. TODO: a better way to do it!
 	fnData, _ := e.Stage.Function.MarshalJSON()
@@ -109,32 +109,30 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	e.Input = nil
 }
 
-func (e *TaskExecutor) pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan *lrdd.Row) {
+func pipeAndFlattenInputs(ctx context.Context, useDelaySendInput bool, in chan []*lrdd.Row, out chan *lrdd.Row) {
 	defer close(out)
 
-	if e.opt.UseDelyedSendInput {
+	if useDelaySendInput {
+		var buf []*lrdd.Row
 		for rows := range in {
-			if err := ctx.Err(); err != nil {
+			buf = append(buf, rows...)
+		}
+
+		for _, row := range buf {
+			select {
+			case out <- row:
+			case <-ctx.Done():
 				return
-			}
-
-			var buf []*lrdd.Row
-			for _, r := range rows {
-				buf = append(buf, r)
-			}
-
-			for _, r := range buf {
-				out <- r
 			}
 		}
 	} else {
 		for rows := range in {
-			if err := ctx.Err(); err != nil {
-				return
-			}
-
 			for _, r := range rows {
-				out <- r
+				select {
+				case out <- r:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}
