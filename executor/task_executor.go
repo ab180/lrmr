@@ -65,7 +65,7 @@ func (e *TaskExecutor) Run() {
 
 	// pipe input.Reader.C to function input channel
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
-	go pipeAndFlattenInputs(ctx, e.opt.UseDelyedSendInput, e.Input.C, funcInputChan)
+	go pipeAndFlattenInputs(ctx, e.opt.UseDelayedSendInput, e.Input.C, funcInputChan)
 
 	// hard copy. TODO: a better way to do it!
 	fnData, _ := e.Stage.Function.MarshalJSON()

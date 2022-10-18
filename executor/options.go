@@ -30,11 +30,11 @@ type Options struct {
 
 	ExperimentalCPUAffinity bool `default:"false"`
 
-	// UseDelyedSendInput is a flag to use delayed send input.
+	// UseDelayedSendInput is a flag to use delayed send input.
 	//
 	// If this is enabled, the input will be buffered before sending it to the function. Result of buffering we can
 	// check the exact execution time(performance) of the applying function without I/O latency.
-	UseDelyedSendInput bool
+	UseDelayedSendInput bool
 }
 
 func DefaultOptions() (o Options) {
