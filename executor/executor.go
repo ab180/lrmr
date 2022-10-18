@@ -149,7 +149,7 @@ func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*
 
 			task := job.NewTask(t.PartitionID, w.Node.Info(), runningJob.Job.ID, curStage)
 			in := input.NewReader(w.opt.Input.QueueLength)
-			taskExec := NewTaskExecutor(runningJob, task, curStage, in, s.Output, w.workerLocalOpts)
+			taskExec := NewTaskExecutor(runningJob, task, curStage, in, s.Output, w.workerLocalOpts, &w.opt)
 
 			runningJob.Tasks = append(runningJob.Tasks, taskExec)
 			w.runningTasks.Store(task.ID().String(), taskExec)

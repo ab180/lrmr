@@ -24,6 +24,7 @@ type TaskExecutor struct {
 	OutputDesc   *lrmrpb.Output
 	Metrics      lrmrmetric.Metrics
 	localOptions map[string]interface{}
+	opt          *Options
 	taskError    error
 }
 
@@ -34,6 +35,7 @@ func NewTaskExecutor(
 	in *input.Reader,
 	outDesc *lrmrpb.Output,
 	localOptions map[string]interface{},
+	opt *Options,
 ) *TaskExecutor {
 	exec := &TaskExecutor{
 		task:         task,
@@ -43,6 +45,7 @@ func NewTaskExecutor(
 		OutputDesc:   outDesc,
 		Metrics:      make(lrmrmetric.Metrics),
 		localOptions: localOptions,
+		opt:          opt,
 	}
 	return exec
 }
@@ -62,7 +65,7 @@ func (e *TaskExecutor) Run() {
 
 	// pipe input.Reader.C to function input channel
 	funcInputChan := make(chan *lrdd.Row, e.Output.NumOutputs())
-	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
+	go e.pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
 	// hard copy. TODO: a better way to do it!
 	fnData, _ := e.Stage.Function.MarshalJSON()
@@ -106,15 +109,32 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	e.Input = nil
 }
 
-func pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan *lrdd.Row) {
+func (e *TaskExecutor) pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan *lrdd.Row) {
 	defer close(out)
 
-	for rows := range in {
-		for _, r := range rows {
-			select {
-			case out <- r:
-			case <-ctx.Done():
+	if e.opt.UseDelyedSendInput {
+		for rows := range in {
+			if err := ctx.Err(); err != nil {
 				return
+			}
+
+			var buf []*lrdd.Row
+			for _, r := range rows {
+				buf = append(buf, r)
+			}
+
+			for _, r := range buf {
+				out <- r
+			}
+		}
+	} else {
+		for rows := range in {
+			if err := ctx.Err(); err != nil {
+				return
+			}
+
+			for _, r := range rows {
+				out <- r
 			}
 		}
 	}
