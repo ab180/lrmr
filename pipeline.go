@@ -127,10 +127,7 @@ func (p *Pipeline) createJob(ctx context.Context, c cluster.Cluster) (*job.Job, 
 	ctx, cancel := context.WithTimeout(ctx, p.options.StartTimeout)
 	defer cancel()
 
-	jobID := p.options.Name
-	if jobID == "" {
-		jobID = util.GenerateID("J")
-	}
+	jobID := util.GenerateID(p.options.Name)
 	executors, err := p.listExecutors(ctx, c)
 	if err != nil {
 		return nil, err
