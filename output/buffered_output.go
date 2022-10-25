@@ -1,6 +1,7 @@
 package output
 
 import (
+	"github.com/ab180/lrmr/internal/pool"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/pkg/errors"
 )
@@ -17,7 +18,7 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 		panic("buffer size cannot be 0.")
 	}
 
-	buf := lrddRowsPool.Get()
+	buf := lrddRowPool.Get()
 	if cap(*buf) < size {
 		*buf = make([]*lrdd.Row, size)
 	} else {
@@ -60,7 +61,7 @@ func (b *BufferedOutput) Close() error {
 	if err := b.Flush(); err != nil {
 		return errors.Wrap(err, "flush")
 	}
-	lrddRowsPool.ResetAndPut(b.buf)
+	lrddRowPool.Put(b.buf)
 	b.buf = nil
 	return b.output.Close()
 }
@@ -71,3 +72,11 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+var lrddRowPool = pool.NewWithResetter(
+	func() *[]*lrdd.Row {
+		return &[]*lrdd.Row{}
+	},
+	func(rows **[]*lrdd.Row) {
+		**rows = (**rows)[:0]
+	})
