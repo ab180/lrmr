@@ -1,14 +1,13 @@
 package output
 
 import (
-	"github.com/ab180/lrmr/internal/pool"
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/pkg/errors"
 )
 
 // BufferedOutput wraps Output with buffering.
 type BufferedOutput struct {
-	buf    *[]*lrdd.Row
+	buf    []*lrdd.Row
 	offset int
 	output Output
 }
@@ -18,25 +17,18 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 		panic("buffer size cannot be 0.")
 	}
 
-	buf := lrddRowPool.Get()
-	if cap(*buf) < size {
-		*buf = make([]*lrdd.Row, size)
-	} else {
-		*buf = (*buf)[:size]
-	}
-
 	return &BufferedOutput{
 		output: output,
-		buf:    buf,
+		buf:    make([]*lrdd.Row, size),
 	}
 }
 
 func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
 	// log.Verbose("Start write {} rows (Offset: {}/{})", len(d), b.offset, len(b.buf))
 	for len(d) > 0 {
-		writeLen := min(len(d), len(*b.buf)-b.offset)
-		b.offset += copy((*b.buf)[b.offset:], d[:writeLen])
-		if b.offset == len(*b.buf) {
+		writeLen := min(len(d), len(b.buf)-b.offset)
+		b.offset += copy((b.buf)[b.offset:], d[:writeLen])
+		if b.offset == len(b.buf) {
 			err := b.Flush()
 			if err != nil {
 				return err
@@ -50,7 +42,7 @@ func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
 }
 
 func (b *BufferedOutput) Flush() error {
-	if err := b.output.Write((*b.buf)[:b.offset]...); err != nil {
+	if err := b.output.Write((b.buf)[:b.offset]...); err != nil {
 		return err
 	}
 	b.offset = 0
@@ -61,7 +53,6 @@ func (b *BufferedOutput) Close() error {
 	if err := b.Flush(); err != nil {
 		return errors.Wrap(err, "flush")
 	}
-	lrddRowPool.Put(b.buf)
 	b.buf = nil
 	return b.output.Close()
 }
@@ -72,11 +63,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
-var lrddRowPool = pool.NewWithResetter(
-	func() *[]*lrdd.Row {
-		return &[]*lrdd.Row{}
-	},
-	func(rows **[]*lrdd.Row) {
-		**rows = (**rows)[:0]
-	})
