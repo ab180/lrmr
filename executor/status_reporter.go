@@ -71,9 +71,11 @@ func (f *attachedStatusReporter) JobContext() context.Context {
 }
 
 func (f *attachedStatusReporter) Collect(rows []*lrdd.Row) error {
+	data := make([]*lrdd.Row, len(rows))
+	copy(data, rows)
 	return f.send(f.stream.Context(), &lrmrpb.JobOutput{
 		Type: lrmrpb.JobOutput_COLLECT_DATA,
-		Data: rows,
+		Data: data,
 	})
 }
 
