@@ -9,7 +9,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	bits "math/bits"
-	runtime "runtime"
 	sync "sync"
 )
 
@@ -364,9 +363,6 @@ func (m *Rows) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			v := RowFromVTPool()
-			runtime.SetFinalizer(v, func(v *Row) {
-				v.ReturnToVTPool()
-			})
 			m.Rows = append(m.Rows, v)
 			if err := m.Rows[len(m.Rows)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
