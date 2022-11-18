@@ -24,7 +24,6 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 }
 
 func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
-	// log.Verbose("Start write {} rows (Offset: {}/{})", len(d), b.offset, len(b.buf))
 	for len(d) > 0 {
 		writeLen := min(len(d), len(b.buf)-b.offset)
 		b.offset += copy((b.buf)[b.offset:], d[:writeLen])
@@ -35,9 +34,7 @@ func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
 			}
 		}
 		d = d[writeLen:]
-		//log.Verbose("  - Written {} rows (Offset: {}/{})", writeLen, b.offset, len(b.buf))
 	}
-	//log.Verbose("End write")
 	return nil
 }
 
