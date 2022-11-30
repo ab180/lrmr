@@ -14,7 +14,7 @@ func NewPullStream(size int) PullStream {
 	}
 }
 
-func (p PullStream) Write(row ...*lrdd.Row) error {
+func (p PullStream) Write(row []*lrdd.Row) error {
 	for _, r := range row {
 		p.queue <- r
 	}

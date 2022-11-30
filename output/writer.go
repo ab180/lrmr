@@ -24,14 +24,14 @@ func NewWriter(partitionID string, p partitions.Partitioner, outputs map[string]
 	}
 }
 
-func (w *Writer) Write(data ...*lrdd.Row) error {
+func (w *Writer) Write(data []*lrdd.Row) error {
 	if w.isPreserved {
 		output := w.outputs[w.context.PartitionID()]
 		if output == nil {
 			// probably the last stage
 			return nil
 		}
-		return output.Write(data...)
+		return output.Write(data)
 	}
 	// TODO: reuse
 	writes := make(map[string][]*lrdd.Row)
@@ -51,7 +51,7 @@ func (w *Writer) Write(data ...*lrdd.Row) error {
 		if !ok {
 			return errors.Errorf("unknown partition ID %s", id)
 		}
-		if err := out.Write(rows...); err != nil {
+		if err := out.Write(rows); err != nil {
 			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), id)
 		}
 	}

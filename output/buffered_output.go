@@ -23,7 +23,7 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 	}
 }
 
-func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
+func (b *BufferedOutput) Write(d []*lrdd.Row) error {
 	for len(d) > 0 {
 		writeLen := min(len(d), len(b.buf)-b.offset)
 		b.offset += copy((b.buf)[b.offset:], d[:writeLen])
@@ -39,7 +39,7 @@ func (b *BufferedOutput) Write(d ...*lrdd.Row) error {
 }
 
 func (b *BufferedOutput) Flush() error {
-	if err := b.output.Write((b.buf)[:b.offset]...); err != nil {
+	if err := b.output.Write((b.buf)[:b.offset]); err != nil {
 		return err
 	}
 	b.offset = 0

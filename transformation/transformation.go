@@ -9,7 +9,7 @@ import (
 )
 
 type Transformation interface {
-	Apply(ctx Context, in chan *lrdd.Row, out output.Output) error
+	Apply(ctx Context, in chan []*lrdd.Row, out output.Output) error
 }
 
 type Serializable struct{ Transformation }

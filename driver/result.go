@@ -44,7 +44,7 @@ func (r *result) Metrics() (lrmrmetric.Metrics, error) {
 // Err returns the error of the job.
 func (r *result) Err() error {
 	// Flush remaining rows.
-	for _ = range r.rowChan { //nolint:gosimple
+	for range r.rowChan {
 	}
 
 	if r.err.ErrorOrNil() == nil {

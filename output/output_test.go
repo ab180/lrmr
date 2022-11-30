@@ -11,7 +11,7 @@ type outputMock struct {
 	}
 }
 
-func (o *outputMock) Write(rows ...*lrdd.Row) error {
+func (o *outputMock) Write(rows []*lrdd.Row) error {
 	o.Rows = append(o.Rows, rows...)
 	o.Calls.Write += 1
 	return nil

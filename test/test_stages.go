@@ -11,8 +11,8 @@ func NopMapper() lrmr.Mapper {
 	return &nopMapper{}
 }
 
-func (n nopMapper) Map(_ lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
-	return row, nil
+func (n nopMapper) Map(_ lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
+	return rows, nil
 }
 
 var _ = lrmr.RegisterTypes(

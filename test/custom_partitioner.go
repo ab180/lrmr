@@ -40,7 +40,12 @@ func (c nodeAffinityTester) PlanNext(numExecutors int) []partitions.Partition {
 
 type dummyMapper struct{}
 
-func (d *dummyMapper) Map(ctx lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
-	workerNo := ctx.WorkerLocalOption("No").(int)
-	return &lrdd.Row{Key: strconv.Itoa(workerNo), Value: []byte(row.Key)}, nil
+func (d *dummyMapper) Map(ctx lrmr.Context, row []*lrdd.Row) ([]*lrdd.Row, error) {
+	mappedRows := make([]*lrdd.Row, len(row))
+	for i, row := range row {
+		workerNo := ctx.WorkerLocalOption("No").(int)
+		mappedRows[i] = &lrdd.Row{Key: strconv.Itoa(workerNo), Value: []byte(row.Key)}
+	}
+
+	return mappedRows, nil
 }

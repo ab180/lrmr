@@ -16,7 +16,7 @@ var (
 
 type ContextCancelTestStage struct{}
 
-func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
+func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
 	taskCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -38,9 +38,11 @@ func ContextCancel(timeout time.Duration) *lrmr.Pipeline {
 
 type ContextCancelWithForTestStage struct{}
 
-func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
-	for range in {
-		time.Sleep(500 * time.Millisecond)
+func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+	for rows := range in {
+		for range rows {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 	if ctx.Err() == nil {
 		panic("job not cancelled by context cancel")
@@ -55,9 +57,11 @@ func ContextCancelWithInputLoop() *lrmr.Pipeline {
 
 type ContextCancelWithLocalPipeStage struct{}
 
-func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error {
-	for range in {
-		time.Sleep(500 * time.Millisecond)
+func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+	for rows := range in {
+		for range rows {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 	if ctx.Err() == nil {
 		panic("job not cancelled by context cancel")
