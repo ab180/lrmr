@@ -7,8 +7,3 @@ message Row {
     string key = 1;
     bytes value = 2;
 }
-
-// Rows is a list of Row objects.
-message Rows {
-    repeated Row rows = 1;
-}
