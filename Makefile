@@ -4,6 +4,7 @@ FLATBUFFER_SRCS := $(shell find . -name *.fbs)
 PROTO_SRCS := $(shell find . -name *.proto)
 
 deps:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0
 
 fbs:
