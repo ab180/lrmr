@@ -22,20 +22,20 @@ func RegisterTypes(tfs ...interface{}) interface{} {
 }
 
 type Transformer interface {
-	Transform(ctx Context, in chan *lrdd.Row, emit func(*lrdd.Row)) error
+	Transform(ctx Context, in chan []*lrdd.Row, emit EmitFunc) error
 }
 
 type transformerTransformation struct {
 	transformer Transformer
 }
 
-func (t transformerTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output,
+func (t transformerTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output,
 ) (emitErr error) {
 	childCtx, cancel := contextWithCancel(ctx)
 	defer cancel()
 
-	emit := func(row *lrdd.Row) {
-		if emitErr = out.Write(row); emitErr != nil {
+	emit := func(rows []*lrdd.Row) {
+		if emitErr = out.Write(rows); emitErr != nil {
 			cancel()
 		}
 	}
@@ -65,41 +65,24 @@ type Filter interface {
 	Filter(*lrdd.Row) bool
 }
 
-type filterTransformation struct { //nolint:unused
-	filter Filter
-}
-
-func (f filterTransformation) Apply(_ transformation.Context, in chan *lrdd.Row, out output.Output, //nolint:unused
-) error {
-	for row := range in {
-		if !f.filter.Filter(row) {
-			continue
-		}
-		if err := out.Write(row); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type Mapper interface {
-	Map(Context, *lrdd.Row) (*lrdd.Row, error)
+	Map(Context, []*lrdd.Row) ([]*lrdd.Row, error)
 }
 
 type mapTransformation struct {
 	mapper Mapper
 }
 
-func (m *mapTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
-	for row := range in {
+func (m *mapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+	for rows := range in {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		outRow, err := m.mapper.Map(ctx, row)
+		outRows, err := m.mapper.Map(ctx, rows)
 		if err != nil {
 			return err
 		}
-		if err := out.Write(outRow); err != nil {
+		if err := out.Write(outRows); err != nil {
 			return err
 		}
 	}
@@ -120,23 +103,23 @@ func (m *mapTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type FlatMapper interface {
-	FlatMap(Context, *lrdd.Row) ([]*lrdd.Row, error)
+	FlatMap(Context, []*lrdd.Row) ([]*lrdd.Row, error)
 }
 
 type flatMapTransformation struct {
 	flatMapper FlatMapper
 }
 
-func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
-	for row := range in {
+func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+	for rows := range in {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		outRows, err := f.flatMapper.FlatMap(ctx, row)
+		outRows, err := f.flatMapper.FlatMap(ctx, rows)
 		if err != nil {
 			return err
 		}
-		if err := out.Write(outRows...); err != nil {
+		if err := out.Write(outRows); err != nil {
 			return err
 		}
 	}
@@ -165,16 +148,18 @@ type sortTransformation struct {
 	rows   []*lrdd.Row
 }
 
-func (s *sortTransformation) Apply(ctx transformation.Context, in chan *lrdd.Row, out output.Output) error {
-	for row := range in {
-		if ctx.Err() != nil {
-			return ctx.Err()
+func (s *sortTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+	for rows := range in {
+		for _, row := range rows {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			s.rows = append(s.rows, row)
 		}
-		s.rows = append(s.rows, row)
 	}
 	// implemented sort.Interface by self
 	sort.Sort(s)
-	return out.Write(s.rows...)
+	return out.Write(s.rows)
 }
 
 func (s *sortTransformation) Len() int {
@@ -246,7 +231,7 @@ func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.R
 		rows[i] = &lrdd.Row{Key: key, Value: bs}
 		i++
 	}
-	return out.Write(rows...)
+	return out.Write(rows)
 }
 
 func (f *combinerTransformation) instantiateCombiner() Combiner { //nolint:unused
@@ -285,22 +270,24 @@ type reduceTransformation struct {
 	reducerPrototype Reducer
 }
 
-func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output) error {
+func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.Row, out output.Output) error {
 	reducers := make(map[string]Reducer)
 	state := make(map[string]MarshalUnmarshaler)
 
-	for row := range in {
-		ctx := replacePartitionKey(c, row.Key)
-		prev := state[row.Key]
-		if reducers[row.Key] == nil {
-			reducers[row.Key] = f.instantiateReducer()
-			prev = reducers[row.Key].InitialValue()
+	for rows := range in {
+		for _, row := range rows {
+			ctx := replacePartitionKey(c, row.Key)
+			prev := state[row.Key]
+			if reducers[row.Key] == nil {
+				reducers[row.Key] = f.instantiateReducer()
+				prev = reducers[row.Key].InitialValue()
+			}
+			next, err := reducers[row.Key].Reduce(ctx, prev, row)
+			if err != nil {
+				return err
+			}
+			state[row.Key] = next
 		}
-		next, err := reducers[row.Key].Reduce(ctx, prev, row)
-		if err != nil {
-			return err
-		}
-		state[row.Key] = next
 	}
 
 	i := 0
@@ -313,7 +300,7 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan *lrdd.Row
 		rows[i] = &lrdd.Row{Key: key, Value: bs}
 		i++
 	}
-	return out.Write(rows...)
+	return out.Write(rows)
 }
 
 func (f *reduceTransformation) instantiateReducer() Reducer {

@@ -27,7 +27,7 @@ func TestBufferedOutput_Write(t *testing.T) {
 
 		Convey("When writing items shorter than the buffer size to the buffer", func() {
 			it := items(bufSize / 2)
-			err := o.Write(it...)
+			err := o.Write(it)
 			So(err, ShouldBeNil)
 
 			Convey("It should not write to the original output", func() {
@@ -45,7 +45,7 @@ func TestBufferedOutput_Write(t *testing.T) {
 		})
 
 		Convey("When writing items larger than the buffer size to the buffer", func() {
-			err := o.Write(items(bufSize * 5)...)
+			err := o.Write(items(bufSize * 5))
 			So(err, ShouldBeNil)
 
 			Convey("It should flush multiple times", func() {
@@ -56,10 +56,10 @@ func TestBufferedOutput_Write(t *testing.T) {
 		Convey("When writing items wrapped to the buffer size", func() {
 			var it []*lrdd.Row
 
-			So(o.Write(items(bufSize/2)...), ShouldBeNil)
+			So(o.Write(items(bufSize/2)), ShouldBeNil)
 			it = append(it, items(bufSize/2)...)
 
-			So(o.Write(items(bufSize)...), ShouldBeNil)
+			So(o.Write(items(bufSize)), ShouldBeNil)
 			it = append(it, items(bufSize)...)
 
 			Convey("It should flush before the wrap point", func() {
@@ -87,7 +87,7 @@ func TestBufferedOutput_Flush(t *testing.T) {
 
 		Convey("When there are items", func() {
 			it := items(bufSize / 2)
-			So(o.Write(it...), ShouldBeNil)
+			So(o.Write(it), ShouldBeNil)
 
 			Convey("It should write them to the original output", func() {
 				So(o.Flush(), ShouldBeNil)
@@ -96,7 +96,7 @@ func TestBufferedOutput_Flush(t *testing.T) {
 		})
 
 		Convey("After flushed all items", func() {
-			So(o.Write(items(bufSize/2)...), ShouldBeNil)
+			So(o.Write(items(bufSize/2)), ShouldBeNil)
 			So(o.Flush(), ShouldBeNil)
 			So(m.Rows, ShouldHaveLength, bufSize/2)
 

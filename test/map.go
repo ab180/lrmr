@@ -13,9 +13,14 @@ var _ = lrmr.RegisterTypes(&Multiply{})
 // Multiply multiplies input.
 type Multiply struct{}
 
-func (m *Multiply) Map(ctx lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
-	n := testutils.IntValue(row)
-	return &lrdd.Row{Value: []byte(strconv.Itoa(n * 2))}, nil
+func (m *Multiply) Map(ctx lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
+	mappedRows := make([]*lrdd.Row, len(rows))
+	for i, row := range rows {
+		n := testutils.IntValue(row)
+		mappedRows[i] = &lrdd.Row{Value: []byte(strconv.Itoa(n * 2))}
+	}
+
+	return mappedRows, nil
 }
 
 func Map() *lrmr.Pipeline {

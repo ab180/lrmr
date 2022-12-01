@@ -21,7 +21,7 @@ func NewCollector(reporter StatusReporter) *Collector {
 	}
 }
 
-func (c *Collector) Write(rows ...*lrdd.Row) error {
+func (c *Collector) Write(rows []*lrdd.Row) error {
 	return c.reporter.Collect(rows)
 }
 

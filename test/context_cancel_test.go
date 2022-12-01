@@ -49,9 +49,7 @@ func TestContextCancel_WithinForLoop(t *testing.T) {
 		require.Nil(t, err)
 
 		err = result.Err()
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Errorf("Expected DeadlineExceeded, got %v", err)
-		}
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})()
 }
 

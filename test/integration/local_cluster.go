@@ -9,7 +9,6 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/executor"
 	"github.com/pkg/errors"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 type LocalCluster struct {
@@ -60,11 +59,11 @@ func WithLocalCluster(numWorkers int, fn func(c *LocalCluster), _ ...lrmr.Pipeli
 	return func() {
 		c, err := NewLocalCluster(numWorkers)
 		if err != nil {
-			So(err, ShouldBeNil)
+			panic(err)
 		}
 		defer func() {
 			if err := c.Close(); err != nil {
-				So(err, ShouldBeNil)
+				panic(err)
 			}
 		}()
 		fn(c)

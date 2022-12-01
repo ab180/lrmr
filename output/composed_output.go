@@ -12,9 +12,9 @@ func NewComposed(outputs []Output) Output {
 	return &ComposedOutput{outputs}
 }
 
-func (c ComposedOutput) Write(rows ...*lrdd.Row) error {
+func (c ComposedOutput) Write(rows []*lrdd.Row) error {
 	for _, o := range c.outputs {
-		if err := o.Write(rows...); err != nil {
+		if err := o.Write(rows); err != nil {
 			return err
 		}
 	}

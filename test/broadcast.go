@@ -22,11 +22,17 @@ type BroadcastStage struct {
 	ThroughStruct string
 }
 
-func (b *BroadcastStage) Map(c lrmr.Context, row *lrdd.Row) (*lrdd.Row, error) {
-	v := c.Broadcast("ThroughContext")
-	typeMatched := c.Broadcast("AnyType").(time.Time) == time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)
+func (b *BroadcastStage) Map(c lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
+	mappedRows := make([]*lrdd.Row, len(rows))
+	for i := range rows {
+		v := c.Broadcast("ThroughContext")
+		typeMatched := c.Broadcast("AnyType").(time.Time) == time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)
 
-	output := fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)
-	log.Println("output is ", output)
-	return &lrdd.Row{Value: []byte(output)}, nil
+		output := fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)
+		log.Println("output is ", output)
+
+		mappedRows[i] = &lrdd.Row{Value: []byte(output)}
+	}
+
+	return mappedRows, nil
 }
