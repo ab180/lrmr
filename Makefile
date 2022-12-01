@@ -3,16 +3,7 @@
 FLATBUFFER_SRCS := $(shell find . -name *.fbs)
 PROTO_SRCS := $(shell find . -name *.proto)
 
-GOGOPROTO := $(shell go list -m -f "{{.Dir}}" github.com/gogo/protobuf)
-
-# test runner (can be overriden by CI)
-GOTEST ?= go test
-
 deps:
-ifeq ($(shell which protoc-gen-gofast), )
-	@echo "Installing Dependency: protoc-gen-gofast"
-	@go install github.com/gogo/protobuf/{proto,protoc-gen-gofast,gogoproto}
-endif
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0
 
 fbs:
@@ -51,4 +42,3 @@ sec:
 	gosec ./...
 
 pre-push: test lint vet sec
-
