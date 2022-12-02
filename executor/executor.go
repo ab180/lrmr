@@ -2,7 +2,6 @@ package executor
 
 import (
 	"context"
-	"io"
 	"net"
 	"path"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/ab180/lrmr/internal/pbtypes"
 	"github.com/ab180/lrmr/internal/serialization"
 	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
@@ -148,7 +148,7 @@ func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*
 			curStage := runningJob.Job.GetStage(s.Name)
 
 			task := job.NewTask(t.PartitionID, w.Node.Info(), runningJob.Job.ID, curStage)
-			in := input.NewReader(w.opt.Input.QueueLength)
+			in := input.NewReader(w.opt.Input.QueueLength, lrdd.RowID(s.RowId))
 			taskExec := NewTaskExecutor(runningJob, task, curStage, in, s.Output, w.workerLocalOpts, &w.opt)
 
 			runningJob.Tasks = append(runningJob.Tasks, taskExec)
@@ -314,35 +314,6 @@ func (w *Executor) PushData(stream lrmrpb.Node_PushDataServer) error {
 	// upstream may have been closed, but that should not affect the task result
 	_ = stream.SendAndClose(&pbtypes.Empty{})
 	return nil
-}
-
-func (w *Executor) PollData(stream lrmrpb.Node_PollDataServer) error {
-	h, err := lrmrpb.DataHeaderFromMetadata(stream)
-	if err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
-	}
-	exec := w.getRunningTask(h.TaskID)
-	if exec == nil {
-		return status.Errorf(codes.InvalidArgument, "task not found: %s", h.TaskID)
-	}
-	for {
-		req, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		rows, err := exec.Output.Dispatch(h.TaskID, int(req.N))
-		if err != nil {
-			return err
-		}
-		resp := &lrmrpb.PollDataResponse{Data: rows}
-		if err := stream.Send(resp); err != nil {
-			return err
-		}
-	}
-	panic("implement me")
 }
 
 func (w *Executor) Close() error {

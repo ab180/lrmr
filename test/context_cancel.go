@@ -30,6 +30,10 @@ func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row,
 	}
 }
 
+func (c ContextCancelTestStage) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
+}
+
 func ContextCancel(timeout time.Duration) *lrmr.Pipeline {
 	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5)).
 		Broadcast("timeout", timeout).
@@ -50,6 +54,10 @@ func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan []*lr
 	return nil
 }
 
+func (c ContextCancelWithForTestStage) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
+}
+
 func ContextCancelWithInputLoop() *lrmr.Pipeline {
 	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5, 6, 7, 8)).
 		Do(ContextCancelWithForTestStage{})
@@ -67,6 +75,10 @@ func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan []*
 		panic("job not cancelled by context cancel")
 	}
 	return nil
+}
+
+func (c ContextCancelWithLocalPipeStage) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
 }
 
 func ContextCancelWithLocalPipe() *lrmr.Pipeline {

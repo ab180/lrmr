@@ -110,7 +110,7 @@ func TestBufferedOutput_Flush(t *testing.T) {
 
 func items(length int) (rr []*lrdd.Row) {
 	for i := 0; i < length; i++ {
-		rr = append(rr, &lrdd.Row{Value: []byte(strconv.Itoa(i))})
+		rr = append(rr, &lrdd.Row{Value: lrdd.NewBytes(strconv.Itoa(i))})
 	}
 	return
 }

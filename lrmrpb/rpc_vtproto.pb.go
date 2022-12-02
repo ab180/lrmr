@@ -138,6 +138,11 @@ func (m *Stage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.RowId != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.RowId))
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.Output != nil {
 		size, err := m.Output.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -306,7 +311,7 @@ func (m *JobOutput) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0xa
 			i = encodeVarint(dAtA, i, uint64(baseI-i))
 			i--
-			dAtA[i] = 0x4a
+			dAtA[i] = 0x52
 		}
 	}
 	if len(m.Stacktrace) > 0 {
@@ -314,17 +319,22 @@ func (m *JobOutput) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.Stacktrace)
 		i = encodeVarint(dAtA, i, uint64(len(m.Stacktrace)))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x4a
 	}
 	if len(m.Error) > 0 {
 		i -= len(m.Error)
 		copy(dAtA[i:], m.Error)
 		i = encodeVarint(dAtA, i, uint64(len(m.Error)))
 		i--
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x42
 	}
 	if m.TaskStatus != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.TaskStatus))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.RowID != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.RowID))
 		i--
 		dAtA[i] = 0x30
 	}
@@ -861,6 +871,9 @@ func (m *Stage) SizeVT() (n int) {
 		l = m.Output.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
+	if m.RowId != 0 {
+		n += 1 + sov(uint64(m.RowId))
+	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
 	}
@@ -927,6 +940,9 @@ func (m *JobOutput) SizeVT() (n int) {
 			}
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if m.RowID != 0 {
+		n += 1 + sov(uint64(m.RowID))
 	}
 	if m.TaskStatus != 0 {
 		n += 1 + sov(uint64(m.TaskStatus))
@@ -1541,6 +1557,25 @@ func (m *Stage) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RowId", wireType)
+			}
+			m.RowId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RowId |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -1870,7 +1905,7 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &lrdd.Row{})
+			m.Data = append(m.Data, &lrdd.RawRow{})
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {
@@ -1884,6 +1919,25 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RowID", wireType)
+			}
+			m.RowID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RowID |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TaskStatus", wireType)
 			}
@@ -1902,7 +1956,7 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 7:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
 			}
@@ -1934,7 +1988,7 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Error = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 8:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Stacktrace", wireType)
 			}
@@ -1966,7 +2020,7 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Stacktrace = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 9:
+		case 10:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Metrics", wireType)
 			}
@@ -2624,7 +2678,7 @@ func (m *PushDataRequest) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &lrdd.Row{})
+			m.Data = append(m.Data, &lrdd.RawRow{})
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {
@@ -2788,11 +2842,11 @@ func (m *PollDataResponse) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.Data) == cap(m.Data) {
-				m.Data = append(m.Data, &lrdd.Row{})
+				m.Data = append(m.Data, &lrdd.RawRow{})
 			} else {
 				m.Data = m.Data[:len(m.Data)+1]
 				if m.Data[len(m.Data)-1] == nil {
-					m.Data[len(m.Data)-1] = &lrdd.Row{}
+					m.Data[len(m.Data)-1] = &lrdd.RawRow{}
 				}
 			}
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {

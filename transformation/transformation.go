@@ -10,6 +10,7 @@ import (
 
 type Transformation interface {
 	Apply(ctx Context, in chan []*lrdd.Row, out output.Output) error
+	RowID() lrdd.RowID
 }
 
 type Serializable struct{ Transformation }

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/ab180/lrmr/job"
+	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
@@ -35,7 +36,22 @@ func (p *PushStream) Dispatch() error {
 			}
 			return errors.Wrap(err, "stream dispatch")
 		}
-		p.reader.Write(req.Data)
+
+		rows := make([]*lrdd.Row, len(req.Data))
+		for i, row := range req.Data {
+			value := lrdd.GetValue(p.reader.RowID())
+			_, err := value.UnmarshalMsg(row.Value)
+			if err != nil {
+				return err
+			}
+
+			rows[i] = &lrdd.Row{
+				Key:   row.Key,
+				Value: value,
+			}
+		}
+
+		p.reader.Write(rows)
 	}
 }
 

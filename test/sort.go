@@ -12,46 +12,43 @@ var _ = lrmr.RegisterTypes(&Ascending{}, &Concat{})
 type Ascending struct{}
 
 func (a2 Ascending) IsLessThan(a, b *lrdd.Row) bool {
-	an, err := strconv.Atoi(string(a.Value))
+	an, err := strconv.Atoi(string(*a.Value.(*lrdd.Bytes)))
 	if err != nil {
 		panic(err)
 	}
-	bn, err := strconv.Atoi(string(b.Value))
+	bn, err := strconv.Atoi(string(*b.Value.(*lrdd.Bytes)))
 	if err != nil {
 		panic(err)
 	}
 	return an < bn
 }
 
+func (a2 Ascending) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
+}
+
 type Concat struct{}
 
-func (cc Concat) InitialValue() lrmr.MarshalUnmarshaler {
-	initVal := concatMarshalerUnmarshaler("")
+func (cc Concat) InitialValue() lrdd.MarshalUnmarshaler {
+	initVal := lrdd.Bytes("")
 	return &initVal
 }
 
-func (cc Concat) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row,
-) (next lrmr.MarshalUnmarshaler, err error) {
-	n, err := strconv.Atoi(string(cur.Value))
+func (cc Concat) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row,
+) (next lrdd.MarshalUnmarshaler, err error) {
+	n, err := strconv.Atoi(string(*cur.Value.(*lrdd.Bytes)))
 	if err != nil {
 		panic(err)
 	}
 
-	prevVal := prev.(*concatMarshalerUnmarshaler)
-	reduceVal := *prevVal + concatMarshalerUnmarshaler(strconv.Itoa(n))
+	prevVal := prev.(*lrdd.Bytes)
+	reduceVal := lrdd.NewBytes(string(*prevVal) + strconv.Itoa(n))
 
-	return &reduceVal, nil
+	return reduceVal, nil
 }
 
-type concatMarshalerUnmarshaler string
-
-func (c *concatMarshalerUnmarshaler) MarshalMsg([]byte) ([]byte, error) {
-	return []byte(*c), nil
-}
-
-func (c *concatMarshalerUnmarshaler) UnmarshalMsg(bs []byte) ([]byte, error) {
-	*c = concatMarshalerUnmarshaler(bs)
-	return nil, nil
+func (cc Concat) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
 }
 
 func Sort() *lrmr.Pipeline {

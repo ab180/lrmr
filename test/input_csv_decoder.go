@@ -22,7 +22,7 @@ func DecodeCSV() lrmr.FlatMapper {
 
 func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []*lrdd.Row) (result []*lrdd.Row, err error) {
 	for _, in := range ins {
-		path := string(in.Value)
+		path := string(*in.Value.(*lrdd.Bytes))
 
 		file, err := os.Open(path) // #nosec G304, We should check safe path with filepath.Clean
 		defer func() {
@@ -68,9 +68,13 @@ func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []*lrdd.Row) (result []*lrdd.
 				return nil, fmt.Errorf("failed to marshal json: %w", err)
 			}
 
-			result = append(result, &lrdd.Row{Key: msg["appID"].(string), Value: bs})
+			result = append(result, &lrdd.Row{Key: msg["appID"].(string), Value: lrdd.NewBytes(string(bs))})
 		}
 	}
 
 	return result, nil
+}
+
+func (l *csvDecoder) RowID() lrdd.RowID {
+	return lrdd.RowIDBytes
 }

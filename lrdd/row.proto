@@ -3,7 +3,7 @@ package lrdd;
 
 option go_package = "github.com/ab180/lrmr/lrdd";
 
-message Row {
+message RawRow {
     string key = 1;
     bytes value = 2;
 }

@@ -2,7 +2,6 @@ package lrmr
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 
@@ -23,6 +22,7 @@ func RegisterTypes(tfs ...interface{}) interface{} {
 
 type Transformer interface {
 	Transform(ctx Context, in chan []*lrdd.Row, emit EmitFunc) error
+	RowID() lrdd.RowID
 }
 
 type transformerTransformation struct {
@@ -48,6 +48,10 @@ func (t transformerTransformation) Apply(ctx transformation.Context, in chan []*
 	return emitErr
 }
 
+func (t transformerTransformation) RowID() lrdd.RowID {
+	return t.transformer.RowID()
+}
+
 func (t *transformerTransformation) UnmarshalJSON(d []byte) error {
 	transformer, err := serialization.DeserializeStruct(d)
 	if err != nil {
@@ -62,11 +66,12 @@ func (t transformerTransformation) MarshalJSON() ([]byte, error) {
 }
 
 type Filter interface {
-	Filter(*lrdd.Row) bool
+	Filter(*lrdd.RawRow) bool
 }
 
 type Mapper interface {
 	Map(Context, []*lrdd.Row) ([]*lrdd.Row, error)
+	RowID() lrdd.RowID
 }
 
 type mapTransformation struct {
@@ -89,6 +94,10 @@ func (m *mapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Ro
 	return nil
 }
 
+func (m *mapTransformation) RowID() lrdd.RowID {
+	return m.mapper.RowID()
+}
+
 func (m *mapTransformation) MarshalJSON() ([]byte, error) {
 	return serialization.SerializeStruct(m.mapper)
 }
@@ -104,6 +113,7 @@ func (m *mapTransformation) UnmarshalJSON(data []byte) error {
 
 type FlatMapper interface {
 	FlatMap(Context, []*lrdd.Row) ([]*lrdd.Row, error)
+	RowID() lrdd.RowID
 }
 
 type flatMapTransformation struct {
@@ -126,6 +136,10 @@ func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan []*lrd
 	return nil
 }
 
+func (f *flatMapTransformation) RowID() lrdd.RowID {
+	return f.flatMapper.RowID()
+}
+
 func (f *flatMapTransformation) MarshalJSON() ([]byte, error) {
 	return serialization.SerializeStruct(f.flatMapper)
 }
@@ -141,6 +155,7 @@ func (f *flatMapTransformation) UnmarshalJSON(data []byte) error {
 
 type Sorter interface {
 	IsLessThan(a, b *lrdd.Row) bool
+	RowID() lrdd.RowID
 }
 
 type sortTransformation struct {
@@ -160,6 +175,10 @@ func (s *sortTransformation) Apply(ctx transformation.Context, in chan []*lrdd.R
 	// implemented sort.Interface by self
 	sort.Sort(s)
 	return out.Write(s.rows)
+}
+
+func (s *sortTransformation) RowID() lrdd.RowID {
+	return s.sorter.RowID()
 }
 
 func (s *sortTransformation) Len() int {
@@ -188,82 +207,15 @@ func (s *sortTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type Combiner interface {
-	MapValueToAccumulator(value *lrdd.Row) (acc MarshalUnmarshaler)
-	MergeValue(ctx Context, prevAcc MarshalUnmarshaler, curValue *lrdd.Row) (nextAcc MarshalUnmarshaler, err error)
+	MapValueToAccumulator(value *lrdd.RawRow) (acc *lrdd.Row)
+	MergeValue(ctx Context, prevAcc *lrdd.Row, curValue *lrdd.RawRow) (nextAcc *lrdd.Row, err error)
 	MergeAccumulator(ctx Context, prevAcc, curAcc interface{})
 }
 
-type combinerTransformation struct { //nolint:unused
-	combinerPrototype Combiner
-}
-
-func (f *combinerTransformation) Apply(c transformation.Context, in chan *lrdd.Row, out output.Output, //nolint:unused
-) error {
-	combiners := make(map[string]Combiner)
-	state := make(map[string]MarshalUnmarshaler)
-
-	for row := range in {
-		ctx := replacePartitionKey(c, row.Key)
-
-		combiner := combiners[row.Key]
-		if combiner == nil {
-			combiner = f.instantiateCombiner()
-			initialState := combiner.MapValueToAccumulator(row)
-
-			combiners[row.Key] = combiner
-			state[row.Key] = initialState
-			continue
-		}
-		next, err := combiner.MergeValue(ctx, state[row.Key], row)
-		if err != nil {
-			return err
-		}
-		state[row.Key] = next
-	}
-
-	i := 0
-	rows := make([]*lrdd.Row, len(state))
-	for key, finalVal := range state {
-		bs, err := finalVal.MarshalMsg(nil)
-		if err != nil {
-			return fmt.Errorf("failed to marshal final value: %w", err)
-		}
-		rows[i] = &lrdd.Row{Key: key, Value: bs}
-		i++
-	}
-	return out.Write(rows)
-}
-
-func (f *combinerTransformation) instantiateCombiner() Combiner { //nolint:unused
-	// clone combiner object from prototype
-	c := reflect.New(reflect.TypeOf(f.combinerPrototype).Elem()).Interface()
-	if err := copier.Copy(c, f.combinerPrototype); err != nil {
-		panic("failed to instantiate combiner: " + err.Error())
-	}
-	return c.(Combiner)
-}
-
-func (f *combinerTransformation) MarshalJSON() ([]byte, error) { //nolint:unused
-	return serialization.SerializeStruct(f.combinerPrototype)
-}
-
-func (f *combinerTransformation) UnmarshalJSON(data []byte) error { //nolint:unused
-	v, err := serialization.DeserializeStruct(data)
-	if err != nil {
-		return err
-	}
-	f.combinerPrototype = v.(Combiner)
-	return nil
-}
-
 type Reducer interface {
-	InitialValue() MarshalUnmarshaler
-	Reduce(ctx Context, prev MarshalUnmarshaler, cur *lrdd.Row) (next MarshalUnmarshaler, err error)
-}
-
-type MarshalUnmarshaler interface {
-	MarshalMsg([]byte) ([]byte, error)
-	UnmarshalMsg([]byte) ([]byte, error)
+	InitialValue() lrdd.MarshalUnmarshaler
+	Reduce(ctx Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row) (next lrdd.MarshalUnmarshaler, err error)
+	RowID() lrdd.RowID
 }
 
 type reduceTransformation struct {
@@ -272,7 +224,7 @@ type reduceTransformation struct {
 
 func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.Row, out output.Output) error {
 	reducers := make(map[string]Reducer)
-	state := make(map[string]MarshalUnmarshaler)
+	state := make(map[string]lrdd.MarshalUnmarshaler)
 
 	for rows := range in {
 		for _, row := range rows {
@@ -293,14 +245,14 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.R
 	i := 0
 	rows := make([]*lrdd.Row, len(state))
 	for key, finalVal := range state {
-		bs, err := finalVal.MarshalMsg(nil)
-		if err != nil {
-			return fmt.Errorf("failed to marshal final value: %w", err)
-		}
-		rows[i] = &lrdd.Row{Key: key, Value: bs}
+		rows[i] = &lrdd.Row{Key: key, Value: finalVal}
 		i++
 	}
 	return out.Write(rows)
+}
+
+func (f *reduceTransformation) RowID() lrdd.RowID {
+	return f.reducerPrototype.RowID()
 }
 
 func (f *reduceTransformation) instantiateReducer() Reducer {

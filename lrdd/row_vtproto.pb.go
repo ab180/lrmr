@@ -19,7 +19,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-func (m *Row) MarshalVT() (dAtA []byte, err error) {
+func (m *RawRow) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -32,12 +32,12 @@ func (m *Row) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Row) MarshalToVT(dAtA []byte) (int, error) {
+func (m *RawRow) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *Row) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *RawRow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -78,27 +78,27 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	return base
 }
 
-var vtprotoPool_Row = sync.Pool{
+var vtprotoPool_RawRow = sync.Pool{
 	New: func() interface{} {
-		return &Row{}
+		return &RawRow{}
 	},
 }
 
-func (m *Row) ResetVT() {
+func (m *RawRow) ResetVT() {
 	f0 := m.Value[:0]
 	m.Reset()
 	m.Value = f0
 }
-func (m *Row) ReturnToVTPool() {
+func (m *RawRow) ReturnToVTPool() {
 	if m != nil {
 		m.ResetVT()
-		vtprotoPool_Row.Put(m)
+		vtprotoPool_RawRow.Put(m)
 	}
 }
-func RowFromVTPool() *Row {
-	return vtprotoPool_Row.Get().(*Row)
+func RawRowFromVTPool() *RawRow {
+	return vtprotoPool_RawRow.Get().(*RawRow)
 }
-func (m *Row) SizeVT() (n int) {
+func (m *RawRow) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -124,7 +124,7 @@ func sov(x uint64) (n int) {
 func soz(x uint64) (n int) {
 	return sov(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Row) UnmarshalVT(dAtA []byte) error {
+func (m *RawRow) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -147,10 +147,10 @@ func (m *Row) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Row: wiretype end group for non-group")
+			return fmt.Errorf("proto: RawRow: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Row: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RawRow: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

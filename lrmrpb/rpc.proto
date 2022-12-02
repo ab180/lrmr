@@ -28,6 +28,8 @@ message Stage {
 
     repeated Input input = 4;
     Output output = 5;
+
+    int32 row_id = 6;
 }
 
 message Task {
@@ -51,17 +53,18 @@ message JobOutput {
     string partitionID = 3;
 
     // on type == COLLECT_DATA
-    repeated lrdd.Row data = 5;
+    repeated lrdd.RawRow data  = 5;
+             int32       rowID = 6;
 
     // on type == REPORT_TASK_COMPLETION
     enum TaskStatus {
         SUCCEED = 0;
         FAILED = 1;
     }
-    TaskStatus taskStatus = 6;
-    string error = 7;
-    string stacktrace = 8;
-    map<string, uint64> metrics = 9; // metrics per task
+    TaskStatus taskStatus = 7;
+    string error = 8;
+    string stacktrace = 9;
+    map<string, uint64> metrics = 10; // metrics per task
 }
 
 message Input {
@@ -95,7 +98,7 @@ message CreateTaskResponse {
 // PushDataRequest is a request to push data for a worker to process.
 // metadata with key "header" and value of DataHeader is required.
 message PushDataRequest {
-    repeated lrdd.Row data = 1;
+    repeated lrdd.RawRow data = 1;
 }
 
 // PollDataRequest is a request to poll data for a worker to process.
@@ -106,7 +109,7 @@ message PollDataRequest {
 }
 
 message PollDataResponse {
-    repeated lrdd.Row data = 1;
+    repeated lrdd.RawRow data = 1;
     bool isEOF = 2;
 }
 

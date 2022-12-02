@@ -15,7 +15,8 @@ type PushStream struct {
 	stream lrmrpb.Node_PushDataClient
 }
 
-func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, host, taskID string) (Output, error) {
+func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, host, taskID string,
+) (Output, error) {
 	header := &lrmrpb.DataHeader{
 		TaskID: taskID,
 	}
@@ -36,15 +37,24 @@ func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, ho
 	}, nil
 }
 
-func (p *PushStream) Write(data []*lrdd.Row) error {
+func (p *PushStream) Write(rows []*lrdd.Row) error {
+	data := make([]*lrdd.RawRow, len(rows))
+	for i, row := range rows {
+		value, err := row.Value.MarshalMsg(nil)
+		if err != nil {
+			return err
+		}
+
+		data[i] = &lrdd.RawRow{
+			Key:   row.Key,
+			Value: value,
+		}
+	}
 	err := p.stream.Send(&lrmrpb.PushDataRequest{Data: data})
 	if err != nil {
 		return err
 	}
-	for i, d := range data {
-		d.ReturnToVTPool()
-		data[i] = nil
-	}
+
 	return nil
 }
 

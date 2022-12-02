@@ -17,7 +17,7 @@ func (l localInput) FeedInput(out output.Output) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Write([]*lrdd.Row{{Value: []byte(path)}})
+		return out.Write([]*lrdd.Row{{Value: lrdd.NewBytes(path)}})
 	})
 }
 

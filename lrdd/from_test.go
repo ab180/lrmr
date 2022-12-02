@@ -11,19 +11,19 @@ func TestDuration(t *testing.T) {
 	tcs := []struct {
 		name string
 		from time.Duration
-		to   *Row
+		to   *RawRow
 	}{
 		{
 			name: "second",
 			from: time.Second,
-			to: &Row{
+			to: &RawRow{
 				Value: []byte{0x0, 0xca, 0x9a, 0x3b, 0x0, 0x0, 0x0, 0x0},
 			},
 		},
 		{
 			name: "minute",
 			from: time.Minute,
-			to: &Row{
+			to: &RawRow{
 				Value: []byte{0x0, 0x58, 0x47, 0xf8, 0xd, 0x0, 0x0, 0x0},
 			},
 		},

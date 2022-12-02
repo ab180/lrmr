@@ -78,6 +78,7 @@ func (j *Job) BuildStageDefinitionPerNode() map[string][]*lrmrpb.Stage {
 				Output: &lrmrpb.Output{
 					Type: lrmrpb.Output_PUSH,
 				},
+				RowId: int32(stageDesc.Function.RowID()),
 			}
 			if i < len(j.Stages)-1 {
 				stageDef.Output.PartitionToHost = j.Partitions[i+1].ToMap()
