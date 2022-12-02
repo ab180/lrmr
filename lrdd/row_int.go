@@ -1,6 +1,9 @@
 package lrdd
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 type Uint64 uint64
 
@@ -24,4 +27,8 @@ func (i *Uint64) UnmarshalMsg(in []byte) ([]byte, error) {
 
 func (i *Uint64) ID() RowID {
 	return RowIDUint64
+}
+
+func (i *Uint64) String() string {
+	return fmt.Sprintf("%d", *i)
 }

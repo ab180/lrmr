@@ -20,3 +20,7 @@ func (bs *Bytes) UnmarshalMsg(in []byte) ([]byte, error) {
 func (bs *Bytes) ID() RowID {
 	return RowIDBytes
 }
+
+func (bs *Bytes) String() string {
+	return string(*bs)
+}

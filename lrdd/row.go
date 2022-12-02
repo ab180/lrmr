@@ -11,6 +11,7 @@ type MarshalUnmarshaler interface {
 	MarshalMsg([]byte) ([]byte, error)
 	UnmarshalMsg([]byte) ([]byte, error)
 	ID() RowID
+	String() string
 }
 
 type RowID int32

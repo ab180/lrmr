@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/lrdd"
@@ -61,6 +62,10 @@ func (i *int32Row) UnmarshalMsg(in []byte) ([]byte, error) {
 
 func (i *int32Row) ID() lrdd.RowID {
 	return rowIDInt32
+}
+
+func (i *int32Row) String() string {
+	return fmt.Sprintf("%d", *i)
 }
 
 func init() {
