@@ -134,7 +134,7 @@ func (r *RunningJob) AbortWithContext(ctx context.Context) error {
 }
 
 func (r *RunningJob) logMetrics() {
-	jobDuration := time.Now().Sub(r.startedAt) //nolint:gosimple
+	jobDuration := time.Since(r.startedAt)
 	lrmrmetric.JobDurationSummary.Observe(jobDuration.Seconds())
 	lrmrmetric.RunningJobsGauge.Dec()
 }
