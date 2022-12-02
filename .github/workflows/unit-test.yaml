@@ -22,7 +22,7 @@ jobs:
 
       - name: Cache modules
         id: cache-go-modules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/go/pkg/mod
