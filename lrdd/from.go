@@ -65,18 +65,23 @@ func FromIntSliceMap(vals map[string][]int) []*Row {
 }
 
 // FromDurations converts duration values to a Row slice.
-func FromDurations(vals ...time.Duration) []*RawRow {
-	rows := make([]*RawRow, len(vals))
+func FromDurations(vals ...time.Duration) []*Row {
+	rows := make([]*Row, len(vals))
 	for i, val := range vals {
-		rows[i] = &RawRow{
-			Value: make([]byte, durationSize),
+		bs := make([]byte, durationSize)
+		binary.LittleEndian.PutUint64(bs, uint64(val))
+		lrddBs := Bytes(bs)
+
+		rows[i] = &Row{
+			Value: &lrddBs,
 		}
-		binary.LittleEndian.PutUint64(rows[i].Value, uint64(val))
 	}
 	return rows
 }
 
 // ToDuration converts a Row to a duration.
-func ToDuration(row *RawRow) time.Duration {
-	return time.Duration(binary.LittleEndian.Uint64(row.Value))
+func ToDuration(row *Row) time.Duration {
+	bs := row.Value.(*Bytes)
+
+	return time.Duration(binary.LittleEndian.Uint64([]byte(*bs)))
 }
