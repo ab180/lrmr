@@ -1,33 +1,30 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testutils"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBroadcast(t *testing.T) {
-	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		Convey("When running Map with broadcasts", func() {
-			ds := BroadcastTester()
+	integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+		ds := BroadcastTester()
 
-			Convey("It should run without preserving broadcast values from master", func() {
-				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-				So(err, ShouldBeNil)
+		result, err := ds.RunAndCollect(context.Background(), cluster)
+		require.Nil(t, err)
 
-				var rows []*lrdd.Row
-				for row := range result.Outputs() {
-					rows = append(rows, row)
-				}
-				err = result.Err()
-				So(err, ShouldBeNil)
+		var rows []*lrdd.Row
+		for row := range result.Outputs() {
+			rows = append(rows, row)
+		}
+		err = result.Err()
+		require.Nil(t, err)
 
-				So(rows, ShouldHaveLength, 1)
-				So(testutils.StringValue(rows[0]), ShouldEqual, "throughStruct=foo, throughContext=bar, typeMatched=true")
-			})
-		})
-	}))
+		require.Equal(t, 1, len(rows))
+		require.Equal(t, "throughStruct=foo, throughContext=bar, typeMatched=true", testutils.StringValue(rows[0]))
+	})()
 }
