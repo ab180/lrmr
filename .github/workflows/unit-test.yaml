@@ -9,7 +9,7 @@ on:
 jobs:
   unit-test:
     name: Unit Test
-    runs-on: self-hosted-2Gi-arm64
+    runs-on: self-hosted-4Gi-arm64
     steps:
       - name: Set up Go
         uses: actions/setup-go@v3
