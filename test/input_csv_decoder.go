@@ -75,6 +75,6 @@ func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []*lrdd.Row) (result []*lrdd.
 	return result, nil
 }
 
-func (l *csvDecoder) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (l *csvDecoder) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

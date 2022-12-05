@@ -70,7 +70,7 @@ func (f *attachedStatusReporter) Collect(marshalUnmarshalerRows []*lrdd.Row) err
 		return nil
 	}
 
-	rowID := marshalUnmarshalerRows[0].Value.ID()
+	rowType := marshalUnmarshalerRows[0].Value.Type()
 
 	rows := make([]*lrdd.RawRow, len(marshalUnmarshalerRows))
 	for i, marshalUnmarshalerRow := range marshalUnmarshalerRows {
@@ -86,9 +86,9 @@ func (f *attachedStatusReporter) Collect(marshalUnmarshalerRows []*lrdd.Row) err
 	}
 
 	return f.send(f.stream.Context(), &lrmrpb.JobOutput{
-		Type:  lrmrpb.JobOutput_COLLECT_DATA,
-		RowID: int32(rowID),
-		Data:  rows,
+		Type:    lrmrpb.JobOutput_COLLECT_DATA,
+		RowType: int32(rowType),
+		Data:    rows,
 	})
 }
 

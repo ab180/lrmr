@@ -37,6 +37,6 @@ func (b *BroadcastStage) Map(c lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, err
 	return mappedRows, nil
 }
 
-func (b *BroadcastStage) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (b *BroadcastStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

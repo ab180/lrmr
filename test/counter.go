@@ -31,6 +31,6 @@ func (cnt *counter) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lr
 	return &reduceVal, nil
 }
 
-func (cnt *counter) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (cnt *counter) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

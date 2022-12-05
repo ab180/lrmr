@@ -30,8 +30,8 @@ func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row,
 	}
 }
 
-func (c ContextCancelTestStage) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (c ContextCancelTestStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 func ContextCancel(timeout time.Duration) *lrmr.Pipeline {
@@ -54,8 +54,8 @@ func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan []*lr
 	return nil
 }
 
-func (c ContextCancelWithForTestStage) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (c ContextCancelWithForTestStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 func ContextCancelWithInputLoop() *lrmr.Pipeline {
@@ -77,8 +77,8 @@ func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan []*
 	return nil
 }
 
-func (c ContextCancelWithLocalPipeStage) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (c ContextCancelWithLocalPipeStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 func ContextCancelWithLocalPipe() *lrmr.Pipeline {

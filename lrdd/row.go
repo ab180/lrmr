@@ -10,43 +10,43 @@ type Row struct {
 type MarshalUnmarshaler interface {
 	MarshalMsg([]byte) ([]byte, error)
 	UnmarshalMsg([]byte) ([]byte, error)
-	ID() RowID
+	Type() RowType
 	String() string
 }
 
-type RowID int32
+type RowType int32
 
 const (
-	RowIDBytes  RowID = 1
-	RowIDUint64 RowID = 2
+	RowTypeBytes  RowType = 1
+	RowTypeUint64 RowType = 2
 )
 
-func GetValue(rowID RowID) MarshalUnmarshaler {
-	switch rowID {
-	case RowIDBytes:
+func GetValue(rowType RowType) MarshalUnmarshaler {
+	switch rowType {
+	case RowTypeBytes:
 		return &Bytes{}
-	case RowIDUint64:
+	case RowTypeUint64:
 		i := Uint64(0)
 		return &i
 	default:
-		return rowTypes[rowID]()
+		return rowTypes[rowType]()
 	}
 }
 
-func RegisterValue(rowID RowID, newFunc func() MarshalUnmarshaler) {
-	switch rowID {
-	case RowIDBytes:
-	case RowIDUint64:
+func RegisterValue(rowType RowType, newFunc func() MarshalUnmarshaler) {
+	switch rowType {
+	case RowTypeBytes:
+	case RowTypeUint64:
 		panic("cannot register builtin row type")
 	default:
-		_, ok := rowTypes[rowID]
+		_, ok := rowTypes[rowType]
 		if ok {
-			panic(fmt.Sprintf("row type %v already registered", rowID))
+			panic(fmt.Sprintf("row type %v already registered", rowType))
 		}
 
-		rowTypes[rowID] = newFunc
+		rowTypes[rowType] = newFunc
 	}
 
 }
 
-var rowTypes = map[RowID]func() MarshalUnmarshaler{}
+var rowTypes = map[RowType]func() MarshalUnmarshaler{}

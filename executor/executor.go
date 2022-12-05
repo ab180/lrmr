@@ -148,7 +148,7 @@ func (w *Executor) CreateJob(_ context.Context, req *lrmrpb.CreateJobRequest) (*
 			curStage := runningJob.Job.GetStage(s.Name)
 
 			task := job.NewTask(t.PartitionID, w.Node.Info(), runningJob.Job.ID, curStage)
-			in := input.NewReader(w.opt.Input.QueueLength, lrdd.RowID(s.RowId))
+			in := input.NewReader(w.opt.Input.QueueLength, lrdd.RowType(s.RowType))
 			taskExec := NewTaskExecutor(runningJob, task, curStage, in, s.Output, w.workerLocalOpts, &w.opt)
 
 			runningJob.Tasks = append(runningJob.Tasks, taskExec)

@@ -50,6 +50,6 @@ func (d *dummyMapper) Map(ctx lrmr.Context, row []*lrdd.Row) ([]*lrdd.Row, error
 	return mappedRows, nil
 }
 
-func (d *dummyMapper) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (d *dummyMapper) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

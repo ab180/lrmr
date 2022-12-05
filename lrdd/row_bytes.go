@@ -17,8 +17,8 @@ func (bs *Bytes) UnmarshalMsg(in []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (bs *Bytes) ID() RowID {
-	return RowIDBytes
+func (bs *Bytes) Type() RowType {
+	return RowTypeBytes
 }
 
 func (bs *Bytes) String() string {

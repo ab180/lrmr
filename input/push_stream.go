@@ -39,7 +39,7 @@ func (p *PushStream) Dispatch() error {
 
 		rows := make([]*lrdd.Row, len(req.Data))
 		for i, row := range req.Data {
-			value := lrdd.GetValue(p.reader.RowID())
+			value := lrdd.GetValue(p.reader.RowType())
 			_, err := value.UnmarshalMsg(row.Value)
 			if err != nil {
 				return err

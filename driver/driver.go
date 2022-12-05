@@ -151,7 +151,7 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 						case <-asyncCtx.Done():
 							break pushLoop
 						default:
-							value := lrdd.GetValue(lrdd.RowID(msg.RowID))
+							value := lrdd.GetValue(lrdd.RowType(msg.RowType))
 							_, err := value.UnmarshalMsg(row.Value)
 							if err != nil {
 								res.addErr(err)

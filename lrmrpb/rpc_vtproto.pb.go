@@ -138,8 +138,8 @@ func (m *Stage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.RowId != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.RowId))
+	if m.RowType != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.RowType))
 		i--
 		dAtA[i] = 0x30
 	}
@@ -333,8 +333,8 @@ func (m *JobOutput) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x38
 	}
-	if m.RowID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.RowID))
+	if m.RowType != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.RowType))
 		i--
 		dAtA[i] = 0x30
 	}
@@ -871,8 +871,8 @@ func (m *Stage) SizeVT() (n int) {
 		l = m.Output.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.RowId != 0 {
-		n += 1 + sov(uint64(m.RowId))
+	if m.RowType != 0 {
+		n += 1 + sov(uint64(m.RowType))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -941,8 +941,8 @@ func (m *JobOutput) SizeVT() (n int) {
 			n += 1 + l + sov(uint64(l))
 		}
 	}
-	if m.RowID != 0 {
-		n += 1 + sov(uint64(m.RowID))
+	if m.RowType != 0 {
+		n += 1 + sov(uint64(m.RowType))
 	}
 	if m.TaskStatus != 0 {
 		n += 1 + sov(uint64(m.TaskStatus))
@@ -1559,9 +1559,9 @@ func (m *Stage) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RowId", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field RowType", wireType)
 			}
-			m.RowId = 0
+			m.RowType = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -1571,7 +1571,7 @@ func (m *Stage) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.RowId |= int32(b&0x7F) << shift
+				m.RowType |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1920,9 +1920,9 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RowID", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field RowType", wireType)
 			}
-			m.RowID = 0
+			m.RowType = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -1932,7 +1932,7 @@ func (m *JobOutput) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.RowID |= int32(b&0x7F) << shift
+				m.RowType |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

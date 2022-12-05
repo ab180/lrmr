@@ -23,8 +23,8 @@ func (a2 Ascending) IsLessThan(a, b *lrdd.Row) bool {
 	return an < bn
 }
 
-func (a2 Ascending) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (a2 Ascending) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 type Concat struct{}
@@ -47,8 +47,8 @@ func (cc Concat) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.
 	return reduceVal, nil
 }
 
-func (cc Concat) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (cc Concat) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 func Sort() *lrmr.Pipeline {

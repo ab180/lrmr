@@ -18,8 +18,8 @@ func (c countNumPartitions) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emi
 	return nil
 }
 
-func (c countNumPartitions) RowID() lrdd.RowID {
-	return lrdd.RowIDBytes
+func (c countNumPartitions) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }
 
 var _ = lrmr.RegisterTypes(countNumPartitions{})

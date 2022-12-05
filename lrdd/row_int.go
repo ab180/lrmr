@@ -25,8 +25,8 @@ func (i *Uint64) UnmarshalMsg(in []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (i *Uint64) ID() RowID {
-	return RowIDUint64
+func (i *Uint64) Type() RowType {
+	return RowTypeUint64
 }
 
 func (i *Uint64) String() string {

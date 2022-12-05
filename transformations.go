@@ -22,7 +22,7 @@ func RegisterTypes(tfs ...interface{}) interface{} {
 
 type Transformer interface {
 	Transform(ctx Context, in chan []*lrdd.Row, emit EmitFunc) error
-	RowID() lrdd.RowID
+	RowType() lrdd.RowType
 }
 
 type transformerTransformation struct {
@@ -48,8 +48,8 @@ func (t transformerTransformation) Apply(ctx transformation.Context, in chan []*
 	return emitErr
 }
 
-func (t transformerTransformation) RowID() lrdd.RowID {
-	return t.transformer.RowID()
+func (t transformerTransformation) RowType() lrdd.RowType {
+	return t.transformer.RowType()
 }
 
 func (t *transformerTransformation) UnmarshalJSON(d []byte) error {
@@ -71,7 +71,7 @@ type Filter interface {
 
 type Mapper interface {
 	Map(Context, []*lrdd.Row) ([]*lrdd.Row, error)
-	RowID() lrdd.RowID
+	RowType() lrdd.RowType
 }
 
 type mapTransformation struct {
@@ -94,8 +94,8 @@ func (m *mapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Ro
 	return nil
 }
 
-func (m *mapTransformation) RowID() lrdd.RowID {
-	return m.mapper.RowID()
+func (m *mapTransformation) RowType() lrdd.RowType {
+	return m.mapper.RowType()
 }
 
 func (m *mapTransformation) MarshalJSON() ([]byte, error) {
@@ -113,7 +113,7 @@ func (m *mapTransformation) UnmarshalJSON(data []byte) error {
 
 type FlatMapper interface {
 	FlatMap(Context, []*lrdd.Row) ([]*lrdd.Row, error)
-	RowID() lrdd.RowID
+	RowType() lrdd.RowType
 }
 
 type flatMapTransformation struct {
@@ -136,8 +136,8 @@ func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan []*lrd
 	return nil
 }
 
-func (f *flatMapTransformation) RowID() lrdd.RowID {
-	return f.flatMapper.RowID()
+func (f *flatMapTransformation) RowType() lrdd.RowType {
+	return f.flatMapper.RowType()
 }
 
 func (f *flatMapTransformation) MarshalJSON() ([]byte, error) {
@@ -155,7 +155,7 @@ func (f *flatMapTransformation) UnmarshalJSON(data []byte) error {
 
 type Sorter interface {
 	IsLessThan(a, b *lrdd.Row) bool
-	RowID() lrdd.RowID
+	RowType() lrdd.RowType
 }
 
 type sortTransformation struct {
@@ -177,8 +177,8 @@ func (s *sortTransformation) Apply(ctx transformation.Context, in chan []*lrdd.R
 	return out.Write(s.rows)
 }
 
-func (s *sortTransformation) RowID() lrdd.RowID {
-	return s.sorter.RowID()
+func (s *sortTransformation) RowType() lrdd.RowType {
+	return s.sorter.RowType()
 }
 
 func (s *sortTransformation) Len() int {
@@ -215,7 +215,7 @@ type Combiner interface {
 type Reducer interface {
 	InitialValue() lrdd.MarshalUnmarshaler
 	Reduce(ctx Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row) (next lrdd.MarshalUnmarshaler, err error)
-	RowID() lrdd.RowID
+	RowType() lrdd.RowType
 }
 
 type reduceTransformation struct {
@@ -251,8 +251,8 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.R
 	return out.Write(rows)
 }
 
-func (f *reduceTransformation) RowID() lrdd.RowID {
-	return f.reducerPrototype.RowID()
+func (f *reduceTransformation) RowType() lrdd.RowType {
+	return f.reducerPrototype.RowType()
 }
 
 func (f *reduceTransformation) instantiateReducer() Reducer {

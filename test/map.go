@@ -23,8 +23,8 @@ func (m *Multiply) Map(ctx lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) 
 	return mappedRows, nil
 }
 
-func (m *Multiply) RowID() lrdd.RowID {
-	return rowIDInt32
+func (m *Multiply) RowType() lrdd.RowType {
+	return rowTypeInt32
 }
 
 func Map() *lrmr.Pipeline {
@@ -60,8 +60,8 @@ func (i *int32Row) UnmarshalMsg(in []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (i *int32Row) ID() lrdd.RowID {
-	return rowIDInt32
+func (i *int32Row) Type() lrdd.RowType {
+	return rowTypeInt32
 }
 
 func (i *int32Row) String() string {
@@ -70,11 +70,11 @@ func (i *int32Row) String() string {
 
 func init() {
 	lrdd.RegisterValue(
-		rowIDInt32,
+		rowTypeInt32,
 		func() lrdd.MarshalUnmarshaler {
 			var v int32Row
 			return &v
 		})
 }
 
-const rowIDInt32 lrdd.RowID = 3
+const rowTypeInt32 lrdd.RowType = 3

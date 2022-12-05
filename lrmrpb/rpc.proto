@@ -29,7 +29,7 @@ message Stage {
     repeated Input input = 4;
     Output output = 5;
 
-    int32 row_id = 6;
+    int32 rowType = 6;
 }
 
 message Task {
@@ -53,8 +53,8 @@ message JobOutput {
     string partitionID = 3;
 
     // on type == COLLECT_DATA
-    repeated lrdd.RawRow data  = 5;
-             int32       rowID = 6;
+    repeated lrdd.RawRow data    = 5;
+             int32       rowType = 6;
 
     // on type == REPORT_TASK_COMPLETION
     enum TaskStatus {
