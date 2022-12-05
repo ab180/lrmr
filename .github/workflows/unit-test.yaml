@@ -30,21 +30,17 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
-      - name: Get dependencies
-        run: go mod download
+      - name: Install dependencies
+        run: make deps
 
       - name: Run Unit Test
-        run: go test -v ./...
+        run: make test
 
       - name: Run lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          args: --enable=lll --out-${NO_FUTURE}format colored-line-number
+        run: make lint
 
       - name: Run go vet
-        run: go vet ./...
+        run: make vet
 
       - name: Run gosec
-        uses: securego/gosec@master
-        with:
-          args: ./...
+        run: make sec
