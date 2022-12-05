@@ -11,7 +11,6 @@ type MarshalUnmarshaler interface {
 	MarshalMsg([]byte) ([]byte, error)
 	UnmarshalMsg([]byte) ([]byte, error)
 	Type() RowType
-	String() string
 }
 
 type RowType int32

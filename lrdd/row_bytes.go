@@ -21,10 +21,6 @@ func (bs *Bytes) Type() RowType {
 	return RowTypeBytes
 }
 
-func (bs *Bytes) String() string {
-	return string(*bs)
-}
-
 func init() {
 	RegisterValue(
 		RowTypeBytes,

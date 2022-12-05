@@ -2,7 +2,6 @@ package lrdd
 
 import (
 	"encoding/binary"
-	"fmt"
 )
 
 type Uint64 uint64
@@ -27,10 +26,6 @@ func (i *Uint64) UnmarshalMsg(in []byte) ([]byte, error) {
 
 func (i *Uint64) Type() RowType {
 	return RowTypeUint64
-}
-
-func (i *Uint64) String() string {
-	return fmt.Sprintf("%d", *i)
 }
 
 func init() {
