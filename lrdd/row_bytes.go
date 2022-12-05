@@ -24,3 +24,11 @@ func (bs *Bytes) Type() RowType {
 func (bs *Bytes) String() string {
 	return string(*bs)
 }
+
+func init() {
+	RegisterValue(
+		RowTypeBytes,
+		func() MarshalUnmarshaler {
+			return &Bytes{}
+		})
+}

@@ -32,3 +32,11 @@ func (i *Uint64) Type() RowType {
 func (i *Uint64) String() string {
 	return fmt.Sprintf("%d", *i)
 }
+
+func init() {
+	RegisterValue(
+		RowTypeUint64,
+		func() MarshalUnmarshaler {
+			return NewUint64(0)
+		})
+}
