@@ -34,7 +34,7 @@ jobs:
         run: go mod download
 
       - name: Run Unit Test
-        run: go test ./...
+        run: go test -v ./...
 
       - name: Run lint
         uses: golangci/golangci-lint-action@v3
