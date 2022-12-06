@@ -3,8 +3,8 @@ package lrdd
 import "fmt"
 
 type Row struct {
-	Key   string
-	Value MarshalUnmarshaler
+	Key   string             `json:"key,omitempty"`
+	Value MarshalUnmarshaler `json:"value,omitempty"`
 }
 
 type MarshalUnmarshaler interface {
