@@ -15,6 +15,10 @@ func (n nopMapper) Map(_ lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
 	return rows, nil
 }
 
+func (n nopMapper) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
+}
+
 var _ = lrmr.RegisterTypes(
 	NopMapper(),
 )

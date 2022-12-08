@@ -3,8 +3,6 @@ package lrmrpb
 import (
 	"context"
 	"fmt"
-	"github.com/ab180/lrmr/lrdd"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"net"
 	"runtime"
@@ -12,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ab180/lrmr/lrdd"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func BenchmarkStreamRecv(b *testing.B) {
@@ -109,7 +109,7 @@ func newMockNodeClientAndServer(valueLen int) (clientConn *grpc.ClientConn, serv
 	for i := 0; i < 1000; i++ {
 		pollDataResponseMock.Data = append(
 			pollDataResponseMock.Data,
-			&lrdd.Row{
+			&lrdd.RawRow{
 				Key:   strconv.Itoa(i),
 				Value: []byte(strings.Repeat("*", valueLen)),
 			})

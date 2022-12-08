@@ -18,6 +18,10 @@ func (f FailingStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr
 	panic("station")
 }
 
+func (f FailingStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
+}
+
 func FailingJob() *lrmr.Pipeline {
 	return lrmr.Parallelize(lrdd.FromInts(1, 2, 3, 4, 5)).Do(FailingStage{})
 }

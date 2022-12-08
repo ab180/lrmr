@@ -1,8 +1,6 @@
 package test
 
 import (
-	"strconv"
-
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/lrdd"
 )
@@ -19,33 +17,20 @@ func Count() lrmr.Reducer {
 	return &counter{}
 }
 
-func (cnt *counter) InitialValue() lrmr.MarshalUnmarshaler {
-	initVal := counterMarshalerUnmarshaler(0)
+func (cnt *counter) InitialValue() lrdd.MarshalUnmarshaler {
+	initVal := lrdd.Uint64(0)
 	return &initVal
 }
 
-func (cnt *counter) Reduce(c lrmr.Context, prev lrmr.MarshalUnmarshaler, cur *lrdd.Row,
-) (next lrmr.MarshalUnmarshaler, err error) {
+func (cnt *counter) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row,
+) (next lrdd.MarshalUnmarshaler, err error) {
 	c.AddMetric("Events", 1)
-	prevVal := prev.(*counterMarshalerUnmarshaler)
-	reduceVal := *prevVal + counterMarshalerUnmarshaler(1)
+	prevVal := prev.(*lrdd.Uint64)
+	reduceVal := *prevVal + lrdd.Uint64(1)
 	cnt.value = uint64(reduceVal)
 	return &reduceVal, nil
 }
 
-type counterMarshalerUnmarshaler uint64
-
-func (c *counterMarshalerUnmarshaler) MarshalMsg([]byte) ([]byte, error) {
-	return []byte(strconv.FormatUint(uint64(*c), 10)), nil
-}
-
-func (c *counterMarshalerUnmarshaler) UnmarshalMsg(bs []byte) ([]byte, error) {
-	v, err := strconv.ParseUint(string(bs), 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	*c = counterMarshalerUnmarshaler(v)
-
-	return nil, nil
+func (cnt *counter) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

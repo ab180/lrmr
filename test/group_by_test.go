@@ -11,6 +11,7 @@ import (
 	"github.com/ab180/lrmr/test/testdata"
 	"github.com/ab180/lrmr/test/testutils"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBasicGroupByKey(t *testing.T) {
@@ -72,24 +73,19 @@ func BenchmarkBasicGroupByKey(b *testing.B) {
 }
 
 func TestBasicGroupByKnownKeys_WithCollect(t *testing.T) {
-	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		Convey("When doing GroupBy", func() {
-			ds := BasicGroupByKnownKeys()
+	integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+		ds := BasicGroupByKnownKeys()
 
-			Convey("It should run without error", func() {
-				rows, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-				So(err, ShouldBeNil)
-				res := testutils.GroupRowsByKey(rows.Outputs())
-				err = rows.Err()
-				So(err, ShouldBeNil)
+		rows, err := ds.RunAndCollect(context.Background(), cluster)
+		require.Nil(t, err)
 
-				Convey("Its result should be collected", func() {
-					So(res, ShouldHaveLength, 4)
-					So(testutils.IntValue(res["8263"][0]), ShouldEqual, 197206)
-				})
-			})
-		})
-	}))
+		res := testutils.GroupRowsByKey(rows.Outputs())
+		err = rows.Err()
+		require.Nil(t, err)
+
+		require.Equal(t, 4, len(res))
+		require.Equal(t, 197206, testutils.IntValue(res["8263"][0]))
+	})()
 }
 
 func TestSimpleCount(t *testing.T) {

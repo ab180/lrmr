@@ -65,10 +65,30 @@ func (f *attachedStatusReporter) JobContext() context.Context {
 	return f.stream.Context()
 }
 
-func (f *attachedStatusReporter) Collect(rows []*lrdd.Row) error {
+func (f *attachedStatusReporter) Collect(marshalUnmarshalerRows []*lrdd.Row) error {
+	if len(marshalUnmarshalerRows) == 0 {
+		return nil
+	}
+
+	rowType := marshalUnmarshalerRows[0].Value.Type()
+
+	rows := make([]*lrdd.RawRow, len(marshalUnmarshalerRows))
+	for i, marshalUnmarshalerRow := range marshalUnmarshalerRows {
+		val, err := marshalUnmarshalerRow.Value.MarshalMsg(nil)
+		if err != nil {
+			return err
+		}
+
+		rows[i] = &lrdd.RawRow{
+			Key:   marshalUnmarshalerRow.Key,
+			Value: val,
+		}
+	}
+
 	return f.send(f.stream.Context(), &lrmrpb.JobOutput{
-		Type: lrmrpb.JobOutput_COLLECT_DATA,
-		Data: rows,
+		Type:    lrmrpb.JobOutput_COLLECT_DATA,
+		RowType: int32(rowType),
+		Data:    rows,
 	})
 }
 

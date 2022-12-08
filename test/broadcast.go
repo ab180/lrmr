@@ -31,8 +31,12 @@ func (b *BroadcastStage) Map(c lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, err
 		output := fmt.Sprintf("throughStruct=%s, throughContext=%v, typeMatched=%v", b.ThroughStruct, v, typeMatched)
 		log.Println("output is ", output)
 
-		mappedRows[i] = &lrdd.Row{Value: []byte(output)}
+		mappedRows[i] = &lrdd.Row{Value: lrdd.NewBytes(output)}
 	}
 
 	return mappedRows, nil
+}
+
+func (b *BroadcastStage) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

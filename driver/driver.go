@@ -150,7 +150,19 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 						select {
 						case <-asyncCtx.Done():
 							break pushLoop
-						case res.rowChan <- row:
+						default:
+							value := lrdd.GetValue(lrdd.RowType(msg.RowType))
+							_, err := value.UnmarshalMsg(row.Value)
+							if err != nil {
+								res.addErr(err)
+								break pushLoop
+							}
+							marshalUnmarshalerRow := &lrdd.Row{
+								Key:   row.Key,
+								Value: value,
+							}
+
+							res.rowChan <- marshalUnmarshalerRow
 						}
 					}
 				} else if msg.Type == lrmrpb.JobOutput_REPORT_TASK_COMPLETION {

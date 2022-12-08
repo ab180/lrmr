@@ -6,6 +6,7 @@ PROTO_SRCS := $(shell find . -name *.proto)
 deps:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0
+	go install github.com/securego/gosec/v2/cmd/gosec@v2.14.0
 
 fbs:
 	@for FBS in $(FLATBUFFER_SRCS); do \
@@ -22,7 +23,7 @@ proto:
 			--go-vtproto_out=../../.. \
 			--plugin protoc-gen-go-vtproto="${GOBIN}/protoc-gen-go-vtproto" \
 			--go-vtproto_opt=features=marshal+unmarshal+size+pool \
-			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrdd.Row \
+			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrdd.RawRow \
 			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrmrpb.PollDataResponse \
 			$$PROTO; \
 	done

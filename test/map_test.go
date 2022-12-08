@@ -1,39 +1,34 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ab180/lrmr/test/integration"
-	"github.com/ab180/lrmr/test/testutils"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMap(t *testing.T) {
-	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		Convey("When running Map", func() {
-			ds := Map()
+	integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
+		ds := Map()
 
-			Convey("It should run without error", func() {
-				result, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-				So(err, ShouldBeNil)
+		result, err := ds.RunAndCollect(context.Background(), cluster)
+		require.Nil(t, err)
 
-				rowLen := 0
-				max := 0
-				for row := range result.Outputs() {
-					n := testutils.IntValue(row)
-					if n > max {
-						max = n
-					}
+		rowLen := 0
+		var max int32
+		for row := range result.Outputs() {
+			n := int32(*row.Value.(*int32Row))
+			if n > max {
+				max = n
+			}
 
-					rowLen++
-				}
-				So(rowLen, ShouldEqual, 1000)
+			rowLen++
+		}
+		err = result.Err()
+		require.Nil(t, err)
 
-				err = result.Err()
-				So(err, ShouldBeNil)
-
-				So(max, ShouldEqual, 8000)
-			})
-		})
-	}))
+		require.Equal(t, 1000, rowLen)
+		require.Equal(t, int32(8000), max)
+	})()
 }

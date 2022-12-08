@@ -1,34 +1,32 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ab180/lrmr/test/integration"
 	"github.com/ab180/lrmr/test/testutils"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFlatMap(t *testing.T) {
-	Convey("Given running nodes", t, integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		Convey("When running FlatMap", func() {
-			ds := FlatMap()
+	integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
 
-			Convey("It should run without error", func() {
-				res, err := ds.RunAndCollect(testutils.ContextWithTimeout(), cluster)
-				So(err, ShouldBeNil)
+		ds := FlatMap()
 
-				max := 0
-				for row := range res.Outputs() {
-					n := testutils.IntValue(row)
-					if n > max {
-						max = n
-					}
-				}
-				err = res.Err()
-				So(err, ShouldBeNil)
+		res, err := ds.RunAndCollect(context.Background(), cluster)
+		require.Nil(t, err)
 
-				So(max, ShouldEqual, 8000)
-			})
-		})
-	}))
+		max := 0
+		for row := range res.Outputs() {
+			n := testutils.IntValue(row)
+			if n > max {
+				max = n
+			}
+		}
+		err = res.Err()
+		require.Nil(t, err)
+
+		require.Equal(t, 8000, max)
+	})()
 }

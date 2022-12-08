@@ -6,15 +6,17 @@ import (
 )
 
 type Reader struct {
-	C chan []*lrdd.Row
+	C       chan []*lrdd.Row
+	rowType lrdd.RowType
 
 	activeCnt atomic.Int64
 	closed    atomic.Bool
 }
 
-func NewReader(queueLen int) *Reader {
+func NewReader(queueLen int, rowType lrdd.RowType) *Reader {
 	return &Reader{
-		C: make(chan []*lrdd.Row, queueLen),
+		C:       make(chan []*lrdd.Row, queueLen),
+		rowType: rowType,
 	}
 }
 
@@ -42,4 +44,8 @@ func (p *Reader) Close() {
 		return
 	}
 	close(p.C)
+}
+
+func (p *Reader) RowType() lrdd.RowType {
+	return p.rowType
 }

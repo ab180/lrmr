@@ -13,7 +13,7 @@ const durationSize = unsafe.Sizeof(time.Duration(0)) // #nosec G103
 func FromStrings(vals ...string) []*Row {
 	rows := make([]*Row, len(vals))
 	for i, val := range vals {
-		rows[i] = &Row{Value: []byte(val)}
+		rows[i] = &Row{Value: NewBytes(val)}
 	}
 
 	return rows
@@ -23,7 +23,7 @@ func FromStrings(vals ...string) []*Row {
 func FromStringMap(vals map[string]string) []*Row {
 	var rows []*Row
 	for key, val := range vals {
-		rows = append(rows, &Row{Key: key, Value: []byte(val)})
+		rows = append(rows, &Row{Key: key, Value: NewBytes(val)})
 	}
 
 	return rows
@@ -34,7 +34,7 @@ func FromStringSliceMap(vals map[string][]string) []*Row {
 	var rows []*Row
 	for key, slice := range vals {
 		for _, val := range slice {
-			rows = append(rows, &Row{Key: key, Value: []byte(val)})
+			rows = append(rows, &Row{Key: key, Value: NewBytes(val)})
 		}
 	}
 
@@ -45,7 +45,8 @@ func FromStringSliceMap(vals map[string][]string) []*Row {
 func FromInts(vals ...int) []*Row {
 	rows := make([]*Row, len(vals))
 	for i, val := range vals {
-		rows[i] = &Row{Value: []byte(fmt.Sprintf("%d", val))}
+		intVal := Uint64(val)
+		rows[i] = &Row{Value: &intVal}
 	}
 
 	return rows
@@ -56,7 +57,7 @@ func FromIntSliceMap(vals map[string][]int) []*Row {
 	var rows []*Row
 	for key, slice := range vals {
 		for _, val := range slice {
-			rows = append(rows, &Row{Key: key, Value: []byte(fmt.Sprintf("%d", val))})
+			rows = append(rows, &Row{Key: key, Value: NewBytes(fmt.Sprintf("%d", val))})
 		}
 	}
 
@@ -67,15 +68,20 @@ func FromIntSliceMap(vals map[string][]int) []*Row {
 func FromDurations(vals ...time.Duration) []*Row {
 	rows := make([]*Row, len(vals))
 	for i, val := range vals {
+		bs := make([]byte, durationSize)
+		binary.LittleEndian.PutUint64(bs, uint64(val))
+		lrddBs := Bytes(bs)
+
 		rows[i] = &Row{
-			Value: make([]byte, durationSize),
+			Value: &lrddBs,
 		}
-		binary.LittleEndian.PutUint64(rows[i].Value, uint64(val))
 	}
 	return rows
 }
 
 // ToDuration converts a Row to a duration.
 func ToDuration(row *Row) time.Duration {
-	return time.Duration(binary.LittleEndian.Uint64(row.Value))
+	bs := row.Value.(*Bytes)
+
+	return time.Duration(binary.LittleEndian.Uint64([]byte(*bs)))
 }

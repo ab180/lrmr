@@ -1,21 +1,15 @@
 package testutils
 
 import (
-	"strconv"
-
 	"github.com/ab180/lrmr/lrdd"
 )
 
 func StringValue(row *lrdd.Row) string {
-	return string(row.Value)
+	return string(*row.Value.(*lrdd.Bytes))
 }
 
 func IntValue(row *lrdd.Row) int {
-	n, err := strconv.Atoi(string(row.Value))
-	if err != nil {
-		panic(err)
-	}
-	return n
+	return int(*row.Value.(*lrdd.Uint64))
 }
 
 func StringValues(rows []*lrdd.Row) (ss []string) {

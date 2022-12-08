@@ -44,8 +44,12 @@ func (d *dummyMapper) Map(ctx lrmr.Context, row []*lrdd.Row) ([]*lrdd.Row, error
 	mappedRows := make([]*lrdd.Row, len(row))
 	for i, row := range row {
 		workerNo := ctx.WorkerLocalOption("No").(int)
-		mappedRows[i] = &lrdd.Row{Key: strconv.Itoa(workerNo), Value: []byte(row.Key)}
+		mappedRows[i] = &lrdd.Row{Key: strconv.Itoa(workerNo), Value: lrdd.NewBytes(row.Key)}
 	}
 
 	return mappedRows, nil
+}
+
+func (d *dummyMapper) RowType() lrdd.RowType {
+	return lrdd.RowTypeBytes
 }

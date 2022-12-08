@@ -65,7 +65,7 @@ func BenchmarkBytesCopy(b *testing.B) {
 }
 
 func BenchmarkRow_Marshal(b *testing.B) {
-	originRow := &Row{
+	originRow := &RawRow{
 		Key:   "foo",
 		Value: []byte("bar"),
 	}
@@ -76,7 +76,7 @@ func BenchmarkRow_Marshal(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		var row Row
+		var row RawRow
 
 		err = proto.Unmarshal(bs, &row)
 		if err != nil {
@@ -86,7 +86,7 @@ func BenchmarkRow_Marshal(b *testing.B) {
 }
 
 func BenchmarkRow_MarshalVT(b *testing.B) {
-	originRow := &Row{
+	originRow := &RawRow{
 		Key:   "foo",
 		Value: []byte("bar"),
 	}
@@ -97,7 +97,7 @@ func BenchmarkRow_MarshalVT(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		var row Row
+		var row RawRow
 
 		err = row.UnmarshalVT(bs)
 		if err != nil {
@@ -107,7 +107,7 @@ func BenchmarkRow_MarshalVT(b *testing.B) {
 }
 
 func TestMarshalVT(t *testing.T) {
-	originRow := &Row{
+	originRow := &RawRow{
 		Key:   "foo",
 		Value: []byte("bar"),
 	}
@@ -117,7 +117,7 @@ func TestMarshalVT(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var row Row
+	var row RawRow
 	err = row.UnmarshalVT(bs)
 	if err != nil {
 		t.Fatal(err)

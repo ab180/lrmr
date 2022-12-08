@@ -9,7 +9,7 @@ on:
 jobs:
   unit-test:
     name: Unit Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-4Gi-arm64
     steps:
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -22,7 +22,7 @@ jobs:
 
       - name: Cache modules
         id: cache-go-modules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/go/pkg/mod
@@ -30,21 +30,17 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
-      - name: Get dependencies
-        run: go mod download
+      - name: Install dependencies
+        run: make deps
 
       - name: Run Unit Test
-        run: go test ./...
+        run: make test
 
       - name: Run lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          args: --enable=lll --out-${NO_FUTURE}format colored-line-number
+        run: make lint
 
       - name: Run go vet
-        run: go vet ./...
+        run: make vet
 
       - name: Run gosec
-        uses: securego/gosec@master
-        with:
-          args: ./...
+        run: make sec

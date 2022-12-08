@@ -21,6 +21,10 @@ func (m *MultiplyAndDouble) FlatMap(ctx lrmr.Context, rows []*lrdd.Row) ([]*lrdd
 	return mappedRows, nil
 }
 
+func (m *MultiplyAndDouble) RowType() lrdd.RowType {
+	return lrdd.RowTypeUint64
+}
+
 func FlatMap() *lrmr.Pipeline {
 	data := make([]int, 1000)
 	for i := 0; i < len(data); i++ {
