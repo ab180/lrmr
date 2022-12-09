@@ -29,7 +29,8 @@ func (p *PushStream) Dispatch() error {
 	defer p.reader.Done()
 
 	for {
-		req, err := p.stream.Recv()
+		req := lrmrpb.PushDataRequestFromVTPool()
+		err := p.stream.RecvMsg(req)
 		if err != nil {
 			if status.Code(err) == codes.Canceled || errors.Cause(err) == context.Canceled || err == io.EOF {
 				return nil
@@ -52,6 +53,8 @@ func (p *PushStream) Dispatch() error {
 		}
 
 		p.reader.Write(rows)
+
+		req.ReturnToVTPool()
 	}
 }
 

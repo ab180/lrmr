@@ -787,26 +787,26 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	return base
 }
 
-var vtprotoPool_PollDataResponse = sync.Pool{
+var vtprotoPool_PushDataRequest = sync.Pool{
 	New: func() interface{} {
-		return &PollDataResponse{}
+		return &PushDataRequest{}
 	},
 }
 
-func (m *PollDataResponse) ResetVT() {
+func (m *PushDataRequest) ResetVT() {
 	for _, mm := range m.Data {
 		mm.ResetVT()
 	}
 	m.Reset()
 }
-func (m *PollDataResponse) ReturnToVTPool() {
+func (m *PushDataRequest) ReturnToVTPool() {
 	if m != nil {
 		m.ResetVT()
-		vtprotoPool_PollDataResponse.Put(m)
+		vtprotoPool_PushDataRequest.Put(m)
 	}
 }
-func PollDataResponseFromVTPool() *PollDataResponse {
-	return vtprotoPool_PollDataResponse.Get().(*PollDataResponse)
+func PushDataRequestFromVTPool() *PushDataRequest {
+	return vtprotoPool_PushDataRequest.Get().(*PushDataRequest)
 }
 func (m *CreateJobRequest) SizeVT() (n int) {
 	if m == nil {
@@ -2678,7 +2678,14 @@ func (m *PushDataRequest) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &lrdd.RawRow{})
+			if len(m.Data) == cap(m.Data) {
+				m.Data = append(m.Data, &lrdd.RawRow{})
+			} else {
+				m.Data = m.Data[:len(m.Data)+1]
+				if m.Data[len(m.Data)-1] == nil {
+					m.Data[len(m.Data)-1] = &lrdd.RawRow{}
+				}
+			}
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {
@@ -2841,14 +2848,7 @@ func (m *PollDataResponse) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if len(m.Data) == cap(m.Data) {
-				m.Data = append(m.Data, &lrdd.RawRow{})
-			} else {
-				m.Data = m.Data[:len(m.Data)+1]
-				if m.Data[len(m.Data)-1] == nil {
-					m.Data[len(m.Data)-1] = &lrdd.RawRow{}
-				}
-			}
+			m.Data = append(m.Data, &lrdd.RawRow{})
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {
