@@ -27,7 +27,6 @@ type NodeClient interface {
 	StartJobInBackground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (*pbtypes.Empty, error)
 	StartJobInForeground(ctx context.Context, in *StartJobRequest, opts ...grpc.CallOption) (Node_StartJobInForegroundClient, error)
 	PushData(ctx context.Context, opts ...grpc.CallOption) (Node_PushDataClient, error)
-	PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error)
 }
 
 type nodeClient struct {
@@ -122,37 +121,6 @@ func (x *nodePushDataClient) CloseAndRecv() (*pbtypes.Empty, error) {
 	return m, nil
 }
 
-func (c *nodeClient) PollData(ctx context.Context, opts ...grpc.CallOption) (Node_PollDataClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[2], "/lrmrpb.Node/PollData", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodePollDataClient{stream}
-	return x, nil
-}
-
-type Node_PollDataClient interface {
-	Send(*PollDataRequest) error
-	Recv() (*PollDataResponse, error)
-	grpc.ClientStream
-}
-
-type nodePollDataClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodePollDataClient) Send(m *PollDataRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodePollDataClient) Recv() (*PollDataResponse, error) {
-	m := new(PollDataResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // NodeServer is the server API for Node service.
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
@@ -161,7 +129,6 @@ type NodeServer interface {
 	StartJobInBackground(context.Context, *StartJobRequest) (*pbtypes.Empty, error)
 	StartJobInForeground(*StartJobRequest, Node_StartJobInForegroundServer) error
 	PushData(Node_PushDataServer) error
-	PollData(Node_PollDataServer) error
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -180,9 +147,6 @@ func (UnimplementedNodeServer) StartJobInForeground(*StartJobRequest, Node_Start
 }
 func (UnimplementedNodeServer) PushData(Node_PushDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method PushData not implemented")
-}
-func (UnimplementedNodeServer) PollData(Node_PollDataServer) error {
-	return status.Errorf(codes.Unimplemented, "method PollData not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
@@ -280,32 +244,6 @@ func (x *nodePushDataServer) Recv() (*PushDataRequest, error) {
 	return m, nil
 }
 
-func _Node_PollData_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeServer).PollData(&nodePollDataServer{stream})
-}
-
-type Node_PollDataServer interface {
-	Send(*PollDataResponse) error
-	Recv() (*PollDataRequest, error)
-	grpc.ServerStream
-}
-
-type nodePollDataServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodePollDataServer) Send(m *PollDataResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodePollDataServer) Recv() (*PollDataRequest, error) {
-	m := new(PollDataRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // Node_ServiceDesc is the grpc.ServiceDesc for Node service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -331,12 +269,6 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "PushData",
 			Handler:       _Node_PushData_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "PollData",
-			Handler:       _Node_PollData_Handler,
-			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

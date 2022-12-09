@@ -12,7 +12,6 @@ service Node {
     rpc StartJobInForeground (StartJobRequest) returns (stream JobOutput);
 
     rpc PushData (stream PushDataRequest) returns (pbtypes.Empty);
-    rpc PollData (stream PollDataRequest) returns (stream PollDataResponse);
 }
 
 message CreateJobRequest {
@@ -99,18 +98,6 @@ message CreateTaskResponse {
 // metadata with key "header" and value of DataHeader is required.
 message PushDataRequest {
     repeated lrdd.RawRow data = 1;
-}
-
-// PollDataRequest is a request to poll data for a worker to process.
-// metadata with key "header" and value of DataHeader is required.
-message PollDataRequest {
-    // N is maximum number of the data returned.
-    int64 n = 1;
-}
-
-message PollDataResponse {
-    repeated lrdd.RawRow data = 1;
-    bool isEOF = 2;
 }
 
 message DataHeader {
