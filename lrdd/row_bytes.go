@@ -8,11 +8,14 @@ func NewBytes(bs string) *Bytes {
 }
 
 func (bs *Bytes) MarshalMsg([]byte) ([]byte, error) {
-	return *bs, nil
+	res := make([]byte, len(*bs))
+	copy(res, *bs)
+	return res, nil
 }
 
 func (bs *Bytes) UnmarshalMsg(in []byte) ([]byte, error) {
-	(*bs) = in
+	(*bs) = make([]byte, len(in))
+	copy(*bs, in)
 
 	return nil, nil
 }
