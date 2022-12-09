@@ -41,21 +41,27 @@ func (p *PushStream) Write(rows []*lrdd.Row) error {
 	req := &lrmrpb.PushDataRequest{}
 
 	req.Data = make([]*lrdd.RawRow, len(rows))
+	var err error
 	for i, row := range rows {
-		value, err := row.Value.MarshalMsg(nil)
+		rawRow := lrdd.GetRawRow()
+		rawRow.Key = row.Key
+
+		rawRow.Value, err = row.Value.MarshalMsg(rawRow.Value)
 		if err != nil {
 			return err
 		}
 
-		req.Data[i] = &lrdd.RawRow{
-			Key:   row.Key,
-			Value: value,
-		}
+		req.Data[i] = rawRow
 	}
 
-	err := p.stream.Send(req)
+	err = p.stream.Send(req)
 	if err != nil {
 		return err
+	}
+
+	// lrdd.RawRow will use in PushDataRequest.UnmarshalVT later
+	for _, row := range req.Data {
+		lrdd.PutRawRow(row)
 	}
 
 	return nil

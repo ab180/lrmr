@@ -2508,7 +2508,7 @@ func (m *PushDataRequest) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &lrdd.RawRow{})
+			m.Data = append(m.Data, lrdd.GetRawRow()) // Edit generated file is not good. But acceptable for now.
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {

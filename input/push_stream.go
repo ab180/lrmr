@@ -52,6 +52,11 @@ func (p *PushStream) Dispatch() error {
 		}
 
 		p.reader.Write(rows)
+
+		// lrdd.RawRow will use in PushDataRequest.UnmarshalVT later
+		for _, row := range req.Data {
+			lrdd.PutRawRow(row)
+		}
 	}
 }
 
