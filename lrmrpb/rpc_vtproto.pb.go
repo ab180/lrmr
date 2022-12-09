@@ -12,7 +12,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	bits "math/bits"
-	sync "sync"
 )
 
 const (
@@ -680,28 +679,6 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	}
 	dAtA[offset] = uint8(v)
 	return base
-}
-
-var vtprotoPool_PushDataRequest = sync.Pool{
-	New: func() interface{} {
-		return &PushDataRequest{}
-	},
-}
-
-func (m *PushDataRequest) ResetVT() {
-	for _, mm := range m.Data {
-		mm.ResetVT()
-	}
-	m.Reset()
-}
-func (m *PushDataRequest) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_PushDataRequest.Put(m)
-	}
-}
-func PushDataRequestFromVTPool() *PushDataRequest {
-	return vtprotoPool_PushDataRequest.Get().(*PushDataRequest)
 }
 func (m *CreateJobRequest) SizeVT() (n int) {
 	if m == nil {
@@ -2531,14 +2508,7 @@ func (m *PushDataRequest) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if len(m.Data) == cap(m.Data) {
-				m.Data = append(m.Data, &lrdd.RawRow{})
-			} else {
-				m.Data = m.Data[:len(m.Data)+1]
-				if m.Data[len(m.Data)-1] == nil {
-					m.Data[len(m.Data)-1] = &lrdd.RawRow{}
-				}
-			}
+			m.Data = append(m.Data, &lrdd.RawRow{})
 			if unmarshal, ok := interface{}(m.Data[len(m.Data)-1]).(interface {
 				UnmarshalVT([]byte) error
 			}); ok {

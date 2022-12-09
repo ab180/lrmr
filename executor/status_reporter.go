@@ -46,10 +46,6 @@ func (f *attachedStatusReporter) send(ctx context.Context, out *lrmrpb.JobOutput
 	go func() {
 		defer close(sent)
 		err := f.stream.Send(out)
-		for i, row := range out.Data {
-			row.ReturnToVTPool()
-			out.Data[i] = nil
-		}
 		sent <- err
 	}()
 

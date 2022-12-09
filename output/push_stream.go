@@ -38,7 +38,7 @@ func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, ho
 }
 
 func (p *PushStream) Write(rows []*lrdd.Row) error {
-	req := lrmrpb.PushDataRequestFromVTPool()
+	req := &lrmrpb.PushDataRequest{}
 
 	req.Data = make([]*lrdd.RawRow, len(rows))
 	for i, row := range rows {
@@ -57,8 +57,6 @@ func (p *PushStream) Write(rows []*lrdd.Row) error {
 	if err != nil {
 		return err
 	}
-
-	req.ReturnToVTPool()
 
 	return nil
 }

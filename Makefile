@@ -22,9 +22,7 @@ proto:
 			--plugin protoc-gen-go-grpc="${GOBIN}/protoc-gen-go-grpc" \
 			--go-vtproto_out=../../.. \
 			--plugin protoc-gen-go-vtproto="${GOBIN}/protoc-gen-go-vtproto" \
-			--go-vtproto_opt=features=marshal+unmarshal+size+pool \
-			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrdd.RawRow \
-			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrmrpb.PushDataRequest \
+			--go-vtproto_opt=features=marshal+unmarshal+size \
 			$$PROTO; \
 	done
 
