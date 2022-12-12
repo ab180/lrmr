@@ -2,18 +2,6 @@ package lrdd
 
 import sync "sync"
 
-func GetRawRow() *RawRow {
-	return rawRowPool.Get().(*RawRow)
-}
-
-func PutRawRow(row *RawRow) {
-	value := row.Value[:0]
-	row.Reset()
-	row.Value = value
-
-	rawRowPool.Put(row)
-}
-
 func GetRows(size int) *[]Row {
 	rows := rowsPool.Get().(*[]Row)
 	if size <= cap(*rows) {
@@ -36,11 +24,6 @@ func PutRows(rows *[]Row) {
 }
 
 var (
-	rawRowPool = sync.Pool{
-		New: func() any {
-			return &RawRow{}
-		},
-	}
 	rowsPool = sync.Pool{
 		New: func() any {
 			return &[]Row{}

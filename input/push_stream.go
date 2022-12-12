@@ -29,7 +29,8 @@ func (p *PushStream) Dispatch() error {
 	defer p.reader.Done()
 
 	for {
-		req, err := p.stream.Recv()
+		req := lrmrpb.GetPushDataRequest(0)
+		err := p.stream.RecvMsg(req)
 		if err != nil {
 			if status.Code(err) == codes.Canceled || errors.Cause(err) == context.Canceled || err == io.EOF {
 				return nil
@@ -53,10 +54,7 @@ func (p *PushStream) Dispatch() error {
 		//p.reader.Write(rows)
 		p.reader.Write(*rows)
 
-		// lrdd.RawRow will use in PushDataRequest.UnmarshalVT later
-		for _, row := range req.Data {
-			lrdd.PutRawRow(row)
-		}
+		lrmrpb.PutPushDataRequest(req)
 	}
 }
 

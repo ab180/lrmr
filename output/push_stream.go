@@ -38,20 +38,15 @@ func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, ho
 }
 
 func (p *PushStream) Write(rows []lrdd.Row) error {
-	req := &lrmrpb.PushDataRequest{}
+	req := lrmrpb.GetPushDataRequest(len(rows))
 
-	req.Data = make([]*lrdd.RawRow, len(rows))
 	var err error
 	for i, row := range rows {
-		rawRow := lrdd.GetRawRow()
-		rawRow.Key = row.Key
-
-		rawRow.Value, err = row.Value.MarshalMsg(rawRow.Value)
+		req.Data[i].Key = row.Key
+		req.Data[i].Value, err = row.Value.MarshalMsg(req.Data[i].Value)
 		if err != nil {
 			return err
 		}
-
-		req.Data[i] = rawRow
 	}
 
 	err = p.stream.Send(req)
@@ -59,10 +54,7 @@ func (p *PushStream) Write(rows []lrdd.Row) error {
 		return err
 	}
 
-	// lrdd.RawRow will use in PushDataRequest.UnmarshalVT later
-	for _, row := range req.Data {
-		lrdd.PutRawRow(row)
-	}
+	lrmrpb.PutPushDataRequest(req)
 
 	return nil
 }

@@ -23,6 +23,7 @@ proto:
 			--go-vtproto_out=../../.. \
 			--plugin protoc-gen-go-vtproto="${GOBIN}/protoc-gen-go-vtproto" \
 			--go-vtproto_opt=features=marshal+unmarshal+size \
+			--go-vtproto_opt=pool=github.com/ab180/lrmr/lrmrpb.PushDataRequest \
 			$$PROTO; \
 	done
 
