@@ -12,7 +12,8 @@ import (
 )
 
 type PushStream struct {
-	stream lrmrpb.Node_PushDataClient
+	stream   lrmrpb.Node_PushDataClient
+	reqCache *lrmrpb.PushDataRequest
 }
 
 func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, host, taskID string,
@@ -33,28 +34,36 @@ func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, ho
 		return nil, errors.Wrapf(err, "open stream to %s", host)
 	}
 	return &PushStream{
-		stream: stream,
+		stream:   stream,
+		reqCache: &lrmrpb.PushDataRequest{},
 	}, nil
 }
 
 func (p *PushStream) Write(rows []lrdd.Row) error {
-	req := lrmrpb.GetPushDataRequest(len(rows))
-
 	var err error
 	for i, row := range rows {
-		req.Data[i].Key = row.Key
-		req.Data[i].Value, err = row.Value.MarshalMsg(req.Data[i].Value)
+		if len(p.reqCache.Data) == cap(p.reqCache.Data) {
+			p.reqCache.Data = append(p.reqCache.Data, &lrdd.RawRow{})
+		} else {
+			p.reqCache.Data = p.reqCache.Data[:len(p.reqCache.Data)+1]
+			if p.reqCache.Data[len(p.reqCache.Data)-1] == nil {
+				p.reqCache.Data[len(p.reqCache.Data)-1] = &lrdd.RawRow{}
+			}
+		}
+
+		p.reqCache.Data[i].Key = row.Key
+		p.reqCache.Data[i].Value, err = row.Value.MarshalMsg(p.reqCache.Data[i].Value)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = p.stream.Send(req)
+	err = p.stream.Send(p.reqCache)
 	if err != nil {
 		return err
 	}
 
-	lrmrpb.PutPushDataRequest(req)
+	p.reqCache.RemainCapicityReset()
 
 	return nil
 }

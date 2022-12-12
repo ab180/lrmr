@@ -28,8 +28,9 @@ func (p *PushStream) Dispatch() error {
 	p.reader.Add()
 	defer p.reader.Done()
 
+	req := &lrmrpb.PushDataRequest{}
 	for {
-		req := lrmrpb.GetPushDataRequest(0)
+		req.RemainCapicityReset()
 		err := p.stream.RecvMsg(req)
 		if err != nil {
 			if status.Code(err) == codes.Canceled || errors.Cause(err) == context.Canceled || err == io.EOF {
@@ -51,10 +52,7 @@ func (p *PushStream) Dispatch() error {
 			(*rows)[i].Value = value
 		}
 
-		//p.reader.Write(rows)
 		p.reader.Write(*rows)
-
-		lrmrpb.PutPushDataRequest(req)
 	}
 }
 
