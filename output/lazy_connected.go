@@ -18,7 +18,7 @@ func LazyInitialized(initFn Initializer) Output {
 	return &lazyInit{initFn: initFn}
 }
 
-func (l *lazyInit) Write(row []*lrdd.Row) error {
+func (l *lazyInit) Write(row []lrdd.Row) error {
 	if l.output == nil {
 		out, err := l.initFn()
 		if err != nil {

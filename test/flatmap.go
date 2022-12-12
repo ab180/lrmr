@@ -11,8 +11,8 @@ var _ = lrmr.RegisterTypes(&MultiplyAndDouble{})
 // MultiplyAndDouble doubles number of inputs each multiplied by 2.
 type MultiplyAndDouble struct{}
 
-func (m *MultiplyAndDouble) FlatMap(ctx lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
-	var mappedRows []*lrdd.Row
+func (m *MultiplyAndDouble) FlatMap(ctx lrmr.Context, rows []lrdd.Row) ([]lrdd.Row, error) {
+	var mappedRows []lrdd.Row
 	for _, row := range rows {
 		n := testutils.IntValue(row)
 		mappedRows = append(mappedRows, lrdd.FromInts(n*2, n*2)...)

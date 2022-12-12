@@ -13,11 +13,11 @@ var _ = lrmr.RegisterTypes(&Multiply{})
 // Multiply multiplies input.
 type Multiply struct{}
 
-func (m *Multiply) Map(ctx lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
-	mappedRows := make([]*lrdd.Row, len(rows))
+func (m *Multiply) Map(ctx lrmr.Context, rows []lrdd.Row) ([]lrdd.Row, error) {
+	mappedRows := make([]lrdd.Row, len(rows))
 	for i, row := range rows {
 		n := int32(*row.Value.(*int32Row))
-		mappedRows[i] = &lrdd.Row{Value: newInt32Row(int32(n * 2))}
+		mappedRows[i] = lrdd.Row{Value: newInt32Row(int32(n * 2))}
 	}
 
 	return mappedRows, nil
@@ -29,9 +29,9 @@ func (m *Multiply) RowType() lrdd.RowType {
 
 func Map() *lrmr.Pipeline {
 	const dataLen = 1000
-	rows := make([]*lrdd.Row, dataLen)
+	rows := make([]lrdd.Row, dataLen)
 	for i := 0; i < dataLen; i++ {
-		rows[i] = &lrdd.Row{Value: newInt32Row(int32(i + 1))}
+		rows[i] = lrdd.Row{Value: newInt32Row(int32(i + 1))}
 	}
 
 	return lrmr.Parallelize(rows).

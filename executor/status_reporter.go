@@ -13,7 +13,7 @@ import (
 
 type StatusReporter interface {
 	JobContext() context.Context
-	Collect([]*lrdd.Row) error
+	Collect([]lrdd.Row) error
 	ReportTaskSuccess(context.Context, job.TaskID, lrmrmetric.Metrics) error
 	ReportTaskFailure(context.Context, job.TaskID, error, lrmrmetric.Metrics) error
 }
@@ -61,7 +61,7 @@ func (f *attachedStatusReporter) JobContext() context.Context {
 	return f.stream.Context()
 }
 
-func (f *attachedStatusReporter) Collect(marshalUnmarshalerRows []*lrdd.Row) error {
+func (f *attachedStatusReporter) Collect(marshalUnmarshalerRows []lrdd.Row) error {
 	if len(marshalUnmarshalerRows) == 0 {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (b *detachedStatusReporter) JobContext() context.Context {
 	return b.jobContext
 }
 
-func (b *detachedStatusReporter) Collect(rows []*lrdd.Row) error {
+func (b *detachedStatusReporter) Collect(rows []lrdd.Row) error {
 	panic("collect not supported on detachedStatusReporter")
 }
 

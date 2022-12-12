@@ -16,7 +16,7 @@ var (
 
 type ContextCancelTestStage struct{}
 
-func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+func (c ContextCancelTestStage) Transform(ctx lrmr.Context, in chan []lrdd.Row, emit lrmr.EmitFunc) error {
 	taskCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -42,7 +42,7 @@ func ContextCancel(timeout time.Duration) *lrmr.Pipeline {
 
 type ContextCancelWithForTestStage struct{}
 
-func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+func (c ContextCancelWithForTestStage) Transform(ctx lrmr.Context, in chan []lrdd.Row, emit lrmr.EmitFunc) error {
 	for rows := range in {
 		for range rows {
 			time.Sleep(500 * time.Millisecond)
@@ -65,7 +65,7 @@ func ContextCancelWithInputLoop() *lrmr.Pipeline {
 
 type ContextCancelWithLocalPipeStage struct{}
 
-func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+func (c ContextCancelWithLocalPipeStage) Transform(ctx lrmr.Context, in chan []lrdd.Row, emit lrmr.EmitFunc) error {
 	for rows := range in {
 		for range rows {
 			time.Sleep(500 * time.Millisecond)

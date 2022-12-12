@@ -22,7 +22,7 @@ func TestLazyInitialized(t *testing.T) {
 
 		Convey("It should initialize on first write", func() {
 			So(initializerCalled, ShouldBeFalse)
-			_ = output.Write([]*lrdd.Row{{Value: lrdd.NewBytes("foo")}})
+			_ = output.Write([]lrdd.Row{{Value: lrdd.NewBytes("foo")}})
 			So(initializerCalled, ShouldBeTrue)
 			So(mock.Calls.Write, ShouldEqual, 1)
 		})

@@ -17,12 +17,12 @@ func (l localInput) FeedInput(out output.Output) error {
 		if info.IsDir() {
 			return nil
 		}
-		return out.Write([]*lrdd.Row{{Value: lrdd.NewBytes(path)}})
+		return out.Write([]lrdd.Row{{Value: lrdd.NewBytes(path)}})
 	})
 }
 
 type parallelizedInput struct {
-	data []*lrdd.Row
+	data []lrdd.Row
 }
 
 func (p parallelizedInput) FeedInput(out output.Output) error {

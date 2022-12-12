@@ -24,7 +24,7 @@ func NewWriter(partitionID string, p partitions.Partitioner, outputs map[string]
 	}
 }
 
-func (w *Writer) Write(data []*lrdd.Row) error {
+func (w *Writer) Write(data []lrdd.Row) error {
 	if w.isPreserved {
 		output := w.outputs[w.context.PartitionID()]
 		if output == nil {
@@ -34,7 +34,7 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 		return output.Write(data)
 	}
 	// TODO: reuse
-	writes := make(map[string][]*lrdd.Row)
+	writes := make(map[string][]lrdd.Row)
 	for _, row := range data {
 		id, err := w.partitioner.DeterminePartition(w.context, row, len(w.outputs))
 		if err != nil {
@@ -58,7 +58,7 @@ func (w *Writer) Write(data []*lrdd.Row) error {
 	return nil
 }
 
-func (w *Writer) Dispatch(taskID string, n int) ([]*lrdd.Row, error) {
+func (w *Writer) Dispatch(taskID string, n int) ([]lrdd.Row, error) {
 	o, ok := w.outputs[taskID]
 	if !ok {
 		return nil, errors.Errorf("unknown task %v", taskID)

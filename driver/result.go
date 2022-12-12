@@ -17,14 +17,14 @@ import (
 // Err returns the error that occurred during the run.
 // Cancel cancels the run.
 type Result interface {
-	Outputs() <-chan *lrdd.Row
+	Outputs() <-chan lrdd.Row
 	Metrics() (lrmrmetric.Metrics, error)
 	Err() error
 	Cancel()
 }
 
 type result struct {
-	rowChan    chan *lrdd.Row
+	rowChan    chan lrdd.Row
 	err        *multierror.Error
 	jobManager job.Manager
 	mux        sync.Mutex
@@ -32,7 +32,7 @@ type result struct {
 }
 
 // Outputs returns the output row channel of the job.
-func (r *result) Outputs() <-chan *lrdd.Row {
+func (r *result) Outputs() <-chan lrdd.Row {
 	return r.rowChan
 }
 

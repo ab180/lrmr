@@ -19,7 +19,7 @@ func (l *LocalPipe) CloseWithStatus(s job.Status) error {
 	return nil
 }
 
-func (l *LocalPipe) Write(rows []*lrdd.Row) error {
+func (l *LocalPipe) Write(rows []lrdd.Row) error {
 	l.nextStageReader.Write(rows)
 	return nil
 }

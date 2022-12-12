@@ -7,7 +7,7 @@ import (
 
 // BufferedOutput wraps Output with buffering.
 type BufferedOutput struct {
-	buf    []*lrdd.Row
+	buf    []lrdd.Row
 	offset int
 	output Output
 }
@@ -19,11 +19,11 @@ func NewBufferedOutput(output Output, size int) *BufferedOutput {
 
 	return &BufferedOutput{
 		output: output,
-		buf:    make([]*lrdd.Row, size),
+		buf:    make([]lrdd.Row, size),
 	}
 }
 
-func (b *BufferedOutput) Write(d []*lrdd.Row) error {
+func (b *BufferedOutput) Write(d []lrdd.Row) error {
 	for len(d) > 0 {
 		writeLen := min(len(d), len(b.buf)-b.offset)
 		b.offset += copy((b.buf)[b.offset:], d[:writeLen])

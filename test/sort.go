@@ -34,7 +34,7 @@ func (cc Concat) InitialValue() lrdd.MarshalUnmarshaler {
 	return &initVal
 }
 
-func (cc Concat) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row,
+func (cc Concat) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur lrdd.Row,
 ) (next lrdd.MarshalUnmarshaler, err error) {
 	n, err := strconv.Atoi(string(*cur.Value.(*lrdd.Bytes)))
 	if err != nil {

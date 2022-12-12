@@ -14,7 +14,7 @@ var (
 )
 
 // Parallelize creates new Pipeline with given value as an input.
-func Parallelize(data []*lrdd.Row, options ...PipelineOption) *Pipeline {
+func Parallelize(data []lrdd.Row, options ...PipelineOption) *Pipeline {
 	return NewPipeline(&parallelizedInput{data: data}, options...)
 }
 

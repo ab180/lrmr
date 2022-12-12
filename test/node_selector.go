@@ -12,7 +12,7 @@ func NodeSelection(selector map[string]string) *lrmr.Pipeline {
 
 type countNumPartitions struct{}
 
-func (c countNumPartitions) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+func (c countNumPartitions) Transform(ctx lrmr.Context, in chan []lrdd.Row, emit lrmr.EmitFunc) error {
 	ctx.AddMetric("NumPartitions", 1)
 	<-in
 	return nil

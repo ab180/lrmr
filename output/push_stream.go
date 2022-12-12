@@ -37,7 +37,7 @@ func OpenPushStream(ctx context.Context, rpc lrmrpb.NodeClient, n *node.Node, ho
 	}, nil
 }
 
-func (p *PushStream) Write(rows []*lrdd.Row) error {
+func (p *PushStream) Write(rows []lrdd.Row) error {
 	req := &lrmrpb.PushDataRequest{}
 
 	req.Data = make([]*lrdd.RawRow, len(rows))

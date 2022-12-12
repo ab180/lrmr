@@ -64,7 +64,7 @@ func (e *TaskExecutor) Run() {
 	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
-	funcInputChan := make(chan []*lrdd.Row, e.Output.NumOutputs())
+	funcInputChan := make(chan []lrdd.Row, e.Output.NumOutputs())
 	go pipeAndFlattenInputs(ctx, e.Input.C, funcInputChan)
 
 	// hard copy. TODO: a better way to do it!
@@ -109,7 +109,7 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 	e.Input = nil
 }
 
-func pipeAndFlattenInputs(ctx context.Context, in chan []*lrdd.Row, out chan []*lrdd.Row) {
+func pipeAndFlattenInputs(ctx context.Context, in chan []lrdd.Row, out chan []lrdd.Row) {
 	defer close(out)
 
 	for rows := range in {

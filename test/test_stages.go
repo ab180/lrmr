@@ -11,7 +11,7 @@ func NopMapper() lrmr.Mapper {
 	return &nopMapper{}
 }
 
-func (n nopMapper) Map(_ lrmr.Context, rows []*lrdd.Row) ([]*lrdd.Row, error) {
+func (n nopMapper) Map(_ lrmr.Context, rows []lrdd.Row) ([]lrdd.Row, error) {
 	return rows, nil
 }
 

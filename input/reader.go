@@ -6,7 +6,7 @@ import (
 )
 
 type Reader struct {
-	C       chan []*lrdd.Row
+	C       chan []lrdd.Row
 	rowType lrdd.RowType
 
 	activeCnt atomic.Int64
@@ -15,7 +15,7 @@ type Reader struct {
 
 func NewReader(queueLen int, rowType lrdd.RowType) *Reader {
 	return &Reader{
-		C:       make(chan []*lrdd.Row, queueLen),
+		C:       make(chan []lrdd.Row, queueLen),
 		rowType: rowType,
 	}
 }
@@ -24,7 +24,7 @@ func (p *Reader) Add() {
 	p.activeCnt.Inc()
 }
 
-func (p *Reader) Write(chunk []*lrdd.Row) {
+func (p *Reader) Write(chunk []lrdd.Row) {
 	if p.closed.Load() {
 		return
 	}

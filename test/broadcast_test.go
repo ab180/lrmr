@@ -17,7 +17,7 @@ func TestBroadcast(t *testing.T) {
 		result, err := ds.RunAndCollect(context.Background(), cluster)
 		require.Nil(t, err)
 
-		var rows []*lrdd.Row
+		var rows []lrdd.Row
 		for row := range result.Outputs() {
 			rows = append(rows, row)
 		}

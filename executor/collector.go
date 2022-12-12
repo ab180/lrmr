@@ -21,7 +21,7 @@ func NewCollector(reporter StatusReporter) *Collector {
 	}
 }
 
-func (c *Collector) Write(rows []*lrdd.Row) error {
+func (c *Collector) Write(rows []lrdd.Row) error {
 	return c.reporter.Collect(rows)
 }
 
@@ -35,7 +35,7 @@ func (collectPartitioner) PlanNext(int) []partitions.Partition {
 	return partitions.PlanForNumberOf(1)
 }
 
-func (collectPartitioner) DeterminePartition(partitions.Context, *lrdd.Row, int) (id string, err error) {
+func (collectPartitioner) DeterminePartition(partitions.Context, lrdd.Row, int) (id string, err error) {
 	return collectPartitionID, nil
 }
 

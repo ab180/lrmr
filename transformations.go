@@ -21,7 +21,7 @@ func RegisterTypes(tfs ...interface{}) interface{} {
 }
 
 type Transformer interface {
-	Transform(ctx Context, in chan []*lrdd.Row, emit EmitFunc) error
+	Transform(ctx Context, in chan []lrdd.Row, emit EmitFunc) error
 	RowType() lrdd.RowType
 }
 
@@ -29,12 +29,12 @@ type transformerTransformation struct {
 	transformer Transformer
 }
 
-func (t transformerTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output,
+func (t transformerTransformation) Apply(ctx transformation.Context, in chan []lrdd.Row, out output.Output,
 ) (emitErr error) {
 	childCtx, cancel := contextWithCancel(ctx)
 	defer cancel()
 
-	emit := func(rows []*lrdd.Row) {
+	emit := func(rows []lrdd.Row) {
 		if emitErr = out.Write(rows); emitErr != nil {
 			cancel()
 		}
@@ -70,7 +70,7 @@ type Filter interface {
 }
 
 type Mapper interface {
-	Map(Context, []*lrdd.Row) ([]*lrdd.Row, error)
+	Map(Context, []lrdd.Row) ([]lrdd.Row, error)
 	RowType() lrdd.RowType
 }
 
@@ -78,7 +78,7 @@ type mapTransformation struct {
 	mapper Mapper
 }
 
-func (m *mapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+func (m *mapTransformation) Apply(ctx transformation.Context, in chan []lrdd.Row, out output.Output) error {
 	for rows := range in {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -112,7 +112,7 @@ func (m *mapTransformation) UnmarshalJSON(data []byte) error {
 }
 
 type FlatMapper interface {
-	FlatMap(Context, []*lrdd.Row) ([]*lrdd.Row, error)
+	FlatMap(Context, []lrdd.Row) ([]lrdd.Row, error)
 	RowType() lrdd.RowType
 }
 
@@ -120,7 +120,7 @@ type flatMapTransformation struct {
 	flatMapper FlatMapper
 }
 
-func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+func (f *flatMapTransformation) Apply(ctx transformation.Context, in chan []lrdd.Row, out output.Output) error {
 	for rows := range in {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -160,10 +160,10 @@ type Sorter interface {
 
 type sortTransformation struct {
 	sorter Sorter
-	rows   []*lrdd.Row
+	rows   []lrdd.Row
 }
 
-func (s *sortTransformation) Apply(ctx transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+func (s *sortTransformation) Apply(ctx transformation.Context, in chan []lrdd.Row, out output.Output) error {
 	for rows := range in {
 		for _, row := range rows {
 			if ctx.Err() != nil {
@@ -186,7 +186,7 @@ func (s *sortTransformation) Len() int {
 }
 
 func (s *sortTransformation) Less(i, j int) bool {
-	return s.sorter.IsLessThan(s.rows[i], s.rows[j])
+	return s.sorter.IsLessThan(&s.rows[i], &s.rows[j])
 }
 
 func (s *sortTransformation) Swap(i, j int) {
@@ -214,7 +214,7 @@ type Combiner interface {
 
 type Reducer interface {
 	InitialValue() lrdd.MarshalUnmarshaler
-	Reduce(ctx Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row) (next lrdd.MarshalUnmarshaler, err error)
+	Reduce(ctx Context, prev lrdd.MarshalUnmarshaler, cur lrdd.Row) (next lrdd.MarshalUnmarshaler, err error)
 	RowType() lrdd.RowType
 }
 
@@ -222,7 +222,7 @@ type reduceTransformation struct {
 	reducerPrototype Reducer
 }
 
-func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.Row, out output.Output) error {
+func (f *reduceTransformation) Apply(c transformation.Context, in chan []lrdd.Row, out output.Output) error {
 	reducers := make(map[string]Reducer)
 	state := make(map[string]lrdd.MarshalUnmarshaler)
 
@@ -243,9 +243,9 @@ func (f *reduceTransformation) Apply(c transformation.Context, in chan []*lrdd.R
 	}
 
 	i := 0
-	rows := make([]*lrdd.Row, len(state))
+	rows := make([]lrdd.Row, len(state))
 	for key, finalVal := range state {
-		rows[i] = &lrdd.Row{Key: key, Value: finalVal}
+		rows[i] = lrdd.Row{Key: key, Value: finalVal}
 		i++
 	}
 	return out.Write(rows)

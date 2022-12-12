@@ -23,7 +23,7 @@ func TestConcurrentRun(t *testing.T) {
 	)
 
 	integration.WithLocalCluster(2, func(cluster *integration.LocalCluster) {
-		resultsChan := make(chan map[string][]*lrdd.Row, N)
+		resultsChan := make(chan map[string][]lrdd.Row, N)
 		errChan := make(chan error, 1)
 		for i := 0; i < N; i++ {
 			i := i

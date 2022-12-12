@@ -54,7 +54,7 @@ func TestBufferedOutput_Write(t *testing.T) {
 		})
 
 		Convey("When writing items wrapped to the buffer size", func() {
-			var it []*lrdd.Row
+			var it []lrdd.Row
 
 			So(o.Write(items(bufSize/2)), ShouldBeNil)
 			it = append(it, items(bufSize/2)...)
@@ -108,9 +108,9 @@ func TestBufferedOutput_Flush(t *testing.T) {
 	})
 }
 
-func items(length int) (rr []*lrdd.Row) {
+func items(length int) (rr []lrdd.Row) {
 	for i := 0; i < length; i++ {
-		rr = append(rr, &lrdd.Row{Value: lrdd.NewBytes(strconv.Itoa(i))})
+		rr = append(rr, lrdd.Row{Value: lrdd.NewBytes(strconv.Itoa(i))})
 	}
 	return
 }

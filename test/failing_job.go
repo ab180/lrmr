@@ -11,7 +11,7 @@ var _ = lrmr.RegisterTypes(FailingStage{})
 
 type FailingStage struct{}
 
-func (f FailingStage) Transform(ctx lrmr.Context, in chan []*lrdd.Row, emit lrmr.EmitFunc) error {
+func (f FailingStage) Transform(ctx lrmr.Context, in chan []lrdd.Row, emit lrmr.EmitFunc) error {
 	for range in {
 	}
 	time.Sleep(1 * time.Second)

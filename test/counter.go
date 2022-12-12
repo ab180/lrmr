@@ -22,7 +22,7 @@ func (cnt *counter) InitialValue() lrdd.MarshalUnmarshaler {
 	return &initVal
 }
 
-func (cnt *counter) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur *lrdd.Row,
+func (cnt *counter) Reduce(c lrmr.Context, prev lrdd.MarshalUnmarshaler, cur lrdd.Row,
 ) (next lrdd.MarshalUnmarshaler, err error) {
 	c.AddMetric("Events", 1)
 	prevVal := prev.(*lrdd.Uint64)

@@ -20,7 +20,7 @@ func DecodeCSV() lrmr.FlatMapper {
 	return &csvDecoder{}
 }
 
-func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []*lrdd.Row) (result []*lrdd.Row, err error) {
+func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []lrdd.Row) (result []lrdd.Row, err error) {
 	for _, in := range ins {
 		path := string(*in.Value.(*lrdd.Bytes))
 
@@ -68,7 +68,7 @@ func (l *csvDecoder) FlatMap(ctx lrmr.Context, ins []*lrdd.Row) (result []*lrdd.
 				return nil, fmt.Errorf("failed to marshal json: %w", err)
 			}
 
-			result = append(result, &lrdd.Row{Key: msg["appID"].(string), Value: lrdd.NewBytes(string(bs))})
+			result = append(result, lrdd.Row{Key: msg["appID"].(string), Value: lrdd.NewBytes(string(bs))})
 		}
 	}
 

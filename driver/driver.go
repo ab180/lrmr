@@ -94,7 +94,7 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 	asyncCtx, asyncCtxCancel := context.WithCancel(ctx)
 
 	res := &result{
-		rowChan:    make(chan *lrdd.Row, m.rowChanLen),
+		rowChan:    make(chan lrdd.Row, m.rowChanLen),
 		jobManager: job.NewLocalManager(m.Job),
 		cancel:     asyncCtxCancel,
 	}
@@ -157,7 +157,7 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 								res.addErr(err)
 								break pushLoop
 							}
-							marshalUnmarshalerRow := &lrdd.Row{
+							marshalUnmarshalerRow := lrdd.Row{
 								Key:   row.Key,
 								Value: value,
 							}
