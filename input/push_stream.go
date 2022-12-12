@@ -13,14 +13,16 @@ import (
 )
 
 type PushStream struct {
-	stream lrmrpb.Node_PushDataServer
-	reader *Reader
+	stream   lrmrpb.Node_PushDataServer
+	reader   *Reader
+	reqCache *lrmrpb.PushDataRequest
 }
 
 func NewPushStream(r *Reader, stream lrmrpb.Node_PushDataServer) *PushStream {
 	return &PushStream{
-		stream: stream,
-		reader: r,
+		stream:   stream,
+		reader:   r,
+		reqCache: &lrmrpb.PushDataRequest{},
 	}
 }
 
@@ -28,10 +30,8 @@ func (p *PushStream) Dispatch() error {
 	p.reader.Add()
 	defer p.reader.Done()
 
-	req := &lrmrpb.PushDataRequest{}
 	for {
-		req.RemainCapicityReset()
-		err := p.stream.RecvMsg(req)
+		err := p.stream.RecvMsg(p.reqCache)
 		if err != nil {
 			if status.Code(err) == codes.Canceled || errors.Cause(err) == context.Canceled || err == io.EOF {
 				return nil
@@ -40,8 +40,8 @@ func (p *PushStream) Dispatch() error {
 		}
 
 		// The user should manually return the []lrdd.Row to the pool.
-		rows := lrdd.GetRows(len(req.Data))
-		for i, row := range req.Data {
+		rows := lrdd.GetRows(len(p.reqCache.Data))
+		for i, row := range p.reqCache.Data {
 			value := lrdd.GetValue(p.reader.RowType())
 			_, err := value.UnmarshalMsg(row.Value)
 			if err != nil {
@@ -53,6 +53,8 @@ func (p *PushStream) Dispatch() error {
 		}
 
 		p.reader.Write(*rows)
+
+		p.reqCache.RemainCapicityReset()
 	}
 }
 
