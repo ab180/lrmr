@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/nettest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -194,7 +195,8 @@ func WithTestNodes(t *testing.T, cluster cluster.Cluster, fn func(nodes []node.R
 			}(i)
 
 			// Wait until the grpc server starts
-			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure(), grpc.WithBlock())
+			conn, err := grpc.Dial(
+				lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 			require.Nil(t, err)
 			conn.Close()
 

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -79,7 +80,7 @@ func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, err
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(cert))
 	} else {
 		// log.Warn("inter-node RPC is in insecure mode. we recommend configuring TLS credentials.")
-		grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
