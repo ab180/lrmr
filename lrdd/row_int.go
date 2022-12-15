@@ -2,6 +2,7 @@ package lrdd
 
 import (
 	"encoding/binary"
+	sync "sync"
 )
 
 type Uint64 uint64
@@ -28,10 +29,22 @@ func (i *Uint64) Type() RowType {
 	return RowTypeUint64
 }
 
+func (i *Uint64) ReturnToPool() {
+	*i = 0
+
+	uint64Pool.Put(i)
+}
+
 func init() {
 	RegisterValue(
 		RowTypeUint64,
 		func() MarshalUnmarshaler {
-			return NewUint64(0)
+			return uint64Pool.Get().(*Uint64)
 		})
+}
+
+var uint64Pool = sync.Pool{
+	New: func() any {
+		return NewUint64(0)
+	},
 }

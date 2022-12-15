@@ -1,5 +1,7 @@
 package lrdd
 
+import sync "sync"
+
 type Bytes []byte
 
 func NewBytes(bs string) *Bytes {
@@ -24,10 +26,22 @@ func (bs *Bytes) Type() RowType {
 	return RowTypeBytes
 }
 
+func (bs *Bytes) ReturnToPool() {
+	(*bs) = (*bs)[:0]
+
+	bytesPool.Put(bs)
+}
+
 func init() {
 	RegisterValue(
 		RowTypeBytes,
 		func() MarshalUnmarshaler {
-			return &Bytes{}
+			return bytesPool.Get().(*Bytes)
 		})
+}
+
+var bytesPool = sync.Pool{
+	New: func() any {
+		return &Bytes{}
+	},
 }

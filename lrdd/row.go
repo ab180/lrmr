@@ -11,6 +11,11 @@ type MarshalUnmarshaler interface {
 	MarshalMsg([]byte) ([]byte, error)
 	UnmarshalMsg([]byte) ([]byte, error)
 	Type() RowType
+
+	// ReturnToPool returns the value to the pool.
+	//
+	// If you do not want use the pool, you can just empty the method.
+	ReturnToPool()
 }
 
 type RowType int32
@@ -24,6 +29,9 @@ func GetValue(rowType RowType) MarshalUnmarshaler {
 	return rowTypes[rowType]()
 }
 
+// RegisterValue registers a new value type.
+//
+// If you want pooling the value, you should implement the MarshalUnmarshaler.ReturnToPool method.
 func RegisterValue(rowType RowType, newFunc func() MarshalUnmarshaler) {
 	_, ok := rowTypes[rowType]
 	if ok {

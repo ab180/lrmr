@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/binary"
 	"fmt"
+	"sync"
 
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/lrdd"
@@ -64,6 +65,12 @@ func (i *int32Row) Type() lrdd.RowType {
 	return rowTypeInt32
 }
 
+func (i *int32Row) ReturnToPool() {
+	*i = 0
+
+	int32Pool.Put(i)
+}
+
 func (i *int32Row) String() string {
 	return fmt.Sprintf("%d", *i)
 }
@@ -72,9 +79,15 @@ func init() {
 	lrdd.RegisterValue(
 		rowTypeInt32,
 		func() lrdd.MarshalUnmarshaler {
-			var v int32Row
-			return &v
+			return int32Pool.Get().(*int32Row)
 		})
+}
+
+var int32Pool = sync.Pool{
+	New: func() any {
+		var v int32Row
+		return &v
+	},
 }
 
 const rowTypeInt32 lrdd.RowType = 3

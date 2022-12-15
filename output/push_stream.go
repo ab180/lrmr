@@ -56,6 +56,8 @@ func (p *PushStream) Write(rows []lrdd.Row) error {
 		if err != nil {
 			return err
 		}
+
+		row.Value.ReturnToPool()
 	}
 
 	err = p.stream.Send(p.reqCache)
