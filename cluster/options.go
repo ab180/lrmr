@@ -5,6 +5,7 @@ import (
 
 	_ "github.com/ab180/lrmr/pkg/encoding/lz4"
 	"github.com/creasty/defaults"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 type Options struct {
