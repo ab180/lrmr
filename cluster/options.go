@@ -3,6 +3,7 @@ package cluster
 import (
 	"time"
 
+	_ "github.com/ab180/lrmr/pkg/encoding/lz4"
 	"github.com/creasty/defaults"
 )
 
@@ -19,6 +20,9 @@ type Options struct {
 
 	TLSCertPath       string
 	TLSCertServerName string
+
+	// Compressor specifies the compressor to use for messages.
+	Compressor string `default:"lz4"`
 }
 
 func DefaultOptions() (o Options) {

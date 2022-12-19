@@ -65,12 +65,17 @@ type cluster struct {
 }
 
 func OpenRemote(clusterState coordinator.Coordinator, opt Options) (Cluster, error) {
+	defaultCallOptions := []grpc.CallOption{
+		grpc.MaxCallRecvMsgSize(opt.MaxMessageSize),
+		grpc.MaxCallSendMsgSize(opt.MaxMessageSize),
+	}
+	if opt.Compressor != "" {
+		defaultCallOptions = append(defaultCallOptions, grpc.UseCompressor(opt.Compressor))
+	}
+
 	grpcOpts := []grpc.DialOption{
 		grpc.WithBlock(),
-		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(opt.MaxMessageSize),
-			grpc.MaxCallSendMsgSize(opt.MaxMessageSize),
-		),
+		grpc.WithDefaultCallOptions(defaultCallOptions...),
 	}
 	if opt.TLSCertPath != "" {
 		cert, err := credentials.NewClientTLSFromFile(opt.TLSCertPath, opt.TLSCertServerName)
