@@ -23,7 +23,7 @@ type Options struct {
 	TLSCertServerName string
 
 	// Compressor specifies the compressor to use for messages.
-	Compressor string `default:"lz4"`
+	Compressor string `default:""`
 }
 
 func DefaultOptions() (o Options) {
