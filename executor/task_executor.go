@@ -58,9 +58,6 @@ func (e *TaskExecutor) Run() {
 	ctx, cancel := newTaskContextWithCancel(e.job.Context(), e)
 	defer cancel()
 
-	timer := log.Timer()
-	defer timer.End("Task {} has been done", e.Stage.Name)
-
 	defer e.reportStatus(ctx)
 
 	// pipe input.Reader.C to function input channel
