@@ -253,7 +253,7 @@ func (w *Executor) openOutput(taskExec *TaskExecutor) (*output.Writer, error) {
 			nextTask := w.getRunningTask(taskID)
 			if nextTask != nil {
 				mu.Lock()
-				idToOutput[id] = output.NewBufferedOutput(NewLocalPipe(nextTask.Input), w.opt.Output.BufferLength)
+				idToOutput[id] = NewLocalPipe(nextTask.Input)
 				mu.Unlock()
 				continue
 			}
