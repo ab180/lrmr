@@ -27,8 +27,8 @@ require (
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.17.0
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
+	golang.org/x/net v0.7.0
+	golang.org/x/sys v0.5.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 )
@@ -58,7 +58,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
