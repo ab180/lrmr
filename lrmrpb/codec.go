@@ -3,6 +3,7 @@ package lrmrpb
 import (
 	fmt "fmt"
 
+	ghproto "github.com/golang/protobuf/proto" //nolint:staticcheck
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -23,10 +24,16 @@ func (codec) Marshal(v any) ([]byte, error) {
 	}
 
 	vv, ok := v.(proto.Message)
-	if !ok {
-		return nil, fmt.Errorf("failed to marshal, message is %T, want proto.Message", v)
+	if ok {
+		return proto.Marshal(vv)
 	}
-	return proto.Marshal(vv)
+
+	vgh, ok := v.(ghproto.Message)
+	if ok {
+		return ghproto.Marshal(vgh)
+	}
+
+	return nil, fmt.Errorf("failed to marshal, message is %T", v)
 }
 
 func (codec) Unmarshal(data []byte, v any) error {
@@ -36,10 +43,16 @@ func (codec) Unmarshal(data []byte, v any) error {
 	}
 
 	vv, ok := v.(proto.Message)
-	if !ok {
-		return fmt.Errorf("failed to unmarshal, message is %T, want proto.Message", v)
+	if ok {
+		return proto.Unmarshal(data, vv)
 	}
-	return proto.Unmarshal(data, vv)
+
+	vgh, ok := v.(ghproto.Message)
+	if ok {
+		return ghproto.Unmarshal(data, vgh)
+	}
+
+	return fmt.Errorf("failed to unmarshal, message is %T", v)
 }
 
 func (codec) String() string {
