@@ -78,7 +78,7 @@ func main() {
 
 #### Requirements
 
- * Go 1.19 or above
+ * Go 1.20 or above
 
 
 ## LICENSE: MIT

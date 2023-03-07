@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -109,8 +108,6 @@ func TestEtcd_Transaction(t *testing.T) {
 
 func WithEtcd(fn func(etcd coordinator.Coordinator)) func() {
 	return func() {
-		rand.Seed(time.Now().Unix())
-
 		testNs := fmt.Sprintf("lrmr_test_%s/", funk.RandomString(10))
 		etcd, err := coordinator.NewEtcd([]string{"127.0.0.1:2379"}, testNs)
 		So(err, ShouldBeNil)

@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
@@ -23,7 +22,6 @@ func ProvideEtcd() (crd coordinator.Coordinator, closer func()) {
 	if !IsIntegrationTest {
 		return coordinator.NewLocalMemory(), func() {}
 	}
-	rand.Seed(time.Now().Unix())
 	testNs := fmt.Sprintf("lrmr_test_%s/", funk.RandomString(10))
 
 	etcdEndpoint, ok := os.LookupEnv(etcdEndpointEnvKey)
