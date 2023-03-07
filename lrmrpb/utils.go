@@ -3,7 +3,6 @@ package lrmrpb
 import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	vtgrpc "github.com/planetscale/vtprotobuf/codec/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 	_ "google.golang.org/grpc/encoding/proto"
@@ -11,7 +10,7 @@ import (
 )
 
 func init() {
-	encoding.RegisterCodec(vtgrpc.Codec{})
+	encoding.RegisterCodec(codec{})
 }
 
 func DataHeaderFromMetadata(stream grpc.ServerStream) (*DataHeader, error) {
