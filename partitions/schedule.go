@@ -6,11 +6,12 @@ import (
 
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/airbloc/logger"
+	"github.com/samber/lo"
 )
 
 var log = logger.New("partition")
 
-type nodeWithStatsSlice []nodeWithStats
+type nodeWithStatsSlice []*nodeWithStats
 
 func newNodeWithStatsSlice(nodes []*node.Node) nodeWithStatsSlice {
 	ns := make(nodeWithStatsSlice, len(nodes))
@@ -33,13 +34,23 @@ func (ns *nodeWithStatsSlice) Shuffle() {
 	*ns = result
 }
 
-type nodeWithStats struct {
-	*node.Node
-	currentTasks int
+func (ns *nodeWithStatsSlice) sortForFreestNodes() {
+	sort.SliceStable(*ns, func(i, j int) bool {
+		if (*ns)[i].currentCost == (*ns)[j].currentCost {
+			return (*ns)[i].Host < (*ns)[j].Host
+		}
+
+		return (*ns)[i].currentCost < (*ns)[j].currentCost
+	})
 }
 
-func newNodeWithStats(n *node.Node) nodeWithStats {
-	return nodeWithStats{Node: n, currentTasks: 0}
+type nodeWithStats struct {
+	*node.Node
+	currentCost uint64
+}
+
+func newNodeWithStats(n *node.Node) *nodeWithStats {
+	return &nodeWithStats{Node: n}
 }
 
 // Schedule creates partition partition to the nodes by given options.
@@ -54,24 +65,19 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 	for i := range plans {
 		plan := &plans[i]
 
-		// select top N freest nodes
-		sort.SliceStable(nodes, func(i, j int) bool {
-			return nodes[i].currentTasks < nodes[j].currentTasks
-		})
+		nodes.sortForFreestNodes()
 		lenCandidates := len(nodes)
 		if plan.MaxNodes != Auto {
 			lenCandidates = plan.MaxNodes
 		}
 
-		var candidates []nodeWithStats
+		var candidates nodeWithStatsSlice
 		if len(plan.DesiredNodeAffinity) > 0 {
-			slot := 0
 			for i := 0; i < lenCandidates; i++ {
-				n, nextSlot := selectNextNodeWithAffinity(nodes, plan.DesiredNodeAffinity, slot)
+				n := selectNextNodeWithAffinity(nodes, plan.DesiredNodeAffinity)
 				if n != nil {
-					candidates = append(candidates, *n)
+					candidates = append(candidates, n)
 				}
-				slot = nextSlot
 			}
 			if len(candidates) == 0 {
 				log.Warn("Warning: desired node affinity ({}) of plan #{} cannot be satisfied.", plan.DesiredNodeAffinity, i)
@@ -111,6 +117,12 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 		} else {
 			partitions = plans[i-1].Partitioner.PlanNext(numExecutors)
 		}
+		for i := range partitions {
+			// Set default cost for fallback.
+			if partitions[i].Cost == 0 {
+				partitions[i].Cost = 1
+			}
+		}
 		pp = append(pp, New(plan.Partitioner, partitions))
 
 		if i > 0 {
@@ -121,20 +133,22 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 			}
 		}
 
-		curSlot := 0
+		sort.Slice(partitions, func(i, j int) bool {
+			return partitions[i].Cost > partitions[j].Cost
+		})
 		assignments := make([]Assignment, len(partitions))
 		for j, p := range partitions {
 			var selected *nodeWithStats
 			if len(p.AssignmentAffinity) > 0 {
-				selected, curSlot = selectNextNodeWithAffinity(candidates, p.AssignmentAffinity, curSlot)
+				selected = selectNextNodeWithAffinity(candidates, p.AssignmentAffinity)
 				if selected == nil {
 					log.Warn("Unable to find node satisfying affinity rule {} for partition {}.", p.AssignmentAffinity, p.ID)
-					selected, curSlot = selectNextNode(candidates, plan, curSlot)
+					selected = selectNextNode(candidates, plan)
 				}
 			} else {
-				selected, curSlot = selectNextNode(candidates, plan, curSlot)
+				selected = selectNextNode(candidates, plan)
 			}
-			selected.currentTasks += 1
+			selected.currentCost += p.Cost
 			assignments[j] = Assignment{
 				PartitionID: p.ID,
 				Host:        selected.Node.Host,
@@ -145,32 +159,26 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 	return pp, aa
 }
 
-func selectNextNode(nn []nodeWithStats, plan *Plan, curSlot int) (selected *nodeWithStats, nextSlot int) {
-	for slot := curSlot; slot < curSlot+len(nn); slot++ {
-		n := &nn[slot%len(nn)]
-		maxCount := n.Executors
-		if plan.ExecutorsPerNode != Auto {
-			maxCount = plan.ExecutorsPerNode
-		}
-		if n.currentTasks < maxCount {
-			return n, slot + 1
-		}
-		// search another node
-	}
-	// not found. ignore max task rule
-	return &nn[curSlot%len(nn)], curSlot + 1
+func selectNextNode(nn nodeWithStatsSlice, plan *Plan) (selected *nodeWithStats) {
+	nn.sortForFreestNodes()
+
+	return nn[0] // It's safe. nn is not empty by Pipeline.createJob function.
 }
 
-func selectNextNodeWithAffinity(nn []nodeWithStats, rules map[string]string, curSlot int,
-) (selected *nodeWithStats, next int) {
-	for slot := curSlot; slot < curSlot+len(nn); slot++ {
-		n := &nn[slot%len(nn)]
-		if satisfiesAffinity(n.Node, rules) {
-			return n, slot + 1
-		}
+func selectNextNodeWithAffinity(nn nodeWithStatsSlice, rules map[string]string,
+) (selected *nodeWithStats) {
+	filteredNn := nodeWithStatsSlice(lo.Filter(nn, func(n *nodeWithStats, _ int) bool {
+		return satisfiesAffinity(n.Node, rules)
+	}))
+
+	filteredNn.sortForFreestNodes()
+
+	if len(filteredNn) == 0 {
+		// not found. probably there's no node satisfying given affinity rules
+		return nil
 	}
-	// not found. probably there's no node satisfying given affinity rules
-	return nil, curSlot
+
+	return filteredNn[0]
 }
 
 func satisfiesAffinity(n *node.Node, rules map[string]string) bool {
