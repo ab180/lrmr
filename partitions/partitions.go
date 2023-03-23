@@ -26,4 +26,7 @@ type Partition struct {
 
 	// AssignmentAffinity is a set of equality rules to place partition into physical nodes.
 	AssignmentAffinity map[string]string
+
+	// Cost is the cost of this partition. It is used to determine the node.
+	Cost uint64
 }
