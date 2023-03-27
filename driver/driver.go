@@ -65,7 +65,10 @@ func NewRemote(
 		host := host
 		wg.Go(func() error {
 			conn, err := c.Connect(ctx, host)
-			if err != nil {
+			// If the deadline is exceeded, we just not use the host.
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil
+			} else if err != nil {
 				return errors.Wrapf(err, "dial %s", host)
 			}
 			mu.Lock()
