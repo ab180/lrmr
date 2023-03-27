@@ -2,6 +2,8 @@ package executor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"path"
 	"strings"
@@ -24,7 +26,6 @@ import (
 	"github.com/airbloc/logger"
 	"github.com/airbloc/logger/module/loggergrpc"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -69,7 +70,7 @@ func New(c cluster.Cluster, options ...func(*Executor)) (*Executor, error) {
 	)
 
 	if err := w.register(); err != nil {
-		return nil, errors.WithMessage(err, "register executor")
+		return nil, fmt.Errorf("register executor, err: %w", err)
 	}
 	return w, nil
 }
@@ -85,7 +86,7 @@ func (w *Executor) register() error {
 		// assigned with any available port in system by net.Listen.
 		lis, err := net.Listen("tcp", w.opt.ListenHost)
 		if err != nil {
-			return errors.Wrapf(err, "listen %s", w.opt.ListenHost)
+			return fmt.Errorf("listen %s, err: %w", w.opt.ListenHost, err)
 		}
 		w.serverLis = lis
 	}
@@ -199,7 +200,7 @@ func (w *Executor) startJob(runningJob *runningJobHolder, reporter StatusReporte
 		wg.Go(func() error {
 			out, err := w.openOutput(taskExec)
 			if err != nil {
-				return errors.Wrapf(err, "open output in %s", taskExec.task.ID())
+				return fmt.Errorf("open output in %s, err: %w", taskExec.task.ID(), err)
 			}
 			taskExec.SetOutput(out)
 			return nil
@@ -261,11 +262,11 @@ func (w *Executor) openOutput(taskExec *TaskExecutor) (*output.Writer, error) {
 		wg.Go(func() error {
 			conn, err := w.Cluster.Connect(wctx, host)
 			if err != nil {
-				return errors.Wrapf(err, "dial %s", host)
+				return fmt.Errorf("dial %s, err: %w", host, err)
 			}
 			out, err := output.OpenPushStream(runningJob.Context(), lrmrpb.NewNodeClient(conn), w.Node.Info(), host, taskID)
 			if err != nil {
-				return errors.Wrapf(err, "connect %s", host)
+				return fmt.Errorf("connect %s, err: %w", host, err)
 			}
 			mu.Lock()
 			defer mu.Unlock()

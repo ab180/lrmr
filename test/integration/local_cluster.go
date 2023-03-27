@@ -9,6 +9,7 @@ import (
 	"github.com/ab180/lrmr/coordinator"
 	"github.com/ab180/lrmr/executor"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 type LocalCluster struct {
@@ -40,7 +41,14 @@ func NewLocalCluster(numWorkers int) (*LocalCluster, error) {
 		w.SetWorkerLocalOption("No", i+1)
 		w.SetWorkerLocalOption("IsWorker", true)
 
-		go w.Start() //nolint:errcheck
+		go func() {
+			err := w.Start()
+			if err != nil {
+				log.Warn().
+					Err(err).
+					Msg("executor start exited")
+			}
+		}()
 		workers[i] = w
 	}
 

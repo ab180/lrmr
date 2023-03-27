@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/rs/zerolog/log"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/thoas/go-funk"
 )
@@ -40,7 +41,7 @@ func ProvideEtcd() (crd coordinator.Coordinator, closer func()) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
-		log.Verbose("Closing etcd")
+		log.Info().Msg("Closing etcd")
 		if _, err := etcd.Delete(ctx, ""); err != nil {
 			So(err, ShouldBeNil)
 		}
