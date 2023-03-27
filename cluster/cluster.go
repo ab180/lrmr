@@ -8,8 +8,8 @@ import (
 
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,8 +18,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
-
-var log = logger.New("lrmr.cluster")
 
 const nodeNs = "nodes"
 
@@ -119,7 +117,10 @@ func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 		return c.establishNewConnection(dialCtx, host)
 	}
 	if conn.GetState() != connectivity.Ready {
-		log.Verbose("Connection to {} was on {}. reconnecting...", host, conn.GetState())
+		log.Info().
+			Str("host", host).
+			Str("state", conn.GetState().String()).
+			Msg("reconnecting")
 		// TODO: retry limit
 		delete(c.grpcConns, host)
 		return c.establishNewConnection(dialCtx, host)
@@ -238,7 +239,10 @@ func newNodeRegistration(ctx context.Context, n *node.Node, c *cluster, ttl time
 		return nil, errors.Wrap(err, "register node info")
 	}
 
-	log.Info("executor node registered as {} (Tag: {})", n.Host, n.Tag)
+	log.Info().
+		Str("host", n.Host).
+		Interface("tag", n.Tag).
+		Msg("executor node registered")
 
 	go nodeReg.keepRegistered()
 
@@ -258,25 +262,34 @@ func (n *nodeRegistration) keepRegistered() {
 			n.mu.Lock()
 			defer n.mu.Unlock()
 
-			log.Info("re-register node {} (Tag: {})", n.node.Host, n.node.Tag)
+			log.Info().
+				Str("host", n.node.Host).
+				Interface("tag", n.node.Tag).
+				Msg("re-register node")
 
 			lease, err := n.cluster.States().GrantLease(timeoutCtx, n.livenessProbeInterval)
 			if err != nil {
-				log.Error("failed to get lease TTL", err)
+				log.Warn().
+					Err(err).
+					Msg("failed to get lease TTL")
 				return
 			}
 			n.livenessLease = lease
 
 			sig, err := n.cluster.States().KeepAlive(n.ctx, n.livenessLease)
 			if err != nil {
-				log.Error("failed to keep alive", err)
+				log.Warn().
+					Err(err).
+					Msg("failed to keep alive")
 				return
 			}
 			n.sig = sig
 
 			err = n.states().Put(timeoutCtx, path.Join(nodeNs, n.node.Host), n.node)
 			if err != nil {
-				log.Error("failed to put node", err)
+				log.Warn().
+					Err(err).
+					Msg("failed to put node")
 				return
 			}
 		}()
