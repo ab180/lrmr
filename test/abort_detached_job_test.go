@@ -1,36 +1,34 @@
 package test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/ab180/lrmr"
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/test/integration"
-	"github.com/ab180/lrmr/test/testutils"
-	"github.com/pkg/errors"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAbortDetachedJob(t *testing.T) {
-	Convey("Calling lrmr.AbortDetachedJob", t, integration.WithLocalCluster(1, func(c *integration.LocalCluster) {
-		Convey("When the job is normal detached job", func() {
-			runningJob, err := ContextCancel(time.Second * 10).
-				RunInBackground(c)
-			So(err, ShouldBeNil)
+	c, err := integration.NewLocalCluster(1)
+	require.Nil(t, err)
+	defer func() {
+		err := c.Close()
+		require.Nil(t, err)
+	}()
 
-			Convey("It should abort the job only with job ID", func() {
-				err := lrmr.AbortDetachedJob(testutils.ContextWithTimeout(), c, runningJob.ID)
-				So(err, ShouldBeNil)
-			})
-		})
+	// When the job is normal detached job.
+	runningJob, err := ContextCancel(time.Second * 10).RunInBackground(c)
+	require.Nil(t, err)
 
-		Convey("When the job does not exist", func() {
-			jobID := "NotFoundNotFound"
-			Convey("It should raise job.ErrNotFound", func() {
-				err := lrmr.AbortDetachedJob(testutils.ContextWithTimeout(), c, jobID)
-				So(errors.Cause(err), ShouldBeError, job.ErrNotFound)
-			})
-		})
-	}))
+	// It should abort the job only with job ID.
+	err = lrmr.AbortDetachedJob(context.Background(), c, runningJob.ID)
+	require.Nil(t, err)
+
+	// When the job does not exist, it should raise job.ErrNotFound.
+	jobID := "NotFoundNotFound"
+	err = lrmr.AbortDetachedJob(context.Background(), c, jobID)
+	require.ErrorIs(t, err, job.ErrNotFound)
 }
