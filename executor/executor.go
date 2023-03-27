@@ -317,8 +317,8 @@ func (w *Executor) PushData(stream lrmrpb.Node_PushDataServer) error {
 }
 
 func (w *Executor) Close() error {
-	w.RPCServer.GracefulStop()
 	w.Node.Unregister()
+	w.RPCServer.GracefulStop()
 	return nil
 }
 
