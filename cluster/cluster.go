@@ -8,6 +8,7 @@ import (
 
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/coordinator"
+	"github.com/ab180/lrmr/pkg/retry"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -106,15 +107,12 @@ func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration
 // Connect tries to connect the host and returns gRPC connection.
 // The connection can be pooled and cached, and only one connection per host is maintained.
 func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, error) {
-	dialCtx, cancel := context.WithTimeout(ctx, c.options.ConnectTimeout)
-	defer cancel()
-
 	c.grpcConnsMu.Lock()
 	defer c.grpcConnsMu.Unlock()
 
 	conn, ok := c.grpcConns[host]
 	if !ok {
-		return c.establishNewConnection(dialCtx, host)
+		return c.establishNewConnection(host)
 	}
 	if conn.GetState() != connectivity.Ready {
 		log.Info().
@@ -123,7 +121,7 @@ func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 			Msg("reconnecting")
 		// TODO: retry limit
 		delete(c.grpcConns, host)
-		return c.establishNewConnection(dialCtx, host)
+		return c.establishNewConnection(host)
 	}
 	return conn, nil
 }
@@ -132,8 +130,20 @@ func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, e
 // dialing the host, and cancelling the context after the method return does not affect the connection.
 //
 // this method is not race-protected; you need to acquire lock before calling the method.
-func (c *cluster) establishNewConnection(ctx context.Context, host string) (*grpc.ClientConn, error) {
-	conn, err := grpc.DialContext(ctx, host, c.grpcOptions...)
+func (c *cluster) establishNewConnection(host string) (*grpc.ClientConn, error) {
+	conn, err := retry.DoWithResult(
+		func() (*grpc.ClientConn, error) {
+			dialCtx, cancel := context.WithTimeout(context.Background(), c.options.ConnectTimeout)
+			defer cancel()
+
+			return grpc.DialContext(
+				dialCtx,
+				host,
+				c.grpcOptions...,
+			)
+		},
+		retry.WithRetryCount(c.options.ConnectRetryCount),
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,9 @@ import (
 type Options struct {
 	ConnectTimeout time.Duration `default:"3s"`
 
+	// ConnectRetryCount specifies the maximum number of retries to connect to other nodes.
+	ConnectRetryCount int `default:"10"`
+
 	// MaxMessageSize specifies the maximum message size in bytes the gRPC client can receive/send.
 	// The default value is 500mb.
 	MaxMessageSize int `default:"524288000"`
