@@ -15,14 +15,13 @@ import (
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/lrmrpb"
 	"github.com/ab180/lrmr/output"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/therne/errorist"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var log = logger.New("lrmr.driver")
 
 type Driver interface {
 	RunAttached(context.Context) (Result, error)
@@ -180,7 +179,10 @@ func (m *Remote) RunAttached(ctx context.Context) (Result, error) {
 					case lrmrpb.JobOutput_FAILED:
 						_ = res.jobManager.MarkTaskAsFailed(asyncCtx, taskID, errors.New(msg.Error), msg.Metrics)
 					default:
-						log.Warn("unexpected task status. [task_id: {}, status: {}]", taskID, msg.TaskStatus)
+						log.Warn().
+							Str("task_id", taskID.String()).
+							Str("status", msg.TaskStatus.String()).
+							Msg("unexpected task status")
 					}
 				}
 			}
@@ -257,24 +259,52 @@ func (m *Remote) createJob(ctx context.Context) error {
 	}
 	stagesProtoPerHost := m.Job.BuildStageDefinitionPerNode()
 
-	wg, wctx := errgroup.WithContext(ctx)
+	type ConnPair struct {
+		Host string
+		Conn lrmrpb.NodeClient
+	}
+	p := pool.NewWithResults[ConnPair]().WithErrors()
 	for host, rpc := range m.Connections {
 		host, rpc := host, rpc
 		stages := stagesProtoPerHost[host]
 
-		wg.Go(func() error {
+		p.Go(func() (ConnPair, error) {
 			req := &lrmrpb.CreateJobRequest{
 				Job:        serializedJob,
 				Stages:     stages,
 				Broadcasts: serializedBroadcasts,
 			}
-			if _, err := rpc.CreateJob(wctx, req); err != nil {
-				return errors.Wrapf(err, "call CreateTask on %s", host)
+
+			_, err := rpc.CreateJob(ctx, req)
+			if err != nil {
+				// No errors lead to failure. If some nodes are down, we continue with the remaining ones.
+				log.Warn().
+					Err(err).
+					Str("host", host).
+					Msg("failed to create job")
+
+				return ConnPair{}, nil
 			}
-			return nil
+
+			return ConnPair{host, rpc}, nil
 		})
 	}
-	return wg.Wait()
+	connPairs, err := p.Wait()
+	if err != nil {
+		return err
+	}
+
+	// Only utilize job connections that have been created successfully.
+	m.Connections = make(map[string]lrmrpb.NodeClient, len(connPairs))
+	for _, connPair := range connPairs {
+		if connPair.Conn == nil {
+			continue
+		}
+
+		m.Connections[connPair.Host] = connPair.Conn
+	}
+
+	return nil
 }
 
 func (m *Remote) feedInput(ctx context.Context, j *job.Job, in input.Feeder) (err error) {

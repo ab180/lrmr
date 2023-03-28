@@ -19,7 +19,8 @@ require (
 	github.com/samber/lo v1.21.0
 	github.com/segmentio/fasthash v1.0.1
 	github.com/smartystreets/goconvey v1.6.4
-	github.com/stretchr/testify v1.7.2
+	github.com/sourcegraph/conc v0.3.0
+	github.com/stretchr/testify v1.8.1
 	github.com/therne/errorist v0.1.1
 	github.com/thoas/go-funk v0.9.1
 	go.etcd.io/etcd/api/v3 v3.5.0
@@ -54,7 +55,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/text v0.7.0 // indirect
