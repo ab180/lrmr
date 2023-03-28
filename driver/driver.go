@@ -17,7 +17,6 @@ import (
 	"github.com/ab180/lrmr/output"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sourcegraph/conc/pool"
 	"github.com/therne/errorist"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -259,52 +258,24 @@ func (m *Remote) createJob(ctx context.Context) error {
 	}
 	stagesProtoPerHost := m.Job.BuildStageDefinitionPerNode()
 
-	type ConnPair struct {
-		Host string
-		Conn lrmrpb.NodeClient
-	}
-	p := pool.NewWithResults[ConnPair]().WithErrors()
+	wg, wctx := errgroup.WithContext(ctx)
 	for host, rpc := range m.Connections {
 		host, rpc := host, rpc
 		stages := stagesProtoPerHost[host]
 
-		p.Go(func() (ConnPair, error) {
+		wg.Go(func() error {
 			req := &lrmrpb.CreateJobRequest{
 				Job:        serializedJob,
 				Stages:     stages,
 				Broadcasts: serializedBroadcasts,
 			}
-
-			_, err := rpc.CreateJob(ctx, req)
-			if err != nil {
-				// No errors lead to failure. If some nodes are down, we continue with the remaining ones.
-				log.Warn().
-					Err(err).
-					Str("host", host).
-					Msg("failed to create job")
-
-				return ConnPair{}, nil
+			if _, err := rpc.CreateJob(wctx, req); err != nil {
+				return errors.Wrapf(err, "call CreateTask on %s", host)
 			}
-
-			return ConnPair{host, rpc}, nil
+			return nil
 		})
 	}
-	connPairs, err := p.Wait()
-	if err != nil {
-		return err
-	}
-
-	// Only utilize job connections that have been created successfully.
-	m.Connections = make(map[string]lrmrpb.NodeClient, len(connPairs))
-	for _, connPair := range connPairs {
-		if connPair.Conn == nil {
-			continue
-		}
-
-		m.Connections[connPair.Host] = connPair.Conn
-	}
-
-	return nil
+	return wg.Wait()
 }
 
 func (m *Remote) feedInput(ctx context.Context, j *job.Job, in input.Feeder) (err error) {
