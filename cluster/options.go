@@ -14,6 +14,9 @@ type Options struct {
 	// ConnectRetryCount specifies the maximum number of retries to connect to other nodes.
 	ConnectRetryCount int `default:"10"`
 
+	// ConnectRetryDelay specifies the delay between retries to connect to other nodes.
+	ConnectRetryDelay time.Duration `default:"200ms"`
+
 	// MaxMessageSize specifies the maximum message size in bytes the gRPC client can receive/send.
 	// The default value is 500mb.
 	MaxMessageSize int `default:"524288000"`

@@ -143,6 +143,7 @@ func (c *cluster) establishNewConnection(host string) (*grpc.ClientConn, error) 
 			)
 		},
 		retry.WithRetryCount(c.options.ConnectRetryCount),
+		retry.WithDelay(c.options.ConnectRetryDelay),
 	)
 	if err != nil {
 		return nil, err
