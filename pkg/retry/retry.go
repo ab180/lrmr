@@ -1,5 +1,10 @@
 package retry
 
+import (
+	"errors"
+	"fmt"
+)
+
 // DoWithResult do a given function with retry.
 func DoWithResult[T any](fn func() (T, error), opts ...OptionFunc) (T, error) {
 	opt := defaultOption()
@@ -13,7 +18,7 @@ func DoWithResult[T any](fn func() (T, error), opts ...OptionFunc) (T, error) {
 		if err != nil {
 			retryCount++
 			if retryCount >= opt.maxRetryCount {
-				return t, err
+				return t, errors.Join(err, fmt.Errorf("retry count exceeded: %d", retryCount))
 			}
 
 			continue
