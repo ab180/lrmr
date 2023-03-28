@@ -5,11 +5,9 @@ import (
 	"sort"
 
 	"github.com/ab180/lrmr/cluster/node"
-	"github.com/airbloc/logger"
+	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 )
-
-var log = logger.New("partition")
 
 type nodeWithStatsSlice []*nodeWithStats
 
@@ -80,7 +78,10 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 				}
 			}
 			if len(candidates) == 0 {
-				log.Warn("Warning: desired node affinity ({}) of plan #{} cannot be satisfied.", plan.DesiredNodeAffinity, i)
+				log.Warn().
+					Interface("desiredNodeAffinity", plan.DesiredNodeAffinity).
+					Int("index", i).
+					Msg("desired node affinity of plan cannot be satisfied")
 				candidates = nodes[:lenCandidates]
 			}
 		} else {
@@ -142,7 +143,10 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 			if len(p.AssignmentAffinity) > 0 {
 				selected = selectNextNodeWithAffinity(candidates, p.AssignmentAffinity)
 				if selected == nil {
-					log.Warn("Unable to find node satisfying affinity rule {} for partition {}.", p.AssignmentAffinity, p.ID)
+					log.Warn().
+						Interface("assignmentAffinity", p.AssignmentAffinity).
+						Str("id", p.ID).
+						Msg("unable to find node satisfying affinity")
 					selected = selectNextNode(candidates, plan)
 				}
 			} else {
