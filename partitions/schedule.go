@@ -145,6 +145,7 @@ func Schedule(workers []*node.Node, plans []Plan, opt ...ScheduleOption) (pp []P
 				if selected == nil {
 					log.Warn().
 						Interface("assignmentAffinity", p.AssignmentAffinity).
+						Interface("candidates", candidates).
 						Str("id", p.ID).
 						Msg("unable to find node satisfying affinity")
 					selected = selectNextNode(candidates, plan)
