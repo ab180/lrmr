@@ -339,5 +339,12 @@ func (n *nodeRegistration) States() node.State {
 
 // Unregister removes node from the cluster's node list, and clears all NodeState.
 func (n *nodeRegistration) Unregister() {
+	_, err := n.cluster.States().Delete(n.ctx, path.Join(nodeNs, n.node.Host))
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Msg("failed to delete node")
+	}
+
 	n.cancel()
 }
