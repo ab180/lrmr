@@ -108,48 +108,61 @@ func (c *cluster) Register(ctx context.Context, n *node.Node) (node.Registration
 // The connection can be pooled and cached, and only one connection per host is maintained.
 func (c *cluster) Connect(ctx context.Context, host string) (*grpc.ClientConn, error) {
 	c.grpcConnsMu.Lock()
-	defer c.grpcConnsMu.Unlock()
-
 	conn, ok := c.grpcConns[host]
-	if !ok {
-		return c.establishNewConnection(host)
+	c.grpcConnsMu.Unlock()
+
+	if ok && conn.GetState() == connectivity.Ready {
+		return conn, nil
 	}
-	if conn.GetState() != connectivity.Ready {
-		log.Info().
-			Str("host", host).
-			Str("state", conn.GetState().String()).
-			Msg("reconnecting")
-		// TODO: retry limit
-		delete(c.grpcConns, host)
-		return c.establishNewConnection(host)
-	}
-	return conn, nil
+
+	return c.establishNewConnection(ctx, host)
 }
 
 // establishNewConnection creates a new connection to given host. the context is only used for
 // dialing the host, and cancelling the context after the method return does not affect the connection.
 //
 // this method is not race-protected; you need to acquire lock before calling the method.
-func (c *cluster) establishNewConnection(host string) (*grpc.ClientConn, error) {
-	conn, err := retry.DoWithResult(
+func (c *cluster) establishNewConnection(ctx context.Context, host string) (*grpc.ClientConn, error) {
+	log.Info().
+		Str("host", host).
+		Msg("establish new connection")
+
+	return retry.DoWithResult(
 		func() (*grpc.ClientConn, error) {
-			dialCtx, cancel := context.WithTimeout(context.Background(), c.options.ConnectTimeout)
+			dialCtx, cancel := context.WithTimeout(ctx, c.options.ConnectTimeout)
 			defer cancel()
 
-			return grpc.DialContext(
+			newConn, err := grpc.DialContext(
 				dialCtx,
 				host,
 				c.grpcOptions...,
 			)
+			if err != nil {
+				return nil, err
+			}
+
+			c.grpcConnsMu.Lock()
+			defer c.grpcConnsMu.Unlock()
+
+			oldConn, ok := c.grpcConns[host]
+			if ok && oldConn.GetState() == connectivity.Ready {
+				err := newConn.Close()
+				if err != nil {
+					log.Warn().
+						Err(err).
+						Str("host", host).
+						Msg("failed to close connection")
+				}
+
+				return oldConn, nil
+			}
+
+			c.grpcConns[host] = newConn
+			return newConn, nil
 		},
 		retry.WithRetryCount(c.options.ConnectRetryCount),
 		retry.WithDelay(c.options.ConnectRetryDelay),
 	)
-	if err != nil {
-		return nil, err
-	}
-	c.grpcConns[host] = conn
-	return conn, nil
 }
 
 // List returns a list of available nodes.
