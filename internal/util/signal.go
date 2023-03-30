@@ -5,12 +5,10 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/airbloc/logger"
+	"github.com/rs/zerolog/log"
 )
 
 func ContextWithSignal(parent context.Context, sig ...os.Signal) (context.Context, context.CancelFunc) {
-	log := logger.New("lrmr.util")
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, sig...)
 
@@ -18,7 +16,9 @@ func ContextWithSignal(parent context.Context, sig ...os.Signal) (context.Contex
 	go func() {
 		select {
 		case sig := <-sigChan:
-			log.Verbose("{} received during execution.", sig.String())
+			log.Debug().
+				Str("signal", sig.String()).
+				Msg("received signal during execution")
 			cancel()
 		case <-ctx.Done():
 		}

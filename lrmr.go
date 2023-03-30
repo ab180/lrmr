@@ -6,11 +6,6 @@ import (
 	"github.com/ab180/lrmr/cluster"
 	"github.com/ab180/lrmr/executor"
 	"github.com/ab180/lrmr/lrdd"
-	"github.com/airbloc/logger"
-)
-
-var (
-	log = logger.New("lrmr")
 )
 
 // Parallelize creates new Pipeline with given value as an input.

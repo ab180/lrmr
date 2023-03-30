@@ -5,15 +5,15 @@ import (
 	"github.com/ab180/lrmr/job"
 	"github.com/ab180/lrmr/test"
 	"github.com/ab180/lrmr/test/testdata"
-	"github.com/airbloc/logger"
+	"github.com/rs/zerolog/log"
 )
-
-var log = logger.New("master")
 
 func main() {
 	cluster, err := lrmr.ConnectToCluster()
 	if err != nil {
-		log.Fatal("failed to start master", err)
+		log.Fatal().
+			Err(err).
+			Msg("failed to start master")
 	}
 	defer cluster.Close()
 
@@ -25,25 +25,30 @@ func main() {
 		RunInBackground(cluster)
 
 	if err != nil {
-		log.Fatal("failed to run session", err)
+		log.Fatal().
+			Err(err).
+			Msg("failed to run session")
 	}
 	if err := j.Wait(); err != nil {
-		log.Fatal(err.Error())
+		log.Fatal().
+			Err(err).
+			Msg("failed to wait job")
 	}
 
 	// print metrics
 	metrics, err := j.Metrics()
 	if err != nil {
-		log.Warn("failed to collect metric: {}", err)
+		log.Warn().
+			Err(err).
+			Msg("failed to collect metric")
 	}
-	log.Info("{} metrics have been collected.", len(metrics))
-	for k, v := range metrics {
-		log.Info("    {} = {}", k, v)
-	}
+	log.Info().
+		Interface("metrics", metrics).
+		Msg("metrics have been collected.")
 
 	if j.Status() == job.Succeeded {
-		log.Info("Done!")
+		log.Info().Msg("done!")
 	} else {
-		log.Fatal("Failed.")
+		log.Fatal().Msg("failed.")
 	}
 }

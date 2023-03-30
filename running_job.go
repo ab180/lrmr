@@ -2,7 +2,6 @@ package lrmr
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -15,8 +14,8 @@ import (
 	"github.com/ab180/lrmr/internal/util"
 	"github.com/ab180/lrmr/job"
 	lrmrmetric "github.com/ab180/lrmr/metric"
-	"github.com/airbloc/logger"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 // abortTimeout specifies how long it need to be waited for actual job abort.
@@ -29,7 +28,6 @@ type RunningJob struct {
 	statusManager job.Manager
 	finalStatus   atomic.Value
 	startedAt     time.Time
-	logger        logger.Logger
 }
 
 func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *RunningJob {
@@ -39,13 +37,20 @@ func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *R
 		driver:        drv,
 		statusManager: job.NewDistributedManager(c, j),
 		startedAt:     time.Now(),
-		logger:        logger.New(fmt.Sprintf("lrmr(%s)", j.ID)),
 	}
 	runningJob.statusManager.OnStageCompletion(func(stageName string, stageStatus *job.StageStatus) {
-		runningJob.logger.Info("Stage {} {}.", stageName, stageStatus.Status)
+		log.Info().
+			Str("jobID", j.ID).
+			Str("stageName", stageName).
+			Str("status", string(stageStatus.Status)).
+			Msg("stage completed")
 	})
 	runningJob.statusManager.OnJobCompletion(func(status *job.Status) {
-		runningJob.logger.Info("Job {}. Total elapsed {}", status.Status, time.Since(j.SubmittedAt))
+		log.Info().
+			Str("jobID", j.ID).
+			Str("status", string(status.Status)).
+			Dur("elapsed", time.Since(runningJob.startedAt)).
+			Msg("job completed")
 
 		groupTasksByError := make(map[string][]string)
 		for _, errDesc := range status.Errors {
@@ -53,7 +58,11 @@ func startTrackingDetachedJob(j *job.Job, c cluster.State, drv driver.Driver) *R
 			groupTasksByError[errDesc.Message] = append(groupTasksByError[errDesc.Message], simpleTaskID)
 		}
 		for errMsg, tasks := range groupTasksByError {
-			runningJob.logger.Info(" - Error caused by [{}]: {}", strings.Join(tasks, ", "), errMsg)
+			log.Info().
+				Str("jobID", j.ID).
+				Interface("tasks", tasks).
+				Str("error", errMsg).
+				Msg("error occurred")
 		}
 		runningJob.finalStatus.Store(status)
 		runningJob.logMetrics()
@@ -96,7 +105,7 @@ func (r *RunningJob) WaitWithContext(ctx context.Context) error {
 		return err
 
 	case <-ctx.Done():
-		log.Verbose("Context cancelled while waiting. Aborting...")
+		log.Debug().Msg("context cancelled while waiting. aborting...")
 
 		abortCtx, abortCancel := context.WithTimeout(ctx, abortTimeout)
 		defer abortCancel()
@@ -177,7 +186,7 @@ func AbortDetachedJob(ctx context.Context, cluster cluster.Cluster, jobID string
 				return nil
 			}
 
-			log.Verbose("Waiting for job to be canceled...")
+			log.Debug().Msg("waiting for job to be canceled...")
 
 			time.Sleep(time.Second)
 		}

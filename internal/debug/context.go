@@ -3,14 +3,14 @@ package debug
 import (
 	"context"
 
-	"github.com/airbloc/logger"
+	"github.com/rs/zerolog/log"
 )
-
-var log = logger.New("debug")
 
 func ContextLifecycle(ctx context.Context, name string) {
 	go func() {
 		<-ctx.Done()
-		log.Debug("context {} done", name)
+		log.Debug().
+			Str("name", name).
+			Msg("context done")
 	}()
 }
