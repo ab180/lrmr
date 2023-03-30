@@ -7,6 +7,7 @@ import (
 	"github.com/ab180/lrmr/cluster/node"
 	"github.com/ab180/lrmr/job/stage"
 	"github.com/ab180/lrmr/partitions"
+	"github.com/rs/zerolog/log"
 )
 
 // Create creates a new job.
@@ -17,8 +18,13 @@ func Create(id string, stages []*stage.Stage, nodes []*node.Node, plans []partit
 		stages[i].Output.Partitioner = p.Partitioner
 
 		partitionerName := fmt.Sprintf("%T", partitions.UnwrapPartitioner(p.Partitioner))
-		log.Verbose("Planned {} partitions on {}/{} (output with {}):\n{}", len(p.Partitions),
-			id, stages[i].Name, partitionerName, assignments[i].Pretty())
+		log.Debug().
+			Str("job_id", id).
+			Str("stageName", stages[i].Name).
+			Int("partitions", len(p.Partitions)).
+			Str("partitioner", partitionerName).
+			Str("assignments", assignments[i].Pretty()).
+			Msg("planned")
 	}
 
 	return &Job{

@@ -13,6 +13,7 @@ import (
 	"github.com/ab180/lrmr/internal/util"
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/atomic"
 )
@@ -191,7 +192,10 @@ func (r *DistributedManager) reportJobCompletion(ctx context.Context, status Run
 		return nil
 	}
 
-	log.Verbose("Reporting {} job", status)
+	log.Debug().
+		Str("job_id", r.job.ID).
+		Str("status", string(status)).
+		Msg("reporting job")
 	js.Complete(status)
 	if err := r.clusterState.Put(ctx, jobStatusKey(r.job.ID), js, coordinator.WithLease(r.logRetentionLease)); err != nil {
 		return errors.Wrapf(err, "update status of job %s", r.job.ID)
@@ -254,7 +258,14 @@ func (r *DistributedManager) OnTaskCompletion(callback func(stageName string, do
 }
 
 func (r *DistributedManager) watch(ctx context.Context) {
-	defer log.Recover() //nolint:errcheck
+	defer func() {
+		r := recover()
+		if r != nil {
+			log.Warn().
+				Interface("panic", r).
+				Msg("panic in watch")
+		}
+	}()
 	defer r.Close()
 
 	prefix := jobStatusKey(r.job.ID)
@@ -281,7 +292,9 @@ func (r *DistributedManager) watch(ctx context.Context) {
 func (r *DistributedManager) handleTaskFinish(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
-		log.Warn("Unable to handle task finish event: {}", err)
+		log.Warn().
+			Err(err).
+			Msg("unable to handle task finish event")
 		return
 	}
 	r.mu.RLock()
@@ -295,13 +308,18 @@ func (r *DistributedManager) handleTaskFinish(e coordinator.WatchEvent) {
 func (r *DistributedManager) handleStageStatusUpdate(e coordinator.WatchEvent) {
 	stageName, err := stageNameFromStageStatusKey(e.Item.Key)
 	if err != nil {
-		log.Warn("Unable to handle stage status update event: {}", err)
+		log.Warn().
+			Err(err).
+			Msg("unable to handle stage status update event")
 		return
 	}
 
 	st := new(StageStatus)
 	if err := e.Item.Unmarshal(st); err != nil {
-		log.Error("Failed to unmarshal stage status on {}", err, e.Item.Key)
+		log.Warn().
+			Err(err).
+			Str("key", e.Item.Key).
+			Msg("unable to unmarshal stage status")
 		return
 	}
 	r.mu.RLock()
@@ -318,7 +336,9 @@ func (r *DistributedManager) handleJobStatusChange() (finished bool) {
 
 	jobStatus, err := r.getJobStatus(ctx, r.job.ID)
 	if err != nil {
-		log.Error("Failed to get job status: {}", err)
+		log.Warn().
+			Err(err).
+			Msg("failed to get job status")
 		return false
 	}
 	if jobStatus.Status == Succeeded || jobStatus.Status == Failed {

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	lrmrmetric "github.com/ab180/lrmr/metric"
+	"github.com/rs/zerolog/log"
 	"go.uber.org/atomic"
 )
 
@@ -63,7 +64,10 @@ func (l *LocalManager) MarkTaskAsSucceed(_ context.Context, taskID TaskID, metri
 }
 
 func (l *LocalManager) markStageAsSucceed(stage string, stageStatus *StageStatus) {
-	log.Verbose("Stage {} succeed", stage)
+	log.Debug().
+		Str("job_id", l.job.ID).
+		Str("stage", stage).
+		Msg("stage succeed")
 
 	stageStatus.Complete(Succeeded)
 	for _, callback := range l.stageSubscriptions {
@@ -77,7 +81,9 @@ func (l *LocalManager) markStageAsSucceed(stage string, stageStatus *StageStatus
 }
 
 func (l *LocalManager) markJobAsSucceed() {
-	log.Verbose("Job {} succeed", l.job.ID)
+	log.Debug().
+		Str("job_id", l.job.ID).
+		Msg("job succeed")
 
 	l.jobStatus.Complete(Succeeded)
 	for _, callback := range l.jobSubscriptions {
@@ -90,7 +96,9 @@ func (l *LocalManager) MarkTaskAsFailed(_ context.Context, causedTask TaskID, er
 	defer l.mu.Unlock()
 
 	l.mergeTaskMetricsIntoJobMetrics(metrics)
-	log.Verbose("Job {} failed", l.job.ID)
+	log.Debug().
+		Str("job_id", l.job.ID).
+		Msg("job failed")
 
 	l.jobStatus.Complete(Failed)
 	l.jobStatus.Errors = append(l.jobStatus.Errors, Error{
