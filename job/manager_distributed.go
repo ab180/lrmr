@@ -33,7 +33,9 @@ const (
 )
 
 type DistributedManager struct {
-	clusterState       cluster.State
+	clusterState cluster.State
+	// job is the job that this manager is managing.
+	// Except MarkTaskAsSucceed, all methods of this manager only use job.ID.
 	job                *Job
 	jobSubscriptions   []func(*Status)
 	stageSubscriptions []func(stageName string, stageStatus *StageStatus)

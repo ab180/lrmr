@@ -192,3 +192,11 @@ func AbortDetachedJob(ctx context.Context, cluster cluster.Cluster, jobID string
 		}
 	}
 }
+
+// FetchDetatchedJobStatus fetches the status of a job.
+func FetchDetatchedJobStatus(ctx context.Context, cluster cluster.Cluster, jobID string) (*job.Status, error) {
+	jobManager := job.NewDistributedManager(cluster.States(), &job.Job{ID: jobID})
+	defer jobManager.Close()
+
+	return jobManager.FetchStatus(ctx)
+}
