@@ -39,8 +39,7 @@ func (p *PushStream) Dispatch() error {
 			return errors.Wrap(err, "stream dispatch")
 		}
 
-		// The user should manually return the []lrdd.Row to the pool.
-		rows := lrdd.GetRows(len(p.reqCache.Data))
+		rows := make([]lrdd.Row, len(p.reqCache.Data))
 		for i, row := range p.reqCache.Data {
 			value := lrdd.GetValue(p.reader.RowType())
 			_, err := value.UnmarshalMsg(row.Value)
@@ -48,11 +47,11 @@ func (p *PushStream) Dispatch() error {
 				return err
 			}
 
-			(*rows)[i].Key = row.Key
-			(*rows)[i].Value = value
+			rows[i].Key = row.Key
+			rows[i].Value = value
 		}
 
-		p.reader.Write(*rows)
+		p.reader.Write(rows)
 
 		p.reqCache.RemainCapicityReset()
 	}
