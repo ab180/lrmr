@@ -12,6 +12,7 @@ import (
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/transformation"
+	"github.com/rs/zerolog/log"
 	"github.com/therne/errorist"
 )
 
@@ -99,11 +100,16 @@ func (e *TaskExecutor) reportStatus(ctx context.Context) {
 
 	if errs != nil {
 		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), errs, e.Metrics); err != nil {
-			log.Error("While reporting the error, another error occurred", err)
+			log.Warn().
+				Err(err).
+				Msg("While reporting the error, another error occurred")
 		}
 	} else if ctx.Err() == nil {
 		if err := e.job.Reporter.ReportTaskSuccess(ctx, e.task.ID(), e.Metrics); err != nil {
-			log.Error("Task {} have been successfully done, but failed to report: {}", e.task.ID(), err)
+			log.Warn().
+				Err(err).
+				Interface("taskID", e.task.ID()).
+				Msg("Task have been successfully done, but failed to report")
 		}
 	}
 

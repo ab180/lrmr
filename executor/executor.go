@@ -23,15 +23,13 @@ import (
 	lrmrmetric "github.com/ab180/lrmr/metric"
 	"github.com/ab180/lrmr/output"
 	"github.com/ab180/lrmr/partitions"
-	"github.com/airbloc/logger"
 	"github.com/airbloc/logger/module/loggergrpc"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var log = logger.New("lrmr")
 
 type Executor struct {
 	lrmrpb.UnimplementedNodeServer
@@ -330,7 +328,11 @@ func errorLogMiddleware(srv interface{}, ss grpc.ServerStream, info *grpc.Stream
 			return nil
 		}
 		if h, herr := lrmrpb.DataHeaderFromMetadata(ss); herr == nil {
-			log.Error("{} called by {} failed: {}", h.TaskID, h.FromHost, err)
+			log.Warn().
+				Err(err).
+				Str("taskID", h.TaskID).
+				Str("fromHost", h.FromHost).
+				Msg("stream failed")
 		}
 		return err
 	}
