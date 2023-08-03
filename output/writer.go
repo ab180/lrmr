@@ -1,9 +1,11 @@
 package output
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ab180/lrmr/lrdd"
 	"github.com/ab180/lrmr/partitions"
-	"github.com/pkg/errors"
 )
 
 type Writer struct {
@@ -49,10 +51,10 @@ func (w *Writer) Write(data []lrdd.Row) error {
 	for id, rows := range writes {
 		out, ok := w.outputs[id]
 		if !ok {
-			return errors.Errorf("unknown partition ID %s", id)
+			return fmt.Errorf("unknown partition ID %s", id)
 		}
 		if err := out.Write(rows); err != nil {
-			return errors.Wrapf(err, "write %d rows to partition %s", len(rows), id)
+			return fmt.Errorf("%w write %d rows to partition %s", err, len(rows), id)
 		}
 	}
 	return nil
@@ -61,7 +63,7 @@ func (w *Writer) Write(data []lrdd.Row) error {
 func (w *Writer) Dispatch(taskID string, n int) ([]lrdd.Row, error) {
 	o, ok := w.outputs[taskID]
 	if !ok {
-		return nil, errors.Errorf("unknown task %v", taskID)
+		return nil, fmt.Errorf("unknown task %v", taskID)
 	}
 	if p, ok := o.(PullStream); ok {
 		return p.Dispatch(n), nil
@@ -73,13 +75,14 @@ func (w Writer) NumOutputs() int {
 	return len(w.outputs)
 }
 
-func (w *Writer) Close() (err error) {
+func (w *Writer) Close() error {
+	var errs error
 	for k, out := range w.outputs {
-		if e := out.Close(); e == nil {
-			err = e //nolint:staticcheck
+		if err := out.Close(); err != nil {
+			errs = errors.Join(errs, err)
 		}
 		delete(w.outputs, k)
 	}
 	w.outputs = nil
-	return nil
+	return errs
 }
