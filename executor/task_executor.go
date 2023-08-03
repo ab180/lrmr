@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ab180/lrmr/input"
 	"github.com/ab180/lrmr/job"
@@ -80,19 +81,24 @@ func (e *TaskExecutor) Run() {
 
 // reportStatus updates task status if failed.
 func (e *TaskExecutor) reportStatus(ctx context.Context) {
+	var errs error
+
 	// to flush outputs before the status report
 	if err := e.Output.Close(); err != nil {
-		log.Error("Failed to close output: {}")
+		errs = errors.Join(errs, err)
+	}
+
+	if e.taskError != nil {
+		errs = errors.Join(errs, e.taskError)
 	}
 
 	// recover panic
-	taskErr := e.taskError
 	if err := errorist.WrapPanic(recover()); err != nil {
-		taskErr = err
+		errs = errors.Join(errs, err)
 	}
 
-	if taskErr != nil {
-		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), taskErr, e.Metrics); err != nil {
+	if errs != nil {
+		if err := e.job.Reporter.ReportTaskFailure(ctx, e.task.ID(), errs, e.Metrics); err != nil {
 			log.Error("While reporting the error, another error occurred", err)
 		}
 	} else if ctx.Err() == nil {
